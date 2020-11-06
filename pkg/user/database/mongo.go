@@ -10,23 +10,23 @@ import (
 )
 
 type UserService struct {
-	Db     *mongo.Collection
+	DB     *mongo.Collection
 	Logger logger.Interface
 }
 
 func (s UserService) Add(user *user.User, ctx context.Context) error {
-	_, err := s.Db.InsertOne(ctx, user)
+	_, err := s.DB.InsertOne(ctx, user)
 	return err
 }
 
 func (s UserService) FindById(id string, ctx context.Context) (*user.User, error) {
 	var u = user.User{}
-	objectId, err := primitive.ObjectIDFromHex(id)
+	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
 	}
 
-	result := s.Db.FindOne(ctx, bson.M{"_id": objectId})
+	result := s.DB.FindOne(ctx, bson.M{"_id": objectID})
 	if result.Err() != nil {
 		return nil, result.Err()
 	}

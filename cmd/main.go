@@ -44,7 +44,7 @@ func main() {
 
 	userCollection := db.Collection("User")
 
-	var userService user.ServiceInterface = database.UserService{Db: userCollection, Logger: logging}
+	var userService user.ServiceInterface = database.UserService{DB: userCollection, Logger: logging}
 	userHandler := user.Handler{UserService: userService, Logger: logging}
 
 	r := mux.NewRouter()
@@ -67,7 +67,5 @@ func main() {
 	})
 
 	http.Handle("/", r)
-
-	log.Fatal(http.ListenAndServe(":80", r))
-
+	log.Panic(http.ListenAndServe(":80", r))
 }
