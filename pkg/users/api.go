@@ -1,4 +1,4 @@
-package user
+package users
 
 import (
 	"encoding/json"
@@ -26,9 +26,16 @@ func (handler *Handler) HandleUserAdd(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	user.Firstname = body["firstName"]
-	user.Lastname = body["lastName"]
+	user.Firstname = body["firstname"]
+	user.Lastname = body["lastname"]
 	user.Email = body["email"]
+
+	presentUser, err := handler.UserService.FindByEmail(request.Context(), user.Email)
+	if presentUser != nil {
+		handler.respondWithError(writer, http.StatusBadRequest,
+			"User with email "+presentUser.Email+" already exists", err)
+		return
+	}
 
 	password := body["password"]
 	// TODO: Hash Password
@@ -43,8 +50,6 @@ func (handler *Handler) HandleUserAdd(writer http.ResponseWriter, request *http.
 		}
 	}
 
-	// TODO: Check whether email exists already
-
 	err = handler.UserService.Add(request.Context(), &user)
 	if err != nil {
 		handler.respondWithError(writer, http.StatusInternalServerError,
@@ -54,7 +59,7 @@ func (handler *Handler) HandleUserAdd(writer http.ResponseWriter, request *http.
 	binary, err := json.Marshal(user)
 	if err != nil {
 		handler.respondWithError(writer, http.StatusInternalServerError,
-			"Parsing user didn't work", err)
+			"Parsing users didn't work", err)
 	}
 
 	_, err = writer.Write(binary)
@@ -95,9 +100,13 @@ func (handler *Handler) respondWithError(writer http.ResponseWriter, status int,
 		"status": status,
 		"error": map[string]interface{}{
 			"message": message,
-			"error":   err.Error(),
 		},
 	}
+
+	if err != nil {
+		response["err"] = err.Error()
+	}
+
 	binary, err := json.Marshal(response)
 	if err != nil {
 		handler.Logger.Fatal(err)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/benjasper/project-tasks/pkg/logger"
-	"github.com/benjasper/project-tasks/pkg/user"
-	"github.com/benjasper/project-tasks/pkg/user/database"
+	"github.com/benjasper/project-tasks/pkg/users"
+	"github.com/benjasper/project-tasks/pkg/users/database"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -48,8 +48,8 @@ func main() {
 
 	userCollection := db.Collection("Users")
 
-	var userService user.ServiceInterface = database.UserService{DB: userCollection, Logger: logging}
-	userHandler := user.Handler{UserService: userService, Logger: logging}
+	var userService users.ServiceInterface = database.UserService{DB: userCollection, Logger: logging}
+	userHandler := users.Handler{UserService: userService, Logger: logging}
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
