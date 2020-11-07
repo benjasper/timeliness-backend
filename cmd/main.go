@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/benjasper/project-tasks/pkg/communication"
 	"github.com/benjasper/project-tasks/pkg/logger"
 	"github.com/benjasper/project-tasks/pkg/users"
 	"github.com/benjasper/project-tasks/pkg/users/database"
@@ -48,8 +49,10 @@ func main() {
 
 	userCollection := db.Collection("Users")
 
+	errorManager := communication.ErrorResponseManager{Logger: logging}
+
 	var userService users.ServiceInterface = database.UserService{DB: userCollection, Logger: logging}
-	userHandler := users.Handler{UserService: userService, Logger: logging}
+	userHandler := users.Handler{UserService: userService, Logger: logging, ErrorManager: &errorManager}
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
