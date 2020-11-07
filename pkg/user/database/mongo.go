@@ -17,11 +17,13 @@ type UserService struct {
 }
 
 func (s UserService) Add(ctx context.Context, user *user.User) error {
+	user.CreatedAt = time.Now()
+	user.ID = primitive.NewObjectID()
 	_, err := s.DB.InsertOne(ctx, user)
 	return err
 }
 
-func (s UserService) FindById(ctx context.Context, id string) (*user.User, error) {
+func (s UserService) FindByID(ctx context.Context, id string) (*user.User, error) {
 	var u = user.User{}
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -41,14 +43,9 @@ func (s UserService) FindById(ctx context.Context, id string) (*user.User, error
 }
 
 func (s UserService) Update(ctx context.Context, user *user.User) error {
-	objectID, err := primitive.ObjectIDFromHex(user.ID)
-	if err != nil {
-		return err
-	}
-
 	user.LastModifiedAt = time.Now()
 
-	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": objectID}, user)
+	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, user)
 	if err != nil {
 		return err
 	}

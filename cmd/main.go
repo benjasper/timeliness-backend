@@ -23,16 +23,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var ctx, _ = context.WithTimeout(context.Background(), 10*time.Second)
+	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	err = client.Connect(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	err = client.Ping(ctx, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
+
 	defer func() {
 		err := client.Disconnect(ctx)
 		if err != nil {
@@ -40,9 +42,11 @@ func main() {
 		}
 	}()
 
+	fmt.Println("Database connected")
+
 	db := client.Database("test")
 
-	userCollection := db.Collection("User")
+	userCollection := db.Collection("Users")
 
 	var userService user.ServiceInterface = database.UserService{DB: userCollection, Logger: logging}
 	userHandler := user.Handler{UserService: userService, Logger: logging}
