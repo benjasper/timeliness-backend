@@ -16,8 +16,8 @@ type User struct {
 }
 
 type ServiceInterface interface {
-	Add(user *User, ctx context.Context) error
-	FindById(id string, ctx context.Context) (*User, error)
-	Update(user *User, ctx context.Context) error
-	Remove(id string, ctx context.Context) error
+	Add(ctx context.Context, user *User) error
+	FindById(ctx context.Context, id string) (*User, error)
+	Update(ctx context.Context, user *User) error
+	Remove(ctx context.Context, id string) error
 }
