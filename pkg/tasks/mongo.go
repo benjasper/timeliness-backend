@@ -58,6 +58,32 @@ func (s TaskService) FindAll(ctx context.Context, userID string) ([]Task, error)
 	return t, nil
 }
 
+func (s TaskService) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
+	t := Task{}
+
+	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return t, err
+	}
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return t, err
+	}
+
+	result := s.DB.FindOne(ctx, bson.M{"userid": userObjectID, "_id": taskObjectID})
+
+	if result.Err() != nil {
+		return t, result.Err()
+	}
+
+	err = result.Decode(&t)
+	if err != nil {
+		return t, err
+	}
+
+	return t, nil
+}
+
 func (s TaskService) Delete(ctx context.Context, id string) error {
 	panic("implement me")
 }
