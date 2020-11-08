@@ -24,10 +24,19 @@ func (s TaskService) Add(ctx context.Context, task *Task) error {
 	return err
 }
 
-func (s TaskService) Update(ctx context.Context, user *Task) error {
-	user.LastModifiedAt = time.Now()
+func (s TaskService) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
+	task.LastModifiedAt = time.Now()
 
-	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, user)
+	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return err
+	}
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return err
+	}
+
+	result, err := s.DB.UpdateOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID}, bson.M{"$set": task})
 	if err != nil {
 		return err
 	}
@@ -70,7 +79,33 @@ func (s TaskService) FindByID(ctx context.Context, taskID string, userID string)
 		return t, err
 	}
 
-	result := s.DB.FindOne(ctx, bson.M{"userid": userObjectID, "_id": taskObjectID})
+	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID})
+
+	if result.Err() != nil {
+		return t, result.Err()
+	}
+
+	err = result.Decode(&t)
+	if err != nil {
+		return t, err
+	}
+
+	return t, nil
+}
+
+func (s TaskService) FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error) {
+	t := TaskUpdate{}
+
+	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return t, err
+	}
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return t, err
+	}
+
+	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID})
 
 	if result.Err() != nil {
 		return t, result.Err()

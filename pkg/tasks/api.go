@@ -72,7 +72,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	userID := "5fa8158a47b7ff4422a5a407"
 	taskID := mux.Vars(request)["taskID"]
 
-	task, err := handler.TaskService.FindByID(request.Context(), taskID, userID)
+	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
@@ -84,16 +84,10 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	binary, err := json.Marshal(task)
+	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem marshalling task", err)
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
 	}
-
-	_, err = writer.Write(binary)
-	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem writing response", err)
-		return
-	}
+	writer.WriteHeader(http.StatusNoContent)
 }
