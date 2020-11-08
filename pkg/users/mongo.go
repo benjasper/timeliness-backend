@@ -1,10 +1,9 @@
-package database
+package users
 
 import (
 	"context"
 	"errors"
 	"github.com/benjasper/project-tasks/pkg/logger"
-	"github.com/benjasper/project-tasks/pkg/users"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -16,15 +15,16 @@ type UserService struct {
 	Logger logger.Interface
 }
 
-func (s UserService) Add(ctx context.Context, user *users.User) error {
+func (s UserService) Add(ctx context.Context, user *User) error {
 	user.CreatedAt = time.Now()
+	user.LastModifiedAt = time.Now()
 	user.ID = primitive.NewObjectID()
 	_, err := s.DB.InsertOne(ctx, user)
 	return err
 }
 
-func (s UserService) FindByID(ctx context.Context, id string) (*users.User, error) {
-	var u = users.User{}
+func (s UserService) FindByID(ctx context.Context, id string) (*User, error) {
+	var u = User{}
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
@@ -42,8 +42,8 @@ func (s UserService) FindByID(ctx context.Context, id string) (*users.User, erro
 	return &u, nil
 }
 
-func (s UserService) FindByEmail(ctx context.Context, email string) (*users.User, error) {
-	var u = users.User{}
+func (s UserService) FindByEmail(ctx context.Context, email string) (*User, error) {
+	var u = User{}
 
 	result := s.DB.FindOne(ctx, bson.M{"email": email})
 	if result.Err() != nil {
@@ -57,7 +57,7 @@ func (s UserService) FindByEmail(ctx context.Context, email string) (*users.User
 	return &u, nil
 }
 
-func (s UserService) Update(ctx context.Context, user *users.User) error {
+func (s UserService) Update(ctx context.Context, user *User) error {
 	user.LastModifiedAt = time.Now()
 
 	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, user)

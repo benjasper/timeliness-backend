@@ -1,10 +1,9 @@
-package database
+package tasks
 
 import (
 	"context"
 	"errors"
 	"github.com/benjasper/project-tasks/pkg/logger"
-	"github.com/benjasper/project-tasks/pkg/tasks"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,14 +16,15 @@ type TaskService struct {
 	Logger logger.Interface
 }
 
-func (s TaskService) Add(ctx context.Context, task *tasks.Task) error {
+func (s TaskService) Add(ctx context.Context, task *Task) error {
 	task.CreatedAt = time.Now()
+	task.LastModifiedAt = time.Now()
 	task.ID = primitive.NewObjectID()
 	_, err := s.DB.InsertOne(ctx, task)
 	return err
 }
 
-func (s TaskService) Update(ctx context.Context, user *tasks.Task) error {
+func (s TaskService) Update(ctx context.Context, user *Task) error {
 	user.LastModifiedAt = time.Now()
 
 	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, user)
@@ -39,13 +39,13 @@ func (s TaskService) Update(ctx context.Context, user *tasks.Task) error {
 	return nil
 }
 
-func (s TaskService) FindAll(ctx context.Context, userId string) ([]tasks.Task, error) {
-	var t []tasks.Task
+func (s TaskService) FindAll(ctx context.Context, userID string) ([]Task, error) {
+	var t []Task
 
 	findOptions := options.Find()
 	findOptions.SetSort(bson.M{"dueAt": 1})
 
-	cursor, err := s.DB.Find(ctx, bson.M{"userId": userId}, findOptions)
+	cursor, err := s.DB.Find(ctx, bson.M{"userId": userID}, findOptions)
 	if err != nil {
 		return nil, err
 	}
