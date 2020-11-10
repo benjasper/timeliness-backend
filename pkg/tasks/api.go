@@ -116,7 +116,13 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		pageSize, err = strconv.Atoi(queryPageSize)
 		if err != nil {
 			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter page", err)
+				"Bad query parameter pageSize", err)
+			return
+		}
+
+		if pageSize > 25 {
+			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+				"Page size can't be more than 25", nil)
 			return
 		}
 	}
