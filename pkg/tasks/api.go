@@ -7,6 +7,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"math"
 	"net/http"
 	"strconv"
 )
@@ -26,7 +27,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex("5faa9f5fa77b8287e3f31277")
+	userID, err := primitive.ObjectIDFromHex("5fab08ab101e69fea2001345")
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"UserID malformed", err)
@@ -70,7 +71,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
 	// TODO: Change to userID from Middleware(?)
-	userID := "5faa9f5fa77b8287e3f31277"
+	userID := "5fab08ab101e69fea2001345"
 	taskID := mux.Vars(request)["taskID"]
 
 	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
@@ -94,7 +95,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 }
 
 func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Request) {
-	userID := "5faa9f5fa77b8287e3f31277"
+	userID := "5fab08ab101e69fea2001345"
 
 	var page = 0
 	var pageSize = 10
@@ -127,9 +128,21 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
+	tasks, count, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
 
-	binary, err := json.Marshal(&tasks)
+	pages := float64(count) / float64(pageSize)
+
+	var response = map[string]interface{}{
+		"results": tasks,
+		"pagination": map[string]interface{}{
+			"pageCount": count,
+			"pageSize":  pageSize,
+			"pageIndex": page,
+			"pages":     int(math.Ceil(pages)),
+		},
+	}
+
+	binary, err := json.Marshal(&response)
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem while marshalling tasks into json", err)

@@ -41,7 +41,7 @@ type TaskUpdate struct {
 
 type TaskServiceInterface interface {
 	Add(ctx context.Context, task *Task) error
-	FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, error)
+	FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error)
 	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error)
 	Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error

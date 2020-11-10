@@ -48,12 +48,12 @@ func (s TaskService) Update(ctx context.Context, taskID string, userID string, t
 	return nil
 }
 
-func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, error) {
+func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	offset := page * pageSize
@@ -63,17 +63,24 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	cursor, err := s.DB.Find(ctx, bson.M{"userId": userObjectID}, findOptions)
+	filter := bson.M{"userId": userObjectID}
+
+	cursor, err := s.DB.Find(ctx, filter, findOptions)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+
+	count, err := s.DB.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	err = cursor.All(ctx, &t)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return t, nil
+	return t, int(count), nil
 }
 
 func (s TaskService) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
