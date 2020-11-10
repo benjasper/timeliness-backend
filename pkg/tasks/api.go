@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"net/http"
+	"strconv"
 )
 
 type Handler struct {
@@ -25,7 +26,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex("5fa8158a47b7ff4422a5a407")
+	userID, err := primitive.ObjectIDFromHex("5faa9f5fa77b8287e3f31277")
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"UserID malformed", err)
@@ -69,7 +70,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
 	// TODO: Change to userID from Middleware(?)
-	userID := "5fa8158a47b7ff4422a5a407"
+	userID := "5faa9f5fa77b8287e3f31277"
 	taskID := mux.Vars(request)["taskID"]
 
 	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
@@ -90,4 +91,49 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 	writer.WriteHeader(http.StatusNoContent)
+}
+
+func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Request) {
+	userID := "5faa9f5fa77b8287e3f31277"
+
+	var page = 0
+	var pageSize = 10
+	var err error
+
+	queryPage := request.URL.Query().Get("page")
+	queryPageSize := request.URL.Query().Get("pageSize")
+
+	if queryPage != "" {
+		page, err = strconv.Atoi(queryPage)
+		if err != nil {
+			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter page", err)
+			return
+		}
+	}
+
+	if queryPageSize != "" {
+		pageSize, err = strconv.Atoi(queryPageSize)
+		if err != nil {
+			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter page", err)
+			return
+		}
+	}
+
+	tasks, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
+
+	binary, err := json.Marshal(&tasks)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem while marshalling tasks into json", err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem writing response", err)
+		return
+	}
 }

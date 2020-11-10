@@ -71,6 +71,7 @@ func main() {
 	r.HandleFunc("/user/{id}", userHandler.HandleUserGet).Methods(http.MethodGet)
 	r.HandleFunc("/task", taskHandler.TaskAdd).Methods(http.MethodPost)
 	r.HandleFunc("/task/{taskID}", taskHandler.TaskUpdate).Methods(http.MethodPut)
+	r.HandleFunc("/tasks", taskHandler.GetAllTasks).Methods(http.MethodGet)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
