@@ -64,14 +64,16 @@ func main() {
 
 	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &errorManager}
 
-	r.HandleFunc("/user", userHandler.HandleUserAdd).Methods(http.MethodPost)
+	authApi := r.PathPrefix("/api/" + apiVersion + "/auth/").Subrouter()
+	authApi.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
+	authApi.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
 
-	apiValidated := r.PathPrefix("/api/" + apiVersion).Subrouter()
-	apiValidated.Use(authMiddleWare.Middleware)
-	apiValidated.Path("/user/{id}").HandlerFunc(userHandler.HandleUserGet).Methods(http.MethodGet)
-	apiValidated.Path("/task").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
-	apiValidated.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
-	apiValidated.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
+	authenticatedApi := r.PathPrefix("/api/" + apiVersion).Subrouter()
+	authenticatedApi.Use(authMiddleWare.Middleware)
+	authenticatedApi.Path("/user/{id}").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
+	authenticatedApi.Path("/task").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
+	authenticatedApi.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
+	authenticatedApi.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

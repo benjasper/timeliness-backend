@@ -30,24 +30,7 @@ type Claims struct {
 	NotBefore      int64  `json:"nbf,omitempty"`
 	IssuedAt       int64  `json:"iat,omitempty"`
 	JwtID          string `json:"jti,omitempty"`
-
-	CustomClaims map[string]interface{} `json:"customClaims,omitempty"`
-}
-
-func (c *Claims) GetString(key string) string {
-	return fmt.Sprint(c.CustomClaims[key])
-}
-
-func (c *Claims) GetInt(key string) int64 {
-	return (c.CustomClaims[key]).(int64)
-}
-
-func (c *Claims) Verify() error {
-	if time.Unix(c.ExpirationTime, 0).Before(time.Now()) {
-		return fmt.Errorf("token expired: %s > %d", time.Now(), c.ExpirationTime)
-	}
-
-	return nil
+	TokenType      string `json:"tkt,omitempty"`
 }
 
 type Token struct {
@@ -55,10 +38,22 @@ type Token struct {
 	Payload Claims
 }
 
-func (t *Token) New(algorithm string, payload Claims) {
+func (c *Claims) Verify() error {
+	// TODO: More verification
+	if time.Unix(c.ExpirationTime, 0).Before(time.Now()) {
+		return fmt.Errorf("token expired: %s > %d", time.Now(), c.ExpirationTime)
+	}
+
+	return nil
+}
+
+func New(algorithm string, payload Claims) Token {
+	t := Token{}
 	header := Header{Alg: algorithm, Typ: TypJWT}
 	t.Header = header
 	t.Payload = payload
+
+	return t
 }
 
 func (t *Token) Sign(secret string) (string, error) {
@@ -97,7 +92,7 @@ func Verify(token string, secret string, algorithm string, payload Claims) (*Tok
 		return nil, errors.New("token is empty")
 	}
 
-	if strings.Count(token, ".") != 2 {
+	if len(strings.Split(token, ".")) != 3 {
 		return nil, errors.New("no 3 part token structure")
 	}
 
@@ -158,8 +153,7 @@ func Verify(token string, secret string, algorithm string, payload Claims) (*Tok
 		return nil, err
 	}
 
-	decodedToken := Token{}
-	decodedToken.New(algorithm, payload)
+	decodedToken := New(algorithm, payload)
 
 	return &decodedToken, nil
 }
