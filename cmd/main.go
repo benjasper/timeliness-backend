@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/benjasper/project-tasks/pkg/auth"
 	"github.com/benjasper/project-tasks/pkg/communication"
 	"github.com/benjasper/project-tasks/pkg/logger"
 	"github.com/benjasper/project-tasks/pkg/tasks"
@@ -61,14 +62,16 @@ func main() {
 
 	r := mux.NewRouter()
 
+	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &errorManager}
+
 	r.HandleFunc("/user", userHandler.HandleUserAdd).Methods(http.MethodPost)
 
 	apiValidated := r.PathPrefix("/api/" + apiVersion).Subrouter()
-	apiValidated.Use()
-	apiValidated.HandleFunc("/user/{id}", userHandler.HandleUserGet).Methods(http.MethodGet)
-	apiValidated.HandleFunc("/task", taskHandler.TaskAdd).Methods(http.MethodPost)
-	apiValidated.HandleFunc("/task/{taskID}", taskHandler.TaskUpdate).Methods(http.MethodPut)
-	apiValidated.HandleFunc("/tasks", taskHandler.GetAllTasks).Methods(http.MethodGet)
+	apiValidated.Use(authMiddleWare.Middleware)
+	apiValidated.Path("/user/{id}").HandlerFunc(userHandler.HandleUserGet).Methods(http.MethodGet)
+	apiValidated.Path("/task").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
+	apiValidated.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
+	apiValidated.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
