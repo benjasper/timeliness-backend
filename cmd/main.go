@@ -16,6 +16,7 @@ import (
 )
 
 func main() {
+	apiVersion := "v1"
 	var logging logger.Interface = logger.Logger{}
 	fmt.Println("Server is starting up...")
 
@@ -59,19 +60,15 @@ func main() {
 	taskHandler := tasks.Handler{TaskService: taskService, Logger: logging, ErrorManager: &errorManager}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(http.StatusOK)
 
-		_, err := fmt.Fprint(writer, "Welcome to the API! ✔")
-		if err != nil {
-			log.Printf("Error: %v\n", err)
-		}
-	})
 	r.HandleFunc("/user", userHandler.HandleUserAdd).Methods(http.MethodPost)
-	r.HandleFunc("/user/{id}", userHandler.HandleUserGet).Methods(http.MethodGet)
-	r.HandleFunc("/task", taskHandler.TaskAdd).Methods(http.MethodPost)
-	r.HandleFunc("/task/{taskID}", taskHandler.TaskUpdate).Methods(http.MethodPut)
-	r.HandleFunc("/tasks", taskHandler.GetAllTasks).Methods(http.MethodGet)
+
+	apiValidated := r.PathPrefix("/api/" + apiVersion).Subrouter()
+	apiValidated.Use()
+	apiValidated.HandleFunc("/user/{id}", userHandler.HandleUserGet).Methods(http.MethodGet)
+	apiValidated.HandleFunc("/task", taskHandler.TaskAdd).Methods(http.MethodPost)
+	apiValidated.HandleFunc("/task/{taskID}", taskHandler.TaskUpdate).Methods(http.MethodPut)
+	apiValidated.HandleFunc("/tasks", taskHandler.GetAllTasks).Methods(http.MethodGet)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
