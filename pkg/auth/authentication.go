@@ -13,6 +13,7 @@ type AuthenticationMiddleware struct {
 
 func (m *AuthenticationMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
+
 	})
 }
 
