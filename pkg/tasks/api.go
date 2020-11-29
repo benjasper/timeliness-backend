@@ -34,7 +34,6 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	// TODO: Change to userID from Middleware(?)
 	task.UserID = userID
 
 	v := validator.New()
@@ -70,7 +69,6 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 }
 
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
-	// TODO: Change to userID from Middleware(?)
 	userID := request.Context().Value("userID").(string)
 	taskID := mux.Vars(request)["taskID"]
 
