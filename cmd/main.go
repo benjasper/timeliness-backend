@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/benjasper/project-tasks/pkg/auth"
 	"github.com/benjasper/project-tasks/pkg/communication"
 	"github.com/benjasper/project-tasks/pkg/logger"
 	"github.com/benjasper/project-tasks/pkg/tasks"
@@ -16,6 +17,7 @@ import (
 )
 
 func main() {
+	apiVersion := "v1"
 	var logging logger.Interface = logger.Logger{}
 	fmt.Println("Server is starting up...")
 
@@ -59,19 +61,19 @@ func main() {
 	taskHandler := tasks.Handler{TaskService: taskService, Logger: logging, ErrorManager: &errorManager}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(http.StatusOK)
 
-		_, err := fmt.Fprint(writer, "Welcome to the API! ✔")
-		if err != nil {
-			log.Printf("Error: %v\n", err)
-		}
-	})
-	r.HandleFunc("/user", userHandler.HandleUserAdd).Methods(http.MethodPost)
-	r.HandleFunc("/user/{id}", userHandler.HandleUserGet).Methods(http.MethodGet)
-	r.HandleFunc("/task", taskHandler.TaskAdd).Methods(http.MethodPost)
-	r.HandleFunc("/task/{taskID}", taskHandler.TaskUpdate).Methods(http.MethodPut)
-	r.HandleFunc("/tasks", taskHandler.GetAllTasks).Methods(http.MethodGet)
+	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &errorManager}
+
+	authApi := r.PathPrefix("/api/" + apiVersion + "/auth/").Subrouter()
+	authApi.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
+	authApi.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
+
+	authenticatedApi := r.PathPrefix("/api/" + apiVersion).Subrouter()
+	authenticatedApi.Use(authMiddleWare.Middleware)
+	authenticatedApi.Path("/user/{id}").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
+	authenticatedApi.Path("/task").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
+	authenticatedApi.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
+	authenticatedApi.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

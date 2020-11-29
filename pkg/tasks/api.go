@@ -27,14 +27,13 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex("5fab08ab101e69fea2001345")
+	userID, err := primitive.ObjectIDFromHex(request.Context().Value("userID").(string))
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"UserID malformed", err)
 		return
 	}
 
-	// TODO: Change to userID from Middleware(?)
 	task.UserID = userID
 
 	v := validator.New()
@@ -70,8 +69,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 }
 
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
-	// TODO: Change to userID from Middleware(?)
-	userID := "5fab08ab101e69fea2001345"
+	userID := request.Context().Value("userID").(string)
 	taskID := mux.Vars(request)["taskID"]
 
 	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
@@ -95,7 +93,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 }
 
 func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Request) {
-	userID := "5fab08ab101e69fea2001345"
+	userID := request.Context().Value("userID").(string)
 
 	var page = 0
 	var pageSize = 10

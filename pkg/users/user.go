@@ -7,13 +7,18 @@ import (
 )
 
 type User struct {
-	ID             primitive.ObjectID `bson:"_id" json:"id"`
+	ID             primitive.ObjectID `json:"id" bson:"_id"`
 	Firstname      string             `json:"firstname" validate:"required"`
 	Lastname       string             `json:"lastname" validate:"required"`
 	Password       string             `json:"-" bson:"password" validate:"required"`
 	Email          string             `json:"email"  validate:"required,email"`
-	CreatedAt      time.Time          `json:"createdAt" validate:"isdefault"`
-	LastModifiedAt time.Time          `json:"lastModifiedAt" validate:"isdefault"`
+	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt" validate:"isdefault"`
+	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
+}
+
+type UserLogin struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" bson:"password" validate:"required"`
 }
 
 type ServiceInterface interface {
