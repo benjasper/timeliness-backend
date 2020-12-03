@@ -2,7 +2,7 @@ package communication
 
 import (
 	"encoding/json"
-	"github.com/benjasper/project-tasks/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"net/http"
 )
 

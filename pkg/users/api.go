@@ -2,11 +2,11 @@ package users
 
 import (
 	"encoding/json"
-	"github.com/benjasper/project-tasks/pkg/auth/jwt"
-	"github.com/benjasper/project-tasks/pkg/communication"
-	"github.com/benjasper/project-tasks/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
+	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"time"
@@ -106,7 +106,6 @@ func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Reques
 }
 
 func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Request) {
-
 	userLogin := UserLogin{}
 	err := json.NewDecoder(request.Body).Decode(&userLogin)
 	if err != nil {

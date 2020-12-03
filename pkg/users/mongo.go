@@ -3,7 +3,7 @@ package users
 import (
 	"context"
 	"errors"
-	"github.com/benjasper/project-tasks/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"

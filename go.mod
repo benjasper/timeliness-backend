@@ -1,4 +1,4 @@
-module github.com/benjasper/project-tasks
+module github.com/timeliness-app/timeliness-backend
 
 go 1.15
 

@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 	"errors"
-	"github.com/benjasper/project-tasks/pkg/auth/jwt"
-	"github.com/benjasper/project-tasks/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
+	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"net/http"
 	"strings"
 )

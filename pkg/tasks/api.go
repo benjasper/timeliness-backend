@@ -2,10 +2,10 @@ package tasks
 
 import (
 	"encoding/json"
-	"github.com/benjasper/project-tasks/pkg/communication"
-	"github.com/benjasper/project-tasks/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 	"net/http"
@@ -65,7 +65,6 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 			"Problem writing response", err)
 		return
 	}
-
 }
 
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
@@ -126,7 +125,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, count, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
+	tasks, count, _ := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
 
 	pages := float64(count) / float64(pageSize)
 

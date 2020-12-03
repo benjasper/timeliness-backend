@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/benjasper/project-tasks/pkg/auth"
-	"github.com/benjasper/project-tasks/pkg/communication"
-	"github.com/benjasper/project-tasks/pkg/logger"
-	"github.com/benjasper/project-tasks/pkg/tasks"
-	"github.com/benjasper/project-tasks/pkg/users"
 	"github.com/gorilla/mux"
+	"github.com/timeliness-app/timeliness-backend/pkg/auth"
+	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
+	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
@@ -64,16 +64,16 @@ func main() {
 
 	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &errorManager}
 
-	authApi := r.PathPrefix("/api/" + apiVersion + "/auth/").Subrouter()
-	authApi.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
-	authApi.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
+	authAPI := r.PathPrefix("/api/" + apiVersion + "/auth/").Subrouter()
+	authAPI.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
+	authAPI.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
 
-	authenticatedApi := r.PathPrefix("/api/" + apiVersion).Subrouter()
-	authenticatedApi.Use(authMiddleWare.Middleware)
-	authenticatedApi.Path("/user/{id}").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
-	authenticatedApi.Path("/task").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
-	authenticatedApi.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
-	authenticatedApi.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
+	authenticatedAPI := r.PathPrefix("/api/" + apiVersion).Subrouter()
+	authenticatedAPI.Use(authMiddleWare.Middleware)
+	authenticatedAPI.Path("/user/{id}").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
+	authenticatedAPI.Path("/task").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
+	authenticatedAPI.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
+	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
