@@ -57,10 +57,25 @@ func (s UserService) FindByEmail(ctx context.Context, email string) (*User, erro
 	return &u, nil
 }
 
+func (s UserService) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
+	var u = User{}
+
+	result := s.DB.FindOne(ctx, bson.M{"googleCalendarConnection.stateToken": stateToken})
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	err := result.Decode(&u)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 func (s UserService) Update(ctx context.Context, user *User) error {
 	user.LastModifiedAt = time.Now()
 
-	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, user)
+	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": user})
 	if err != nil {
 		return err
 	}

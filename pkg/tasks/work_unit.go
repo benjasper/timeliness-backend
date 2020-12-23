@@ -7,6 +7,6 @@ type WorkUnit struct {
 	IsDone       bool      `json:"isDone"`
 	MarkedDoneAt time.Time `json:"markedDoneAt"`
 
-	ScheduledAt time.Time `json:"scheduledAt"`
-	Workload    int       `json:"workload"`
+	ScheduledAt time.Time     `json:"scheduledAt"`
+	Workload    time.Duration `json:"workload"`
 }

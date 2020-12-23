@@ -2,20 +2,26 @@ package tasks
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
+	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type Handler struct {
-	TaskService  TaskServiceInterface
-	Logger       logger.Interface
-	ErrorManager *communication.ErrorResponseManager
+	TaskService     TaskServiceInterface
+	UserService     *users.UserService
+	CalendarService *calendar.CalendarService
+	Logger          logger.Interface
+	ErrorManager    *communication.ErrorResponseManager
 }
 
 func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Request) {
@@ -150,6 +156,123 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem writing response", err)
+		return
+	}
+}
+
+func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value("userID").(string)
+
+	u, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"User not found", err)
+		return
+	}
+	window := calendar.TimeWindow{Start: time.Now(), End: time.Now().AddDate(0, 0, 8)}
+
+	timeslots, err := handler.CalendarService.SuggestTimeslot(u, &window)
+	if err != nil {
+		if errors.Is(err, calendar.ErrorInvalidToken) {
+			handler.ErrorManager.RespondWithError(writer, http.StatusMethodNotAllowed,
+				"No Google calendar connection", err)
+			return
+		}
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem while marshalling tasks into json", err)
+		return
+	}
+
+	binary, err := json.Marshal(&timeslots)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem while marshalling tasks into json", err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem writing response", err)
+		return
+	}
+}
+
+func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, request *http.Request) {
+	authCode := request.URL.Query().Get("code")
+
+	stateToken := request.URL.Query().Get("state")
+
+	usr, err := handler.UserService.FindByGoogleStateToken(request.Context(), stateToken)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		return
+	}
+
+	token, err := handler.CalendarService.GetGoogleToken(request.Context(), usr, authCode)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
+		return
+	}
+
+	usr.GoogleCalendarConnection.Token = *token
+	usr.GoogleCalendarConnection.StateToken = ""
+
+	_ = handler.UserService.Update(request.Context(), usr)
+
+	var response = map[string]interface{}{
+		"message": "Successfully connected accounts",
+	}
+
+	binary, err := json.Marshal(response)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+}
+
+func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value("userID").(string)
+
+	u, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		return
+	}
+
+	url, stateToken, err := handler.CalendarService.GetGoogleAuthURL(u)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
+		return
+	}
+
+	u.GoogleCalendarConnection.StateToken = stateToken
+
+	err = handler.UserService.Update(request.Context(), u)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		return
+	}
+
+	var response = map[string]interface{}{
+		"url": url,
+	}
+
+	binary, err := json.Marshal(response)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.Logger.Fatal(err)
 		return
 	}
 }

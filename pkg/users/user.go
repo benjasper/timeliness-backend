@@ -1,8 +1,8 @@
 package users
 
 import (
-	"context"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/oauth2"
 	"time"
 )
 
@@ -11,9 +11,11 @@ type User struct {
 	Firstname      string             `json:"firstname" validate:"required"`
 	Lastname       string             `json:"lastname" validate:"required"`
 	Password       string             `json:"-" bson:"password" validate:"required"`
-	Email          string             `json:"email"  validate:"required,email"`
+	Email          string             `json:"email" validate:"required,email"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt" validate:"isdefault"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
+
+	GoogleCalendarConnection GoogleCalendarConnection `json:"googleCalendarConnection,omitempty" bson:"googleCalendarConnection,omitempty"`
 }
 
 type UserLogin struct {
@@ -21,10 +23,8 @@ type UserLogin struct {
 	Password string `json:"password" bson:"password" validate:"required"`
 }
 
-type ServiceInterface interface {
-	Add(ctx context.Context, user *User) error
-	FindByID(ctx context.Context, id string) (*User, error)
-	FindByEmail(ctx context.Context, email string) (*User, error)
-	Update(ctx context.Context, user *User) error
-	Remove(ctx context.Context, id string) error
+type GoogleCalendarConnection struct {
+	Token      oauth2.Token
+	StateToken string `json:"stateToken,omitempty" bson:"stateToken,omitempty"`
+	CalendarID string `json:"calendarId,omitempty" bson:"calendarId,omitempty"`
 }
