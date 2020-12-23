@@ -8,6 +8,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -54,11 +55,17 @@ func main() {
 
 	errorManager := communication.ErrorResponseManager{Logger: logging}
 
-	var userService users.ServiceInterface = users.UserService{DB: userCollection, Logger: logging}
+	calendarService := calendar.CalendarService{}
+
+	userService := users.UserService{DB: userCollection, Logger: logging}
 	userHandler := users.Handler{UserService: userService, Logger: logging, ErrorManager: &errorManager}
 
 	var taskService tasks.TaskServiceInterface = tasks.TaskService{DB: taskCollection, Logger: logging}
-	taskHandler := tasks.Handler{TaskService: taskService, Logger: logging, ErrorManager: &errorManager}
+	taskHandler := tasks.Handler{TaskService: taskService,
+		Logger:          logging,
+		ErrorManager:    &errorManager,
+		UserService:     &userService,
+		CalendarService: &calendarService}
 
 	r := mux.NewRouter()
 
@@ -67,6 +74,7 @@ func main() {
 	authAPI := r.PathPrefix("/api/" + apiVersion + "/auth/").Subrouter()
 	authAPI.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
 	authAPI.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
+	authAPI.Path("/google").HandlerFunc(taskHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
 
 	authenticatedAPI := r.PathPrefix("/api/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)
@@ -74,6 +82,8 @@ func main() {
 	authenticatedAPI.Path("/task").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
 	authenticatedAPI.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
+	authenticatedAPI.Path("/calendar/suggest").HandlerFunc(taskHandler.Suggest).Methods(http.MethodGet)
+	authenticatedAPI.Path("/calendar/connect/google").HandlerFunc(taskHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

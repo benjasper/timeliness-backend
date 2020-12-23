@@ -13,7 +13,7 @@ import (
 )
 
 type Handler struct {
-	UserService  ServiceInterface
+	UserService  UserService
 	Logger       logger.Interface
 	ErrorManager *communication.ErrorResponseManager
 }
