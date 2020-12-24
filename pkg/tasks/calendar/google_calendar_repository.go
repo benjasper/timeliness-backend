@@ -3,8 +3,8 @@ package calendar
 import (
 	"context"
 	"errors"
+	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
-	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"google.golang.org/api/option"
 	"time"
@@ -27,7 +27,7 @@ func NewCalendarRepository(u *users.User) (*CalendarRepository, error) {
 	config, _ := google.ReadGoogleConfig()
 	newRepo.Config = config
 
-	if u.GoogleCalendarConnection.Token.AccessToken == "" || u.GoogleCalendarConnection.Token.Expiry.Before(time.Now()) {
+	if u.GoogleCalendarConnection.Token.AccessToken == "" {
 		return nil, ErrorInvalidToken
 	}
 
@@ -56,7 +56,7 @@ func (c *CalendarRepository) CreateCalendar() (string, error) {
 	return cal.Id, nil
 }
 
-func (c *CalendarRepository) AddBusytimesToWindow(window *TimeWindow) error {
+func (c *CalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 	calList, err := c.Service.CalendarList.List().Do()
 	if err != nil {
 		return err
