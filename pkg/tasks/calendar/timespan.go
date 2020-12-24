@@ -44,13 +44,10 @@ func (w *TimeWindow) ComputeFree() []Timespan {
 	var free = make([]Timespan, 0)
 
 	for index, busy := range w.Busy {
-		if index == 0 && !busy.End.After(w.Start) {
-			free = append(free, Timespan{Start: w.Start, End: busy.Start})
-			continue
-		}
-
-		if index == len(w.Busy)-1 && busy.Start.Before(w.End) {
-			continue
+		if index == 0 {
+			if w.Start.Before(busy.Start) {
+				free = append(free, Timespan{Start: w.Start, End: busy.Start})
+			}
 		}
 
 		if index == len(w.Busy)-1 {
@@ -60,6 +57,8 @@ func (w *TimeWindow) ComputeFree() []Timespan {
 
 		free = append(free, Timespan{Start: busy.End, End: w.Busy[index+1].Start})
 	}
+
+	w.Free = free
 
 	return free
 }
