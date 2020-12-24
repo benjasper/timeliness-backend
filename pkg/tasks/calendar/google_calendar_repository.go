@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"google.golang.org/api/option"
-	"io/ioutil"
-	"log"
 	"time"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	gcalendar "google.golang.org/api/calendar/v3"
 )
 
@@ -23,27 +21,10 @@ type CalendarRepository struct {
 	Service *gcalendar.Service
 }
 
-func ReadGoogleConfig() (*oauth2.Config, error) {
-	b, err := ioutil.ReadFile("./keys/credentials.json")
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-
-	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, gcalendar.CalendarScope)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-
-	return config, nil
-}
-
 func NewCalendarRepository(u *users.User) (*CalendarRepository, error) {
 	newRepo := CalendarRepository{}
 
-	config, _ := ReadGoogleConfig()
+	config, _ := google.ReadGoogleConfig()
 	newRepo.Config = config
 
 	if u.GoogleCalendarConnection.Token.AccessToken == "" || u.GoogleCalendarConnection.Token.Expiry.Before(time.Now()) {

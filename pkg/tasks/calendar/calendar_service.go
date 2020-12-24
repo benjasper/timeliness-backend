@@ -3,6 +3,7 @@ package calendar
 import (
 	"context"
 	"github.com/google/uuid"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"golang.org/x/oauth2"
 )
@@ -11,7 +12,7 @@ type CalendarService struct {
 }
 
 func (c *CalendarService) GetGoogleToken(context context.Context, u *users.User, authCode string) (*oauth2.Token, error) {
-	config, _ := ReadGoogleConfig()
+	config, _ := google.ReadGoogleConfig()
 
 	tok, err := config.Exchange(context, authCode, oauth2.AccessTypeOffline)
 	if err != nil {
@@ -21,7 +22,7 @@ func (c *CalendarService) GetGoogleToken(context context.Context, u *users.User,
 }
 
 func (c *CalendarService) GetGoogleAuthURL(u *users.User) (string, string, error) {
-	config, err := ReadGoogleConfig()
+	config, err := google.ReadGoogleConfig()
 	if err != nil {
 		return "", "", err
 	}
