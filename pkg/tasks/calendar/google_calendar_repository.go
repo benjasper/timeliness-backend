@@ -15,14 +15,14 @@ import (
 
 var ErrorInvalidToken = errors.New("google token is invalid")
 
-type CalendarRepository struct {
+type GoogleCalendarRepository struct {
 	Config  *oauth2.Config
 	Logger  logger.Interface
 	Service *gcalendar.Service
 }
 
-func NewCalendarRepository(u *users.User) (*CalendarRepository, error) {
-	newRepo := CalendarRepository{}
+func NewCalendarRepository(u *users.User) (*GoogleCalendarRepository, error) {
+	newRepo := GoogleCalendarRepository{}
 
 	config, _ := google.ReadGoogleConfig()
 	newRepo.Config = config
@@ -43,7 +43,7 @@ func NewCalendarRepository(u *users.User) (*CalendarRepository, error) {
 	return &newRepo, nil
 }
 
-func (c *CalendarRepository) CreateCalendar() (string, error) {
+func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	// calendarId := "refm50ua0bukpdmp52a84cgshk@group.gcalendar.google.com"
 	newCalendar := gcalendar.Calendar{
 		Summary: "Tasks",
@@ -56,7 +56,7 @@ func (c *CalendarRepository) CreateCalendar() (string, error) {
 	return cal.Id, nil
 }
 
-func (c *CalendarRepository) AddBusyToWindow(window *TimeWindow) error {
+func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 	calList, err := c.Service.CalendarList.List().Do()
 	if err != nil {
 		return err
