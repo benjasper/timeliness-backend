@@ -74,7 +74,7 @@ func main() {
 	authAPI := r.PathPrefix("/api/" + apiVersion + "/auth/").Subrouter()
 	authAPI.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
 	authAPI.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
-	authAPI.Path("/google").HandlerFunc(taskHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
+	authAPI.Path("/google").HandlerFunc(userHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
 
 	authenticatedAPI := r.PathPrefix("/api/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)
@@ -83,7 +83,8 @@ func main() {
 	authenticatedAPI.Path("/task/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPut)
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
 	authenticatedAPI.Path("/calendar/suggest").HandlerFunc(taskHandler.Suggest).Methods(http.MethodGet)
-	authenticatedAPI.Path("/calendar/connect/google").HandlerFunc(taskHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
+	authenticatedAPI.Path("/calendar/connect/google").
+		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
@@ -176,4 +177,83 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 
 func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Request) {
 
+}
+
+func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value("userID").(string)
+
+	u, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		return
+	}
+
+	url, stateToken, err := google.GetGoogleAuthURL()
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
+		return
+	}
+
+	u.GoogleCalendarConnection.StateToken = stateToken
+
+	err = handler.UserService.Update(request.Context(), u)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		return
+	}
+
+	var response = map[string]interface{}{
+		"url": url,
+	}
+
+	binary, err := json.Marshal(response)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+}
+
+func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, request *http.Request) {
+	authCode := request.URL.Query().Get("code")
+
+	stateToken := request.URL.Query().Get("state")
+
+	usr, err := handler.UserService.FindByGoogleStateToken(request.Context(), stateToken)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		return
+	}
+
+	token, err := google.GetGoogleToken(request.Context(), authCode)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
+		return
+	}
+
+	usr.GoogleCalendarConnection.Token = *token
+	usr.GoogleCalendarConnection.StateToken = ""
+
+	_ = handler.UserService.Update(request.Context(), usr)
+
+	var response = map[string]interface{}{
+		"message": "Successfully connected accounts",
+	}
+
+	binary, err := json.Marshal(response)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
 }
