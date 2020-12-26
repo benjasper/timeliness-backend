@@ -2,22 +2,30 @@ package tasks
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
+	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 )
 
+// Handler handles all task related API calls
 type Handler struct {
-	TaskService  TaskServiceInterface
+	TaskService  TaskService
+	UserService  *users.UserService
 	Logger       logger.Interface
 	ErrorManager *communication.ErrorResponseManager
 }
 
+// TaskAdd is the route for adding a task
 func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Request) {
 	task := Task{}
 
@@ -67,8 +75,9 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 	}
 }
 
+// TaskUpdate is the route for updating a task
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
-	userID := request.Context().Value("userID").(string)
+	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
 	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
@@ -91,8 +100,9 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// GetAllTasks is the route for getting all tasks
 func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Request) {
-	userID := request.Context().Value("userID").(string)
+	userID := request.Context().Value(auth.KeyUserID).(string)
 
 	var page = 0
 	var pageSize = 10
@@ -140,6 +150,52 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	}
 
 	binary, err := json.Marshal(&response)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem while marshalling tasks into json", err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem writing response", err)
+		return
+	}
+}
+
+// Suggest is the route for getting suggested free times
+func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	u, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"User not found", err)
+		return
+	}
+	window := calendar.TimeWindow{Start: time.Now(), End: time.Now().AddDate(0, 0, 8)}
+
+	planningController, err := NewPlanningController(request.Context(), u, handler.UserService)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"No calendar access", err)
+		return
+	}
+
+	timeslots, err := planningController.SuggestTimeslot(u, &window)
+	if err != nil {
+		if errors.Is(err, calendar.ErrorInvalidToken) {
+			handler.ErrorManager.RespondWithError(writer, http.StatusMethodNotAllowed,
+				"No Google calendar connection", err)
+			return
+		}
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem while marshalling tasks into json", err)
+		return
+	}
+
+	binary, err := json.Marshal(&timeslots)
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem while marshalling tasks into json", err)
