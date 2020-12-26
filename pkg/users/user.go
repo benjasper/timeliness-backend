@@ -15,7 +15,7 @@ type User struct {
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt" validate:"isdefault"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
 
-	GoogleCalendarConnection GoogleCalendarConnection `json:"googleCalendarConnection,omitempty" bson:"googleCalendarConnection,omitempty"`
+	GoogleCalendarConnection GoogleCalendarConnection `json:"-" bson:"googleCalendarConnection,omitempty"`
 }
 
 type UserLogin struct {

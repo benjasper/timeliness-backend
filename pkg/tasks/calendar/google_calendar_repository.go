@@ -19,10 +19,13 @@ type GoogleCalendarRepository struct {
 	Config  *oauth2.Config
 	Logger  logger.Interface
 	Service *gcalendar.Service
+	ctx     context.Context
 }
 
-func NewGoogleCalendarRepository(u *users.User) (*GoogleCalendarRepository, error) {
+func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
+
+	newRepo.ctx = ctx
 
 	config, _ := google.ReadGoogleConfig()
 	newRepo.Config = config
@@ -32,7 +35,7 @@ func NewGoogleCalendarRepository(u *users.User) (*GoogleCalendarRepository, erro
 	}
 
 	if u.GoogleCalendarConnection.Token.Expiry.Before(time.Now()) {
-		source := newRepo.Config.TokenSource(context.TODO(), &u.GoogleCalendarConnection.Token)
+		source := newRepo.Config.TokenSource(ctx, &u.GoogleCalendarConnection.Token)
 		newToken, err := source.Token()
 		if err != nil {
 			return nil, err
@@ -40,9 +43,9 @@ func NewGoogleCalendarRepository(u *users.User) (*GoogleCalendarRepository, erro
 		u.GoogleCalendarConnection.Token = *newToken
 	}
 
-	client := newRepo.Config.Client(context.Background(), &u.GoogleCalendarConnection.Token)
+	client := newRepo.Config.Client(ctx, &u.GoogleCalendarConnection.Token)
 
-	srv, err := gcalendar.NewService(context.TODO(), option.WithHTTPClient(client))
+	srv, err := gcalendar.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, err
 	}
