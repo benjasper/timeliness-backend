@@ -14,10 +14,22 @@ type PlanningController struct {
 
 func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService) (*PlanningController, error) {
 	controller := PlanningController{}
+	var repository calendar.RepositoryInterface
 
+	// TODO: Figure out which repository to use
+	repository, err := setupGoogleRepository(ctx, u, userService)
+	if err != nil {
+		return nil, err
+	}
+
+	controller.repository = repository
 	controller.ctx = ctx
 	controller.userService = userService
-	// TODO: Figure out which repository to use
+
+	return &controller, nil
+}
+
+func setupGoogleRepository(ctx context.Context, u *users.User, userService *users.UserService) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
 	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u)
 	if err != nil {
@@ -32,8 +44,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 		}
 	}
 
-	controller.repository = calendarRepository
-	return &controller, nil
+	return calendarRepository, nil
 }
 
 func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.TimeWindow) (*[]calendar.Timespan, error) {
