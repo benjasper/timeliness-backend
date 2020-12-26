@@ -11,11 +11,13 @@ import (
 	"time"
 )
 
+// TaskService does everything related to storing and finding tasks
 type TaskService struct {
 	DB     *mongo.Collection
 	Logger logger.Interface
 }
 
+// Add adds a task
 func (s TaskService) Add(ctx context.Context, task *Task) error {
 	task.CreatedAt = time.Now()
 	task.LastModifiedAt = time.Now()
@@ -24,6 +26,7 @@ func (s TaskService) Add(ctx context.Context, task *Task) error {
 	return err
 }
 
+// Update updates a task
 func (s TaskService) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
 	task.LastModifiedAt = time.Now()
 
@@ -48,6 +51,7 @@ func (s TaskService) Update(ctx context.Context, taskID string, userID string, t
 	return nil
 }
 
+// FindAll finds all task paginated
 func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error) {
 	t := []Task{}
 
@@ -83,6 +87,7 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 	return t, int(count), nil
 }
 
+// FindByID finds a specific task by ID
 func (s TaskService) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
 	t := Task{}
 
@@ -109,6 +114,7 @@ func (s TaskService) FindByID(ctx context.Context, taskID string, userID string)
 	return t, nil
 }
 
+// FindUpdatableByID Finds a task and returns the TaskUpdate view of the model
 func (s TaskService) FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error) {
 	t := TaskUpdate{}
 
@@ -135,6 +141,7 @@ func (s TaskService) FindUpdatableByID(ctx context.Context, taskID string, userI
 	return t, nil
 }
 
+// Delete deletes a task
 func (s TaskService) Delete(ctx context.Context, id string) error {
 	panic("implement me")
 }

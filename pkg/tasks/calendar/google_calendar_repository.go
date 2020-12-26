@@ -13,8 +13,10 @@ import (
 	gcalendar "google.golang.org/api/calendar/v3"
 )
 
+// ErrorInvalidToken is an error thrown if the google token is invalid
 var ErrorInvalidToken = errors.New("google token is invalid")
 
+// GoogleCalendarRepository provides function for easily editing the users google calendar
 type GoogleCalendarRepository struct {
 	Config  *oauth2.Config
 	Logger  logger.Interface
@@ -22,6 +24,7 @@ type GoogleCalendarRepository struct {
 	ctx     context.Context
 }
 
+// NewGoogleCalendarRepository constructs a GoogleCalendarRepository
 func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
@@ -55,6 +58,7 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 	return &newRepo, nil
 }
 
+// CreateCalendar creates a calendar and returns its id
 func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	// calendarId := "refm50ua0bukpdmp52a84cgshk@group.gcalendar.google.com"
 	newCalendar := gcalendar.Calendar{
@@ -68,6 +72,7 @@ func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	return cal.Id, nil
 }
 
+// AddBusyToWindow reads times from a window and fills it with busy timeslots
 func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 	calList, err := c.Service.CalendarList.List().Do()
 	if err != nil {

@@ -57,7 +57,7 @@ func main() {
 	userService := users.UserService{DB: userCollection, Logger: logging}
 	userHandler := users.Handler{UserService: userService, Logger: logging, ErrorManager: &errorManager}
 
-	var taskService tasks.TaskServiceInterface = tasks.TaskService{DB: taskCollection, Logger: logging}
+	var taskService = tasks.TaskService{DB: taskCollection, Logger: logging}
 	taskHandler := tasks.Handler{
 		TaskService:  taskService,
 		Logger:       logging,

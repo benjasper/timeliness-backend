@@ -13,15 +13,19 @@ import (
 )
 
 const (
+	// AlgHS256 is the HMAC256 algorithm
 	AlgHS256 = "HS256"
-	TypJWT   = "JWT"
+	// TypJWT is the token type
+	TypJWT = "JWT"
 )
 
+// Header part of a JWT
 type Header struct {
 	Alg string `json:"alg"`
 	Typ string `json:"typ"`
 }
 
+// Claims our JWT can have
 type Claims struct {
 	Issuer         string `json:"iss,omitempty"`
 	Subject        string `json:"sub,omitempty"`
@@ -33,11 +37,13 @@ type Claims struct {
 	TokenType      string `json:"tkt,omitempty"`
 }
 
+// Token represents the token without a signature
 type Token struct {
 	Header  Header
 	Payload Claims
 }
 
+// Verify checks a token against the parameterized claims
 func (c *Claims) Verify() error {
 	// TODO: More verification
 	if time.Unix(c.ExpirationTime, 0).Before(time.Now()) {
@@ -47,6 +53,7 @@ func (c *Claims) Verify() error {
 	return nil
 }
 
+// New constructs a new token
 func New(algorithm string, payload Claims) Token {
 	t := Token{}
 	header := Header{Alg: algorithm, Typ: TypJWT}
@@ -56,6 +63,7 @@ func New(algorithm string, payload Claims) Token {
 	return t
 }
 
+// Sign returns the signed token
 func (t *Token) Sign(secret string) (string, error) {
 	jwt := ""
 
@@ -87,6 +95,7 @@ func (t *Token) Sign(secret string) (string, error) {
 	return jwt, nil
 }
 
+// Verify checks if token is valid
 func Verify(token string, secret string, algorithm string, payload Claims) (*Token, error) {
 	if token == "" {
 		return nil, errors.New("token is empty")

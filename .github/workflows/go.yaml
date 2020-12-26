@@ -29,10 +29,10 @@ jobs:
               dep ensure
           fi
       - name: Build services
-        run: go build -v ./cmd
+        run: go build -v -o timeliness_server ./cmd
 
       - name: Test services
-        run: go test -v ./cmd
+        run: go test -v ./...
 
   lint:
     name: Static Analysis

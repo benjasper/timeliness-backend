@@ -4,11 +4,13 @@ import (
 	"time"
 )
 
+// Timespan is a simple timespan between to times/dates
 type Timespan struct {
 	Start time.Time
 	End   time.Time
 }
 
+// TimeWindow is a window equally to timespan, with additional data about busy and free timeslots
 type TimeWindow struct {
 	Start time.Time
 	End   time.Time
@@ -16,6 +18,7 @@ type TimeWindow struct {
 	Free  []Timespan
 }
 
+// AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	for index, busy := range w.Busy {
 		// Old timespan is completely enclosing new one
@@ -40,6 +43,7 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	w.Busy = append(w.Busy, timespan)
 }
 
+// ComputeFree computes the free times, that are the inverse of busy times in the specified window
 func (w *TimeWindow) ComputeFree() []Timespan {
 	var free = make([]Timespan, 0)
 
@@ -63,6 +67,7 @@ func (w *TimeWindow) ComputeFree() []Timespan {
 	return free
 }
 
+// FindTimeSlot finds one or multiple time slots that comply with the specified rules
 func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) []Timespan {
 	// TODO: Write actual logic
 	var free []Timespan
