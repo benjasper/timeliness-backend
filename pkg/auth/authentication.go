@@ -9,10 +9,19 @@ import (
 	"strings"
 )
 
+// AuthenticationMiddleware checks if the user login token is valid and responds with an error if it's not the case
 type AuthenticationMiddleware struct {
 	ErrorManager *communication.ErrorResponseManager
 }
 
+type key string
+
+const (
+	// KeyUserID the key for the request variable for getting the user id
+	KeyUserID key = "userID"
+)
+
+// Middleware gets called when a request needs to be authenticated
 func (m *AuthenticationMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
 		extractedToken, err := extractTokenStringFromHeader(r)
@@ -27,7 +36,7 @@ func (m *AuthenticationMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		newContext := context.WithValue(r.Context(), "userID", token.Payload.Subject)
+		newContext := context.WithValue(r.Context(), KeyUserID, token.Payload.Subject)
 		next.ServeHTTP(writer, r.WithContext(newContext))
 	})
 }

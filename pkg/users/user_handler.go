@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/timeliness-app/timeliness-backend/internal/google"
+	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
@@ -12,12 +14,14 @@ import (
 	"time"
 )
 
+// Handler is the handler for user API calls
 type Handler struct {
-	UserService  ServiceInterface
+	UserService  UserService
 	Logger       logger.Interface
 	ErrorManager *communication.ErrorResponseManager
 }
 
+// UserRegister is the route for registering a user
 func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.Request) {
 	user := User{}
 	body := map[string]string{}
@@ -83,6 +87,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	}
 }
 
+// UserGet retrieves a single user
 func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	u, err := handler.UserService.FindByID(request.Context(), vars["id"])
@@ -105,6 +110,7 @@ func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Reques
 	}
 }
 
+// UserLogin is the route for user authentication
 func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Request) {
 	userLogin := UserLogin{}
 	err := json.NewDecoder(request.Body).Decode(&userLogin)
@@ -174,6 +180,88 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	}
 }
 
+// UserRefresh TODO: Refreshes a users token with refresh token
 func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Request) {
 
+}
+
+// InitiateGoogleCalendarAuth responds with the Google Auth URL
+func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	u, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		return
+	}
+
+	url, stateToken, err := google.GetGoogleAuthURL()
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
+		return
+	}
+
+	u.GoogleCalendarConnection.StateToken = stateToken
+
+	err = handler.UserService.Update(request.Context(), u)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		return
+	}
+
+	var response = map[string]interface{}{
+		"url": url,
+	}
+
+	binary, err := json.Marshal(response)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+}
+
+// GoogleCalendarAuthCallback is the call the api will redirect to
+func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, request *http.Request) {
+	authCode := request.URL.Query().Get("code")
+
+	stateToken := request.URL.Query().Get("state")
+
+	usr, err := handler.UserService.FindByGoogleStateToken(request.Context(), stateToken)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		return
+	}
+
+	token, err := google.GetGoogleToken(request.Context(), authCode)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
+		return
+	}
+
+	usr.GoogleCalendarConnection.Token = *token
+	usr.GoogleCalendarConnection.StateToken = ""
+
+	_ = handler.UserService.Update(request.Context(), usr)
+
+	var response = map[string]interface{}{
+		"message": "Successfully connected accounts",
+	}
+
+	binary, err := json.Marshal(response)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
 }
