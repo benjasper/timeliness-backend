@@ -1,11 +1,11 @@
 package tasks
 
 import (
-	"context"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 )
 
+// Task is the model for a task
 type Task struct {
 	// TODO: More validation
 	ID             primitive.ObjectID `bson:"_id" json:"id"`
@@ -23,6 +23,7 @@ type Task struct {
 	WorkUnits       []WorkUnit `json:"workUnits" bson:"workUnits"`
 }
 
+// TaskUpdate is the view of a task for an update
 type TaskUpdate struct {
 	ID             primitive.ObjectID `bson:"_id" json:"-"`
 	UserID         primitive.ObjectID `bson:"userId" json:"-"`
@@ -37,13 +38,4 @@ type TaskUpdate struct {
 	WorkloadOverall int        `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           time.Time  `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       []WorkUnit `json:"workUnits" bson:"workUnits"`
-}
-
-type TaskServiceInterface interface {
-	Add(ctx context.Context, task *Task) error
-	FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error)
-	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
-	FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error)
-	Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error
-	Delete(ctx context.Context, id string) error
 }

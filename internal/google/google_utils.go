@@ -10,6 +10,7 @@ import (
 	"log"
 )
 
+// ReadGoogleConfig reads and parses the json file where google credentials are stored
 func ReadGoogleConfig() (*oauth2.Config, error) {
 	b, err := ioutil.ReadFile("./keys/credentials.json")
 	if err != nil {
@@ -27,6 +28,7 @@ func ReadGoogleConfig() (*oauth2.Config, error) {
 	return config, nil
 }
 
+// GetGoogleToken gets a Google OAuth Token with an auth code
 func GetGoogleToken(context context.Context, authCode string) (*oauth2.Token, error) {
 	config, _ := ReadGoogleConfig()
 
@@ -37,6 +39,7 @@ func GetGoogleToken(context context.Context, authCode string) (*oauth2.Token, er
 	return tok, nil
 }
 
+// GetGoogleAuthURL returns the URL where the user can allow Timeliness access to the calendar
 func GetGoogleAuthURL() (string, string, error) {
 	config, err := ReadGoogleConfig()
 	if err != nil {
