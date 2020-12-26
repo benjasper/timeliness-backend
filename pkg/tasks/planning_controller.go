@@ -37,8 +37,7 @@ func setupGoogleRepository(ctx context.Context, u *users.User, userService *user
 	}
 
 	if oldAccessToken != u.GoogleCalendarConnection.Token.AccessToken {
-		println("Refreshed Google access Token")
-		err := userService.Update(context.TODO(), u)
+		err := userService.Update(ctx, u)
 		if err != nil {
 			return nil, err
 		}
