@@ -21,7 +21,7 @@ type GoogleCalendarRepository struct {
 	Service *gcalendar.Service
 }
 
-func NewCalendarRepository(u *users.User) (*GoogleCalendarRepository, error) {
+func NewGoogleCalendarRepository(u *users.User) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
 	config, _ := google.ReadGoogleConfig()
@@ -29,6 +29,15 @@ func NewCalendarRepository(u *users.User) (*GoogleCalendarRepository, error) {
 
 	if u.GoogleCalendarConnection.Token.AccessToken == "" {
 		return nil, ErrorInvalidToken
+	}
+
+	if u.GoogleCalendarConnection.Token.Expiry.Before(time.Now()) {
+		source := newRepo.Config.TokenSource(context.TODO(), &u.GoogleCalendarConnection.Token)
+		newToken, err := source.Token()
+		if err != nil {
+			return nil, err
+		}
+		u.GoogleCalendarConnection.Token = *newToken
 	}
 
 	client := newRepo.Config.Client(context.Background(), &u.GoogleCalendarConnection.Token)
