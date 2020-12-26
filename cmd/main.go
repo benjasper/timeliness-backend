@@ -8,7 +8,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
-	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -55,17 +54,15 @@ func main() {
 
 	errorManager := communication.ErrorResponseManager{Logger: logging}
 
-	calendarService := calendar.CalendarService{}
-
 	userService := users.UserService{DB: userCollection, Logger: logging}
 	userHandler := users.Handler{UserService: userService, Logger: logging, ErrorManager: &errorManager}
 
 	var taskService tasks.TaskServiceInterface = tasks.TaskService{DB: taskCollection, Logger: logging}
-	taskHandler := tasks.Handler{TaskService: taskService,
-		Logger:          logging,
-		ErrorManager:    &errorManager,
-		UserService:     &userService,
-		CalendarService: &calendarService}
+	taskHandler := tasks.Handler{
+		TaskService:  taskService,
+		Logger:       logging,
+		ErrorManager: &errorManager,
+		UserService:  &userService}
 
 	r := mux.NewRouter()
 

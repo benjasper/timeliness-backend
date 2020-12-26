@@ -17,11 +17,10 @@ import (
 )
 
 type Handler struct {
-	TaskService     TaskServiceInterface
-	UserService     *users.UserService
-	CalendarService *calendar.CalendarService
-	Logger          logger.Interface
-	ErrorManager    *communication.ErrorResponseManager
+	TaskService  TaskServiceInterface
+	UserService  *users.UserService
+	Logger       logger.Interface
+	ErrorManager *communication.ErrorResponseManager
 }
 
 func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Request) {
@@ -171,7 +170,14 @@ func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Reques
 	}
 	window := calendar.TimeWindow{Start: time.Now(), End: time.Now().AddDate(0, 0, 8)}
 
-	timeslots, err := handler.CalendarService.SuggestTimeslot(u, &window)
+	planningController, err := NewPlanningController(u)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"No calendar access", err)
+		return
+	}
+
+	timeslots, err := planningController.SuggestTimeslot(u, &window)
 	if err != nil {
 		if errors.Is(err, calendar.ErrorInvalidToken) {
 			handler.ErrorManager.RespondWithError(writer, http.StatusMethodNotAllowed,
