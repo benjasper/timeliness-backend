@@ -170,7 +170,7 @@ func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Reques
 	}
 	window := calendar.TimeWindow{Start: time.Now(), End: time.Now().AddDate(0, 0, 8)}
 
-	planningController, err := NewPlanningController(u, handler.UserService)
+	planningController, err := NewPlanningController(request.Context(), u, handler.UserService)
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"No calendar access", err)
