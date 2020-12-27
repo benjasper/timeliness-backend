@@ -28,21 +28,10 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 	controller.ctx = ctx
 	controller.userService = userService
 
-	if u.GoogleCalendarConnection.CalendarID == "" {
-		calendarID, err := controller.repository.CreateCalendar()
-		if err != nil {
-			return nil, err
-		}
-		u.GoogleCalendarConnection.CalendarID = calendarID
-		err = userService.Update(ctx, u)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &controller, nil
 }
 
+// setupGoogleRepository manages token refreshing and calendar creation
 func setupGoogleRepository(ctx context.Context, u *users.User, userService *users.UserService) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
 	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u)
@@ -52,6 +41,19 @@ func setupGoogleRepository(ctx context.Context, u *users.User, userService *user
 
 	if oldAccessToken != u.GoogleCalendarConnection.Token.AccessToken {
 		err := userService.Update(ctx, u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if u.GoogleCalendarConnection.CalendarID == "" {
+		calendarID, err := calendarRepository.CreateCalendar()
+		if err != nil {
+			return nil, err
+		}
+
+		u.GoogleCalendarConnection.CalendarID = calendarID
+		err = userService.Update(ctx, u)
 		if err != nil {
 			return nil, err
 		}
