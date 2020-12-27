@@ -62,7 +62,7 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	// calendarId := "refm50ua0bukpdmp52a84cgshk@group.gcalendar.google.com"
 	newCalendar := gcalendar.Calendar{
-		Summary: "Tasks",
+		Summary: "Timeliness tasks",
 	}
 	cal, err := c.Service.Calendars.Insert(&newCalendar).Do()
 	if err != nil {

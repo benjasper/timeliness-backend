@@ -28,6 +28,18 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 	controller.ctx = ctx
 	controller.userService = userService
 
+	if u.GoogleCalendarConnection.CalendarID == "" {
+		calendarID, err := controller.repository.CreateCalendar()
+		if err != nil {
+			return nil, err
+		}
+		u.GoogleCalendarConnection.CalendarID = calendarID
+		err = userService.Update(ctx, u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &controller, nil
 }
 
