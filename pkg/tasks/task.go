@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 )
@@ -17,10 +18,10 @@ type Task struct {
 	IsDone         bool               `json:"isDone" bson:"isDone"`
 	Tags           []string           `json:"tags" bson:"tags"`
 
-	Priority        int        `json:"priority" bson:"priority" validate:"required"`
-	WorkloadOverall int        `json:"workloadOverall" bson:"workloadOverall"`
-	DueAt           time.Time  `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       []WorkUnit `json:"workUnits" bson:"workUnits"`
+	Priority        int            `json:"priority" bson:"priority" validate:"required"`
+	WorkloadOverall int            `json:"workloadOverall" bson:"workloadOverall"`
+	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
+	WorkUnits       []WorkUnit     `json:"workUnits" bson:"workUnits"`
 }
 
 // TaskUpdate is the view of a task for an update
@@ -34,8 +35,8 @@ type TaskUpdate struct {
 	IsDone         bool               `json:"isDone" bson:"isDone"`
 	Tags           []string           `json:"tags" bson:"tags"`
 
-	Priority        int        `json:"priority" bson:"priority" validate:"required"`
-	WorkloadOverall int        `json:"workloadOverall" bson:"workloadOverall"`
-	DueAt           time.Time  `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       []WorkUnit `json:"workUnits" bson:"workUnits"`
+	Priority        int            `json:"priority" bson:"priority" validate:"required"`
+	WorkloadOverall int            `json:"workloadOverall" bson:"workloadOverall"`
+	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
+	WorkUnits       []WorkUnit     `json:"workUnits" bson:"workUnits"`
 }

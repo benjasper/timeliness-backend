@@ -72,6 +72,62 @@ func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	return cal.Id, nil
 }
 
+// NewEvent creates a new Event in Google Calendar
+func (c *GoogleCalendarRepository) NewEvent(title string, description string, blocking bool, event *Event, u *users.User) (*Event, error) {
+	googleEvent := createGoogleEvent(title, description, blocking, event)
+
+	createdEvent, err := c.Service.Events.Insert(u.GoogleCalendarConnection.CalendarID, googleEvent).Do()
+	if err != nil {
+		return nil, err
+	}
+
+	event.CalendarEventID = createdEvent.Id
+	event.CalendarType = CalendarTypeGoogleCalendar
+
+	return event, nil
+}
+
+// UpdateEvent updates an existing Google Calendar event
+func (c *GoogleCalendarRepository) UpdateEvent(title string, description string, blocking bool, event *Event, u *users.User) error {
+	googleEvent := createGoogleEvent(title, description, blocking, event)
+
+	_, err := c.Service.Events.
+		Update(u.GoogleCalendarConnection.CalendarID, event.CalendarEventID, googleEvent).Do()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createGoogleEvent(title string, description string, blocking bool, event *Event) *gcalendar.Event {
+	start := gcalendar.EventDateTime{
+		DateTime: event.Start.Format(time.RFC3339),
+	}
+
+	end := gcalendar.EventDateTime{
+		DateTime: event.End.Format(time.RFC3339),
+	}
+
+	transparency := "opaque"
+	if !blocking {
+		transparency = "transparent"
+	}
+
+	source := gcalendar.EventSource{Title: "Timeliness", Url: "https://timeliness.app"}
+
+	googleEvent := gcalendar.Event{
+		Start:        &start,
+		End:          &end,
+		Summary:      title,
+		Description:  description,
+		Transparency: transparency,
+		Source:       &source,
+	}
+
+	return &googleEvent
+}
+
 // AddBusyToWindow reads times from a window and fills it with busy timeslots
 func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 	calList, err := c.Service.CalendarList.List().Do()
