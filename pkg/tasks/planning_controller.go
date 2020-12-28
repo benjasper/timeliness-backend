@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"log"
 	"time"
 )
 
@@ -72,7 +73,17 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 		return nil, err
 	}
 
-	free := window.ComputeFree()
+	loc, err := time.LoadLocation("Local")
+	if err != nil {
+		log.Panic(err)
+	}
+
+	constraint := calendar.FreeConstraint{
+		AllowedTimeSpans: []calendar.Timespan{{
+			Start: time.Date(0, 0, 0, 8, 0, 0, 0, loc),
+			End:   time.Date(0, 0, 0, 16, 30, 0, 0, loc),
+		}}}
+	free := window.ComputeFree(&constraint)
 	return &free, nil
 }
 
