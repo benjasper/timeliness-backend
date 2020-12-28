@@ -14,6 +14,6 @@ type Event struct {
 	Start time.Time `json:"start" bson:"start" validate:"required"`
 	End   time.Time `json:"end" bson:"end" validate:"required"`
 
-	CalendarType    Type   `json:"calendarType" bson:"calendarType"`
-	CalendarEventID string `json:"calendarEventID" bson:"calendarEventID"`
+	CalendarType    Type   `json:"-" bson:"calendarType"`
+	CalendarEventID string `json:"-" bson:"calendarEventID"`
 }

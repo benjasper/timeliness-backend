@@ -19,7 +19,7 @@ type Task struct {
 	Tags           []string           `json:"tags" bson:"tags"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
-	WorkloadOverall int            `json:"workloadOverall" bson:"workloadOverall"`
+	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       []WorkUnit     `json:"workUnits" bson:"workUnits"`
 }

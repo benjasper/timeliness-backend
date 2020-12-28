@@ -4,17 +4,19 @@ import (
 	"context"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"time"
 )
 
 // The PlanningController combines the calendar and task implementations
 type PlanningController struct {
 	repository  calendar.RepositoryInterface
 	userService *users.UserService
+	taskService *TaskService
 	ctx         context.Context
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
-func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService) (*PlanningController, error) {
+func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService, taskService *TaskService) (*PlanningController, error) {
 	controller := PlanningController{}
 	var repository calendar.RepositoryInterface
 
@@ -27,6 +29,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 	controller.repository = repository
 	controller.ctx = ctx
 	controller.userService = userService
+	controller.taskService = taskService
 
 	return &controller, nil
 }
@@ -71,4 +74,14 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 
 	free := window.ComputeFree()
 	return &free, nil
+}
+
+func (c *PlanningController) ScheduleNewTask(t *Task) error {
+	window := calendar.TimeWindow{Start: time.Now(), End: t.DueAt.Start}
+	err := c.repository.AddBusyToWindow(&window)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

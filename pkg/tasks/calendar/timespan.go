@@ -10,6 +10,11 @@ type Timespan struct {
 	End   time.Time
 }
 
+// Duration simply get the duration of a Timespan
+func (t *Timespan) Duration() time.Duration {
+	return t.End.Sub(t.Start)
+}
+
 // TimeWindow is a window equally to timespan, with additional data about busy and free timeslots
 type TimeWindow struct {
 	Start time.Time
@@ -68,17 +73,9 @@ func (w *TimeWindow) ComputeFree() []Timespan {
 }
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules
-func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) []Timespan {
+func (w *TimeWindow) FindTimeSlot() []Timespan {
 	// TODO: Write actual logic
 	var free []Timespan
-	for _, timeslot := range w.Free {
-		for _, rule := range *rules {
-			if !rule.Test(timeslot) {
-				break
-			}
-			free = append(free, timeslot)
-			break
-		}
-	}
+
 	return free
 }
