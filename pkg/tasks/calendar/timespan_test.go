@@ -68,7 +68,6 @@ var timeWindowTests = []struct {
 func TestTimeWindow_ComputeFree(t *testing.T) {
 	for index, tt := range timeWindowTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
-			t.Parallel()
 			constraint := FreeConstraint{}
 			free := tt.in.ComputeFree(&constraint)
 			if !reflect.DeepEqual(free, tt.out) {
@@ -149,7 +148,7 @@ func TestTimespan_ContainsInClock_Test(t *testing.T) {
 	for index, tt := range timespanContainsTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			t.Parallel()
-			result := tt.container.ContainsByClock(&tt.contained)
+			result := tt.container.ContainsByClock(tt.contained)
 			if result != tt.out {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
@@ -228,7 +227,7 @@ func TestTimespan_OverflowsStart(t *testing.T) {
 	for index, tt := range timespanOverflowStartTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			t.Parallel()
-			result := tt.container.OverflowsStart(&tt.contained)
+			result := tt.container.OverflowsStart(tt.contained)
 			if result != tt.out {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
@@ -307,7 +306,7 @@ func TestTimespan_OverflowsEnd(t *testing.T) {
 	for index, tt := range timespanOverflowEndTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			t.Parallel()
-			result := tt.container.OverflowsEnd(&tt.contained)
+			result := tt.container.OverflowsEnd(tt.contained)
 			if result != tt.out {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
@@ -406,7 +405,7 @@ func TestTimespan_IntersectsWith(t *testing.T) {
 	for index, tt := range timespanIntersectTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			t.Parallel()
-			result := tt.container.IntersectsWith(&tt.contained)
+			result := tt.container.IntersectsWith(tt.contained)
 			if result != tt.out {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}

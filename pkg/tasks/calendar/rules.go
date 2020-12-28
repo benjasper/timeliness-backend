@@ -63,7 +63,6 @@ func newTimeFromDateAndTime(date time.Time, clock time.Time) time.Time {
 // RuleDuration sets minimum and maximum times
 type RuleDuration struct {
 	Minimum time.Duration
-	Maximum time.Duration
 }
 
 // Test against RuleDuration
@@ -73,11 +72,7 @@ func (r *RuleDuration) Test(timespan *Timespan) bool {
 		return false
 	}
 
-	if r.Maximum != 0 && diff > r.Maximum {
-		return false
-	}
 	return true
 }
 
-// TODO Rule Min Max day/nighttime
 // TODO Rule Weekdays/Weekends

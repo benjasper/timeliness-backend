@@ -84,6 +84,7 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 			End:   time.Date(0, 0, 0, 16, 30, 0, 0, loc),
 		}}}
 	free := window.ComputeFree(&constraint)
+
 	return &free, nil
 }
 
