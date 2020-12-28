@@ -16,7 +16,7 @@ func (t *Timespan) Duration() time.Duration {
 }
 
 // ContainsByClock checks if a timespan is contained by the source timespan only by time and not by date
-func (t *Timespan) ContainsByClock(timespan *Timespan) bool {
+func (t *Timespan) ContainsByClock(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())
 	cEnd := calcSecondsFromClock(t.End.Clock())
 
@@ -30,7 +30,7 @@ func (t *Timespan) ContainsByClock(timespan *Timespan) bool {
 }
 
 // IntersectsWith checks if a timespan even intersects
-func (t *Timespan) IntersectsWith(timespan *Timespan) bool {
+func (t *Timespan) IntersectsWith(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())
 	cEnd := calcSecondsFromClock(t.End.Clock())
 
@@ -44,7 +44,7 @@ func (t *Timespan) IntersectsWith(timespan *Timespan) bool {
 }
 
 // OverflowsStart checks if the given timespan overflows at end
-func (t *Timespan) OverflowsStart(timespan *Timespan) bool {
+func (t *Timespan) OverflowsStart(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())
 	cEnd := calcSecondsFromClock(t.End.Clock())
 
@@ -58,7 +58,7 @@ func (t *Timespan) OverflowsStart(timespan *Timespan) bool {
 }
 
 // OverflowsEnd checks if the given timespan overflows at start
-func (t *Timespan) OverflowsEnd(timespan *Timespan) bool {
+func (t *Timespan) OverflowsEnd(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())
 	cEnd := calcSecondsFromClock(t.End.Clock())
 

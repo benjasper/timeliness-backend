@@ -25,19 +25,19 @@ func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
 
 	for _, t := range splitTimespans {
 		for _, allowed := range r.AllowedTimeSpans {
-			if allowed.ContainsByClock(&t) {
+			if allowed.ContainsByClock(t) {
 				free = append(free, t)
 				continue
 			} else {
-				if !allowed.IntersectsWith(&t) {
+				if !allowed.IntersectsWith(t) {
 					continue
 				}
 				switch {
-				case allowed.OverflowsStart(&t):
+				case allowed.OverflowsStart(t):
 					start := newTimeFromDateAndTime(t.End, allowed.Start)
 					free = append(free, Timespan{Start: start, End: t.End})
 					continue
-				case allowed.OverflowsEnd(&t):
+				case allowed.OverflowsEnd(t):
 					end := newTimeFromDateAndTime(t.Start, allowed.End)
 					free = append(free, Timespan{Start: t.Start, End: end})
 					continue
