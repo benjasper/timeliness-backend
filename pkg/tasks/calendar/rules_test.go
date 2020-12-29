@@ -3,6 +3,7 @@ package calendar
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestFreeConstraint_Test(t *testing.T) {
@@ -192,6 +193,73 @@ func TestFreeConstraint_Test(t *testing.T) {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			constraint := FreeConstraint{AllowedTimeSpans: tt.allowed}
 			result := constraint.Test(tt.in)
+			if !reflect.DeepEqual(result, tt.out) {
+				t.Errorf("got %v, want %v", result, tt.out)
+			}
+		})
+	}
+}
+
+func TestRuleDuration_Test(t *testing.T) {
+	var ruleTests = []struct {
+		in   Timespan
+		rule RuleDuration
+		out  *Timespan
+	}{
+		// Case fits minimum
+		{
+			Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 9, 0, 0)},
+			RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
+			&Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 9, 0, 0)},
+		},
+		// Case fits maximum
+		{
+			Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 13, 0, 0)},
+			RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
+			&Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 13, 0, 0)},
+		},
+		// Case fits in between
+		{
+			Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 10, 0, 0)},
+			RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
+			&Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 10, 0, 0)},
+		},
+		// Case maximum overflows
+		{
+			Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 16, 0, 0)},
+			RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
+			&Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 13, 0, 0)},
+		},
+		// Case too small
+		{
+			Timespan{
+				Start: timeDate(2020, 12, 12, 7, 0, 0),
+				End:   timeDate(2020, 12, 12, 8, 0, 0)},
+			RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
+			nil,
+		},
+	}
+
+	for index, tt := range ruleTests {
+		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			t.Parallel()
+			result := tt.rule.Test(tt.in)
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}

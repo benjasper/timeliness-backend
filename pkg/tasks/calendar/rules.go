@@ -4,7 +4,7 @@ import "time"
 
 // RuleInterface is the interface all rules have to implement
 type RuleInterface interface {
-	Test(timespan Timespan) bool
+	Test(timespan Timespan) *Timespan
 }
 
 // FreeConstraint is for constraints that a single timespan has to comply with
@@ -63,16 +63,21 @@ func newTimeFromDateAndTime(date time.Time, clock time.Time) time.Time {
 // RuleDuration sets minimum and maximum times
 type RuleDuration struct {
 	Minimum time.Duration
+	Maximum time.Duration
 }
 
 // Test against RuleDuration
-func (r *RuleDuration) Test(timespan *Timespan) bool {
+func (r *RuleDuration) Test(timespan Timespan) *Timespan {
 	diff := timespan.Duration()
 	if r.Minimum != 0 && diff < r.Minimum {
-		return false
+		return nil
 	}
 
-	return true
+	if r.Maximum != 0 && diff > r.Maximum {
+		timespan.End = timespan.End.Add((diff - r.Maximum) * -1)
+	}
+
+	return &timespan
 }
 
 // TODO Rule Weekdays/Weekends
