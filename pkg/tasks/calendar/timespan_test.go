@@ -448,3 +448,59 @@ func TestTimespan_SplitByDays(t *testing.T) {
 		t.Errorf("1) %v not equal to %v", result1, want1)
 	}
 }
+
+func TestTimeWindow_FindTimeSlot(t *testing.T) {
+	var ruleTests = []struct {
+		in   []Timespan
+		rule RuleInterface
+		out  *Timespan
+	}{
+		// Case fits minimum
+		{
+			[]Timespan{
+				{
+					Start: timeDate(2020, 12, 12, 8, 0, 0),
+					End:   timeDate(2020, 12, 12, 9, 0, 0),
+				},
+				{
+					Start: timeDate(2020, 12, 12, 9, 0, 0),
+					End:   timeDate(2020, 12, 12, 12, 0, 0),
+				},
+			},
+			&RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
+			&Timespan{
+				Start: timeDate(2020, 12, 12, 9, 0, 0),
+				End:   timeDate(2020, 12, 12, 12, 0, 0),
+			},
+		},
+		// Case no time slot
+		{
+			[]Timespan{
+				{
+					Start: timeDate(2020, 12, 12, 8, 0, 0),
+					End:   timeDate(2020, 12, 12, 9, 0, 0),
+				},
+				{
+					Start: timeDate(2020, 12, 12, 9, 0, 0),
+					End:   timeDate(2020, 12, 12, 9, 30, 0),
+				},
+			},
+			&RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
+			nil,
+		},
+	}
+
+	for index, tt := range ruleTests {
+		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			t.Parallel()
+			window := TimeWindow{
+				Free: tt.in,
+			}
+			var rules = []RuleInterface{tt.rule}
+			result := window.FindTimeSlot(&rules)
+			if !reflect.DeepEqual(result, tt.out) {
+				t.Errorf("got %v, want %v", result, tt.out)
+			}
+		})
+	}
+}

@@ -156,17 +156,23 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules
 func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) *Timespan {
+	var found *Timespan = nil
 	for _, timespan := range w.Free {
+		foundFlag := false
 		for _, rule := range *rules {
+			foundFlag = false
 			result := rule.Test(timespan)
 			if result == nil {
 				break
 			}
+			foundFlag = true
 			timespan = *result
 		}
 
-		return &timespan
+		if foundFlag {
+			found = &timespan
+		}
 	}
 
-	return nil
+	return found
 }
