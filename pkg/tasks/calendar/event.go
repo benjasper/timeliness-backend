@@ -1,18 +1,16 @@
 package calendar
 
-import "time"
-
 // Type declares in which calendar implementation an event is persisted
 type Type string
 
 const (
+	// CalendarTypeGoogleCalendar is different calendar implementation enum
 	CalendarTypeGoogleCalendar Type = "google_calendar"
 )
 
 // Event represents a simple calendar event
 type Event struct {
-	Start time.Time `json:"start" bson:"start" validate:"required"`
-	End   time.Time `json:"end" bson:"end" validate:"required"`
+	Date Timespan `json:"date" bson:"date" validate:"required"`
 
 	CalendarType    Type   `json:"-" bson:"calendarType"`
 	CalendarEventID string `json:"-" bson:"calendarEventID"`

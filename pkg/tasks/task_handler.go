@@ -42,6 +42,13 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
+	user, err := handler.UserService.FindByID(request.Context(), userID.Hex())
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
 	task.UserID = userID
 
 	v := validator.New()
@@ -51,6 +58,20 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
 			return
 		}
+	}
+
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	err = planning.ScheduleNewTask(&task, user)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with creating calendar events", err)
+		return
 	}
 
 	err = handler.TaskService.Add(request.Context(), &task)

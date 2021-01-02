@@ -187,6 +187,32 @@ func TestFreeConstraint_Test(t *testing.T) {
 				},
 			},
 		},
+		{
+			Timespan{
+				Start: timeDate(2021, 1, 1, 14, 0, 0),
+				End:   timeDate(2021, 1, 3, 13, 0, 0),
+			},
+			[]Timespan{
+				{
+					Start: timeDate(0, 0, 0, 8, 00, 0),
+					End:   timeDate(0, 0, 0, 16, 30, 0),
+				},
+			},
+			[]Timespan{
+				{
+					Start: timeDate(2021, 1, 1, 14, 0, 0),
+					End:   timeDate(2021, 1, 1, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 1, 2, 8, 0, 0),
+					End:   timeDate(2021, 1, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 1, 3, 8, 0, 0),
+					End:   timeDate(2021, 1, 3, 13, 0, 0),
+				},
+			},
+		},
 	}
 
 	for index, tt := range constraintTests {

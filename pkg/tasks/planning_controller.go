@@ -88,12 +88,69 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 	return &free, nil
 }
 
-func (c *PlanningController) ScheduleNewTask(t *Task) error {
-	window := calendar.TimeWindow{Start: time.Now(), End: t.DueAt.Start}
+// ScheduleNewTask takes a new task a non existent task and creates workunits and pushes events to the calendar
+func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
+	window := calendar.TimeWindow{Start: time.Now().Add(time.Minute * 15).Round(time.Minute * 15), End: t.DueAt.Date.Start}
 	err := c.repository.AddBusyToWindow(&window)
 	if err != nil {
 		return err
 	}
+
+	loc, err := time.LoadLocation("")
+	if err != nil {
+		return err
+	}
+
+	constraint := calendar.FreeConstraint{
+		AllowedTimeSpans: []calendar.Timespan{{
+			Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
+			End:   time.Date(0, 0, 0, 15, 30, 0, 0, loc),
+		}}}
+	window.ComputeFree(&constraint)
+
+	var workunits []WorkUnit
+
+	dueEvent, err := c.repository.NewEvent(t.Name+" is due", "", false, &t.DueAt, u)
+	if err != nil {
+		return err
+	}
+
+	t.DueAt = *dueEvent
+
+	for i := t.WorkloadOverall; i > 0; {
+		minDuration := 2 * time.Hour
+		maxDuration := 6 * time.Hour
+		if i < 6*time.Hour {
+			if i < 2*time.Hour {
+				minDuration = i
+			}
+			maxDuration = i
+		}
+
+		var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
+		timeslot := window.FindTimeSlot(&rules)
+		if timeslot == nil {
+			log.Panic("Found timeslot is nil")
+		}
+
+		workunit := WorkUnit{
+			Workload:    timeslot.Duration(),
+			ScheduledAt: calendar.Event{Date: *timeslot},
+		}
+
+		event, err := c.repository.NewEvent("Working at "+t.Name, "", true,
+			&workunit.ScheduledAt, u)
+		if err != nil {
+			return err
+		}
+
+		workunit.ScheduledAt = *event
+		i -= workunit.Workload
+
+		workunits = append(workunits, workunit)
+	}
+
+	t.WorkUnits = workunits
 
 	return nil
 }

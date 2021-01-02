@@ -63,6 +63,15 @@ var timeWindowTests = []struct {
 			{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 12, 14, 30, 0)},
 			{Start: timeDate(2020, 6, 13, 15, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
 	},
+	{
+		// Case busy == 0
+		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+			Busy: nil,
+		},
+		[]Timespan{{
+			Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+		}},
+	},
 }
 
 func TestTimeWindow_ComputeFree(t *testing.T) {

@@ -102,11 +102,11 @@ func (c *GoogleCalendarRepository) UpdateEvent(title string, description string,
 
 func createGoogleEvent(title string, description string, blocking bool, event *Event) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
-		DateTime: event.Start.Format(time.RFC3339),
+		DateTime: event.Date.Start.Format(time.RFC3339),
 	}
 
 	end := gcalendar.EventDateTime{
-		DateTime: event.End.Format(time.RFC3339),
+		DateTime: event.Date.End.Format(time.RFC3339),
 	}
 
 	transparency := "opaque"

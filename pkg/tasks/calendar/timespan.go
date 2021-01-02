@@ -6,8 +6,8 @@ import (
 
 // Timespan is a simple timespan between to times/dates
 type Timespan struct {
-	Start time.Time
-	End   time.Time
+	Start time.Time `json:"start" bson:"start" validate:"required"`
+	End   time.Time `json:"end" bson:"end" validate:"required"`
 }
 
 // Duration simply get the duration of a Timespan
@@ -82,7 +82,7 @@ func calcSecondsFromClock(hours int, minutes int, seconds int) int {
 // SplitByDays splits a timespan that's longer than one day into multiple timespan with the size of one day
 func (t *Timespan) SplitByDays() []Timespan {
 	var splitted []Timespan
-	if t.Duration() > 24*time.Hour {
+	if t.Start.Day() != t.End.Day() {
 		timespan1 := Timespan{Start: t.Start, End: time.Date(
 			t.Start.Year(), t.Start.Month(), t.Start.Day(), 23, 59, 59, 0, t.Start.Location())}
 		splitted = append(splitted, timespan1)
@@ -99,12 +99,18 @@ func (t *Timespan) SplitByDays() []Timespan {
 	return splitted
 }
 
+// RemoveFromTimespanSlice removes a Timespan from a Timespan slice
+func RemoveFromTimespanSlice(slice []Timespan, s int) []Timespan {
+	return append(slice[:s], slice[s+1:]...)
+}
+
 // TimeWindow is a window equally to timespan, with additional data about busy and free timeslots
 type TimeWindow struct {
-	Start time.Time
-	End   time.Time
-	Busy  []Timespan
-	Free  []Timespan
+	Start        time.Time
+	End          time.Time
+	FreeDuration time.Duration
+	Busy         []Timespan
+	Free         []Timespan
 }
 
 // AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
@@ -135,20 +141,37 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 // ComputeFree computes the free times, that are the inverse of busy times in the specified window
 func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 	w.Free = nil
+	w.FreeDuration = 0
+
+	if len(w.Busy) == 0 {
+		w.Free = append(w.Free, constraint.Test(Timespan{Start: w.Start, End: w.End})...)
+	}
 
 	for index, busy := range w.Busy {
 		if index == 0 {
 			if w.Start.Before(busy.Start) {
-				w.Free = append(w.Free, constraint.Test(Timespan{Start: w.Start, End: busy.Start})...)
+				constrained := constraint.Test(Timespan{Start: w.Start, End: busy.Start})
+				for _, timespan := range constrained {
+					w.FreeDuration += timespan.Duration()
+				}
+				w.Free = append(w.Free, constrained...)
 			}
 		}
 
 		if index == len(w.Busy)-1 {
-			w.Free = append(w.Free, constraint.Test(Timespan{Start: busy.End, End: w.End})...)
+			constrained := constraint.Test(Timespan{Start: busy.End, End: w.End})
+			for _, timespan := range constrained {
+				w.FreeDuration += timespan.Duration()
+			}
+			w.Free = append(w.Free, constrained...)
 			continue
 		}
 
-		w.Free = append(w.Free, constraint.Test(Timespan{Start: busy.End, End: w.Busy[index+1].Start})...)
+		constrained := constraint.Test(Timespan{Start: busy.End, End: w.Busy[index+1].Start})
+		for _, timespan := range constrained {
+			w.FreeDuration += timespan.Duration()
+		}
+		w.Free = append(w.Free, constrained...)
 	}
 
 	return w.Free
@@ -156,9 +179,15 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules
 func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) *Timespan {
-	var found *Timespan = nil
-	for _, timespan := range w.Free {
+	for index, timespan := range w.Free {
 		foundFlag := false
+
+		if len(*rules) == 0 {
+			tmp := timespan
+			w.Free = RemoveFromTimespanSlice(w.Free, index)
+			return &tmp
+		}
+
 		for _, rule := range *rules {
 			foundFlag = false
 			result := rule.Test(timespan)
@@ -170,9 +199,16 @@ func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) *Timespan {
 		}
 
 		if foundFlag {
-			found = &timespan
+			tmp := timespan
+			// TODO: This implementation only works if the cut timeslot is at the start of the whole timeslot
+			if w.Free[index].Duration() != tmp.Duration() {
+				w.Free[index].Start = tmp.End
+				return &tmp
+			}
+			w.Free = RemoveFromTimespanSlice(w.Free, index)
+			return &tmp
 		}
 	}
 
-	return found
+	return nil
 }
