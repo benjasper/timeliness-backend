@@ -195,6 +195,7 @@ func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Reques
 			"User not found", err)
 		return
 	}
+
 	window := calendar.TimeWindow{Start: time.Now(), End: time.Now().AddDate(0, 0, 8)}
 
 	planningController, err := NewPlanningController(request.Context(), u, handler.UserService, handler.TaskService)
