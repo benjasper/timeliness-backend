@@ -156,6 +156,7 @@ func TestTimespan_ContainsInClock_Test(t *testing.T) {
 
 	for index, tt := range timespanContainsTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.ContainsByClock(tt.contained)
 			if result != tt.out {
@@ -199,7 +200,7 @@ func TestTimespan_OverflowsStart(t *testing.T) {
 			Timespan{
 				Start: timeDate(0, 0, 0, 8, 0, 0),
 				End:   timeDate(0, 0, 0, 18, 0, 0)},
-			false,
+			true,
 		},
 		{
 			// Start not contained
@@ -235,6 +236,7 @@ func TestTimespan_OverflowsStart(t *testing.T) {
 
 	for index, tt := range timespanOverflowStartTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.OverflowsStart(tt.contained)
 			if result != tt.out {
@@ -278,7 +280,7 @@ func TestTimespan_OverflowsEnd(t *testing.T) {
 			Timespan{
 				Start: timeDate(0, 0, 0, 8, 0, 0),
 				End:   timeDate(0, 0, 0, 18, 0, 0)},
-			false,
+			true,
 		},
 		{
 			// Start not contained
@@ -314,6 +316,7 @@ func TestTimespan_OverflowsEnd(t *testing.T) {
 
 	for index, tt := range timespanOverflowEndTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.OverflowsEnd(tt.contained)
 			if result != tt.out {
@@ -413,6 +416,7 @@ func TestTimespan_IntersectsWith(t *testing.T) {
 
 	for index, tt := range timespanIntersectTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.IntersectsWith(tt.contained)
 			if result != tt.out {
@@ -475,6 +479,10 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 					Start: timeDate(2020, 12, 12, 9, 0, 0),
 					End:   timeDate(2020, 12, 12, 12, 0, 0),
 				},
+				{
+					Start: timeDate(2020, 12, 13, 8, 0, 0),
+					End:   timeDate(2020, 12, 13, 10, 0, 0),
+				},
 			},
 			&RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
 			&Timespan{
@@ -501,12 +509,13 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 
 	for index, tt := range ruleTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			window := TimeWindow{
 				Free: tt.in,
 			}
 			var rules = []RuleInterface{tt.rule}
-			result := window.FindTimeSlot(&rules)
+			result := window.FindTimeSlot(&rules, timeDate(2020, 12, 12, 9, 0, 0))
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}

@@ -284,6 +284,7 @@ func TestRuleDuration_Test(t *testing.T) {
 
 	for index, tt := range ruleTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.rule.Test(tt.in)
 			if !reflect.DeepEqual(result, tt.out) {

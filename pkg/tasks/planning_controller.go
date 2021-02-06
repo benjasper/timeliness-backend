@@ -90,7 +90,8 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 
 // ScheduleNewTask takes a new task a non existent task and creates workunits and pushes events to the calendar
 func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
-	window := calendar.TimeWindow{Start: time.Now().Add(time.Minute * 15).Round(time.Minute * 15), End: t.DueAt.Date.Start}
+	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
+	window := calendar.TimeWindow{Start: now, End: t.DueAt.Date.Start}
 	err := c.repository.AddBusyToWindow(&window)
 	if err != nil {
 		return err
@@ -128,7 +129,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 		}
 
 		var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-		timeslot := window.FindTimeSlot(&rules)
+		timeslot := window.FindTimeSlot(&rules, now)
 		if timeslot == nil {
 			log.Panic("Found timeslot is nil")
 		}
