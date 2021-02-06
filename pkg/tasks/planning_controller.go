@@ -50,13 +50,13 @@ func setupGoogleRepository(ctx context.Context, u *users.User, userService *user
 		}
 	}
 
-	if u.GoogleCalendarConnection.CalendarID == "" {
+	if u.GoogleCalendarConnection.TaskCalendar.CalendarID == "" {
 		calendarID, err := calendarRepository.CreateCalendar()
 		if err != nil {
 			return nil, err
 		}
 
-		u.GoogleCalendarConnection.CalendarID = calendarID
+		u.GoogleCalendarConnection.TaskCalendar.CalendarID = calendarID
 		err = userService.Update(ctx, u)
 		if err != nil {
 			return nil, err
@@ -110,7 +110,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	var workunits []WorkUnit
 
-	dueEvent, err := c.repository.NewEvent(t.Name+" is due", "", false, &t.DueAt, u)
+	dueEvent, err := c.repository.NewEvent(t.Name+" is due", "", false, &t.DueAt)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 		}
 
 		event, err := c.repository.NewEvent("Working at "+t.Name, "", true,
-			&workunit.ScheduledAt, u)
+			&workunit.ScheduledAt)
 		if err != nil {
 			return err
 		}

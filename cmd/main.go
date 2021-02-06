@@ -8,6 +8,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -56,6 +57,7 @@ func main() {
 
 	userService := users.UserService{DB: userCollection, Logger: logging}
 	userHandler := users.Handler{UserService: userService, Logger: logging, ErrorManager: &errorManager}
+	calendarHandler := calendar.Handler{UserService: &userService, Logger: logging, ErrorManager: &errorManager}
 
 	var taskService = tasks.TaskService{DB: taskCollection, Logger: logging}
 	taskHandler := tasks.Handler{
@@ -82,6 +84,7 @@ func main() {
 	authenticatedAPI.Path("/calendar/suggest").HandlerFunc(taskHandler.Suggest).Methods(http.MethodGet)
 	authenticatedAPI.Path("/calendar/connect/google").
 		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
+	authenticatedAPI.Path("/calendars").HandlerFunc(calendarHandler.GetAllCalendars).Methods(http.MethodGet)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
