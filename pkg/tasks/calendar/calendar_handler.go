@@ -76,7 +76,7 @@ func (handler *Handler) GetAllCalendars(writer http.ResponseWriter, request *htt
 	}
 }
 
-// GetAllCalendars responds with all calendars the user can register for busy time information
+// PostCalendars sets the active calendars used for busy time calculation
 func (handler *Handler) PostCalendars(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	u, err := handler.UserService.FindByID(request.Context(), userID)

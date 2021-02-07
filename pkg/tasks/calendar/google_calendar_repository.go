@@ -74,7 +74,7 @@ func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	return cal.Id, nil
 }
 
-// GetAllCalendars retrieves all Calendars from Google Calendar
+// GetAllCalendarsOfInterest retrieves all Calendars from Google Calendar
 func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Calendar, error) {
 	var calendars = make(map[string]*Calendar)
 	calList, err := c.Service.CalendarList.List().Do()
