@@ -156,6 +156,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	return nil
 }
 
+// DeleteTask deletes all events that are connected to a task
 func (c *PlanningController) DeleteTask(task *Task) error {
 	for _, unit := range task.WorkUnits {
 		err := c.repository.DeleteEvent(&unit.ScheduledAt)

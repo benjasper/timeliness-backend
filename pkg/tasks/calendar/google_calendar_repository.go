@@ -184,6 +184,7 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 	return nil
 }
 
+// DeleteEvent deletes a single Event
 func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
 	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, event.CalendarEventID).Do()
 	if err != nil {
