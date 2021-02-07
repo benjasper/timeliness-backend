@@ -34,14 +34,20 @@ func (handler *Handler) GetAllCalendars(writer http.ResponseWriter, request *htt
 		return
 	}
 
-	googleCalendars, err := googleRepo.GetAllCalendars()
+	googleCalendars, err := googleRepo.GetAllCalendarsOfInterest()
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not retrieve Google Calendar calendars", err)
 		return
 	}
 
-	var response = map[string]interface{}{
+	for _, calendar := range u.GoogleCalendarConnection.CalendarsOfInterest {
+		if googleCalendars[calendar.CalendarID] != nil {
+			googleCalendars[calendar.CalendarID].IsActive = true
+		}
+	}
+
+	var response = map[string]map[string]*Calendar{
 		"googleCalendar": googleCalendars,
 	}
 
@@ -58,4 +64,80 @@ func (handler *Handler) GetAllCalendars(writer http.ResponseWriter, request *htt
 			"Problem writing response", err)
 		return
 	}
+}
+
+// GetAllCalendars responds with all calendars the user can register for busy time information
+func (handler *Handler) PostCalendars(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	u, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	requestBody := struct {
+		GoogleCalendar []Calendar `json:"googleCalendar"`
+	}{}
+
+	// TODO: check which sources have a connection
+	googleRepo, err := NewGoogleCalendarRepository(request.Context(), u)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusServiceUnavailable,
+			"Problem with Google Calendar connection", err)
+		return
+	}
+
+	googleCalendars, err := googleRepo.GetAllCalendarsOfInterest()
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not retrieve Google Calendar calendars", err)
+		return
+	}
+
+	err = json.NewDecoder(request.Body).Decode(&requestBody)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		return
+	}
+
+	// TODO: Restructure this into function maybe?
+	var newCalendars []users.GoogleCalendarSync
+	for _, calendar := range requestBody.GoogleCalendar {
+		if googleCalendars[calendar.CalendarID] == nil {
+			continue
+		}
+
+		var foundPresentCalendar *users.GoogleCalendarSync = nil
+		for _, userCalendar := range u.GoogleCalendarConnection.CalendarsOfInterest {
+			if userCalendar.CalendarID == calendar.CalendarID && calendar.IsActive {
+				foundPresentCalendar = &userCalendar
+			}
+		}
+
+		if !calendar.IsActive && foundPresentCalendar != nil {
+			// TODO: deregister calendar notifications gracefully
+			continue
+		}
+
+		if !calendar.IsActive {
+			continue
+		}
+
+		if foundPresentCalendar != nil {
+			newCalendars = append(newCalendars, *foundPresentCalendar)
+			continue
+		}
+
+		newCalendars = append(newCalendars, users.GoogleCalendarSync{CalendarID: calendar.CalendarID})
+	}
+
+	u.GoogleCalendarConnection.CalendarsOfInterest = newCalendars
+	err = handler.UserService.Update(request.Context(), u)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
 }

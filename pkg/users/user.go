@@ -27,15 +27,15 @@ type UserLogin struct {
 
 // GoogleCalendarConnection stores everything related to Google Calendar
 type GoogleCalendarConnection struct {
-	Token               oauth2.Token
-	StateToken          string               `json:"stateToken,omitempty" bson:"stateToken,omitempty"`
-	TaskCalendar        GoogleCalendarSync   `json:"calendarId,omitempty" bson:"calendarId,omitempty"`
-	CalendarsOfInterest []GoogleCalendarSync `json:"calendarsOfInterest" bson:"calendarsOfInterest,omitempty"`
+	Token               oauth2.Token         `json:"-" bson:"token,omitempty"`
+	StateToken          string               `json:"-" bson:"stateToken,omitempty"`
+	TaskCalendar        GoogleCalendarSync   `json:"taskCalendar,omitempty" bson:"taskCalendar,omitempty"`
+	CalendarsOfInterest []GoogleCalendarSync `json:"calendarsOfInterest,omitempty" bson:"calendarsOfInterest,omitempty"`
 }
 
 // GoogleCalendarSync holds information about a calendar that will be used to determine busy times
 type GoogleCalendarSync struct {
-	CalendarID     string
-	SyncResourceID string
-	SyncToken      string
+	CalendarID     string `json:"-" bson:"calendarId,omitempty"`
+	SyncResourceID string `json:"-" bson:"syncResourceId,omitempty"`
+	SyncToken      string `json:"-" bson:"syncToken,omitempty"`
 }

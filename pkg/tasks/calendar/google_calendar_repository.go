@@ -75,8 +75,8 @@ func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 }
 
 // GetAllCalendars retrieves all Calendars from Google Calendar
-func (c *GoogleCalendarRepository) GetAllCalendars() ([]Calendar, error) {
-	var calendars []Calendar
+func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Calendar, error) {
+	var calendars = make(map[string]*Calendar)
 	calList, err := c.Service.CalendarList.List().Do()
 	if err != nil {
 		return calendars, err
@@ -86,7 +86,7 @@ func (c *GoogleCalendarRepository) GetAllCalendars() ([]Calendar, error) {
 		if c.user.GoogleCalendarConnection.TaskCalendar.CalendarID == cal.Id {
 			continue
 		}
-		calendars = append(calendars, Calendar{CalendarID: cal.Id, Name: cal.Summary})
+		calendars[cal.Id] = &Calendar{CalendarID: cal.Id, Name: cal.Summary}
 	}
 	return calendars, err
 }
