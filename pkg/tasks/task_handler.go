@@ -19,7 +19,7 @@ import (
 
 // Handler handles all task related API calls
 type Handler struct {
-	TaskService  TaskService
+	TaskService  *TaskService
 	UserService  *users.UserService
 	Logger       logger.Interface
 	ErrorManager *communication.ErrorResponseManager
@@ -35,10 +35,17 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(request.Context().Value("userID").(string))
+	userID, err := primitive.ObjectIDFromHex(request.Context().Value(auth.KeyUserID).(string))
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"UserID malformed", err)
+		return
+	}
+
+	user, err := handler.UserService.FindByID(request.Context(), userID.Hex())
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
 		return
 	}
 
@@ -51,6 +58,20 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
 			return
 		}
+	}
+
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	err = planning.ScheduleNewTask(&task, user)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with creating calendar events", err)
+		return
 	}
 
 	err = handler.TaskService.Add(request.Context(), &task)
@@ -176,7 +197,7 @@ func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Reques
 	}
 	window := calendar.TimeWindow{Start: time.Now(), End: time.Now().AddDate(0, 0, 8)}
 
-	planningController, err := NewPlanningController(request.Context(), u, handler.UserService)
+	planningController, err := NewPlanningController(request.Context(), u, handler.UserService, handler.TaskService)
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"No calendar access", err)
