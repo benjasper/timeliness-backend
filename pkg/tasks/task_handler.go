@@ -121,6 +121,48 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// TaskDelete deletes a task
+func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+
+	user, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	task, err := handler.TaskService.FindByID(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	err = planning.DeleteTask(&task)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not delete task events", err)
+		return
+	}
+
+	err = handler.TaskService.Delete(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not delete task", err)
+		return
+	}
+
+	writer.WriteHeader(http.StatusNoContent)
+}
+
 // GetAllTasks is the route for getting all tasks
 func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)

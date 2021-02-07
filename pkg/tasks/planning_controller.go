@@ -155,3 +155,19 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	return nil
 }
+
+func (c *PlanningController) DeleteTask(task *Task) error {
+	for _, unit := range task.WorkUnits {
+		err := c.repository.DeleteEvent(&unit.ScheduledAt)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := c.repository.DeleteEvent(&task.DueAt)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

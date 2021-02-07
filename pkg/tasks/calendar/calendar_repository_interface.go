@@ -6,5 +6,6 @@ type RepositoryInterface interface {
 	GetAllCalendarsOfInterest() (map[string]*Calendar, error)
 	NewEvent(title string, description string, blocking bool, event *Event) (*Event, error)
 	UpdateEvent(title string, description string, blocking bool, event *Event) error
+	DeleteEvent(event *Event) error
 	AddBusyToWindow(window *TimeWindow) error
 }

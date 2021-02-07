@@ -142,6 +142,20 @@ func (s TaskService) FindUpdatableByID(ctx context.Context, taskID string, userI
 }
 
 // Delete deletes a task
-func (s TaskService) Delete(ctx context.Context, id string) error {
-	panic("implement me")
+func (s TaskService) Delete(ctx context.Context, taskID string, userID string) error {
+	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return err
+	}
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.DB.DeleteOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
