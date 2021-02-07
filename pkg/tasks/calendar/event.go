@@ -15,3 +15,10 @@ type Event struct {
 	CalendarType    Type   `json:"-" bson:"calendarType"`
 	CalendarEventID string `json:"-" bson:"calendarEventID"`
 }
+
+// Calendar represents a calendar of any source
+type Calendar struct {
+	CalendarID string `json:"calendarId"`
+	Name       string `json:"name"`
+	IsActive   bool   `json:"isActive"`
+}

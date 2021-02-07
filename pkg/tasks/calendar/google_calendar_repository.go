@@ -22,6 +22,7 @@ type GoogleCalendarRepository struct {
 	Logger  logger.Interface
 	Service *gcalendar.Service
 	ctx     context.Context
+	user    *users.User
 }
 
 // NewGoogleCalendarRepository constructs a GoogleCalendarRepository
@@ -54,6 +55,7 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 	}
 
 	newRepo.Service = srv
+	newRepo.user = u
 
 	return &newRepo, nil
 }
@@ -72,11 +74,28 @@ func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	return cal.Id, nil
 }
 
+// GetAllCalendarsOfInterest retrieves all Calendars from Google Calendar
+func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Calendar, error) {
+	var calendars = make(map[string]*Calendar)
+	calList, err := c.Service.CalendarList.List().Do()
+	if err != nil {
+		return calendars, err
+	}
+
+	for _, cal := range calList.Items {
+		if c.user.GoogleCalendarConnection.TaskCalendar.CalendarID == cal.Id {
+			continue
+		}
+		calendars[cal.Id] = &Calendar{CalendarID: cal.Id, Name: cal.Summary}
+	}
+	return calendars, err
+}
+
 // NewEvent creates a new Event in Google Calendar
-func (c *GoogleCalendarRepository) NewEvent(title string, description string, blocking bool, event *Event, u *users.User) (*Event, error) {
+func (c *GoogleCalendarRepository) NewEvent(title string, description string, blocking bool, event *Event) (*Event, error) {
 	googleEvent := createGoogleEvent(title, description, blocking, event)
 
-	createdEvent, err := c.Service.Events.Insert(u.GoogleCalendarConnection.CalendarID, googleEvent).Do()
+	createdEvent, err := c.Service.Events.Insert(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, googleEvent).Do()
 	if err != nil {
 		return nil, err
 	}
@@ -88,11 +107,11 @@ func (c *GoogleCalendarRepository) NewEvent(title string, description string, bl
 }
 
 // UpdateEvent updates an existing Google Calendar event
-func (c *GoogleCalendarRepository) UpdateEvent(title string, description string, blocking bool, event *Event, u *users.User) error {
+func (c *GoogleCalendarRepository) UpdateEvent(title string, description string, blocking bool, event *Event) error {
 	googleEvent := createGoogleEvent(title, description, blocking, event)
 
 	_, err := c.Service.Events.
-		Update(u.GoogleCalendarConnection.CalendarID, event.CalendarEventID, googleEvent).Do()
+		Update(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, event.CalendarEventID, googleEvent).Do()
 	if err != nil {
 		return err
 	}
@@ -130,14 +149,12 @@ func createGoogleEvent(title string, description string, blocking bool, event *E
 
 // AddBusyToWindow reads times from a window and fills it with busy timeslots
 func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
-	calList, err := c.Service.CalendarList.List().Do()
-	if err != nil {
-		return err
-	}
+	calList := c.user.GoogleCalendarConnection.CalendarsOfInterest
+	calList = append(calList, c.user.GoogleCalendarConnection.TaskCalendar)
 
-	var items = make([]*gcalendar.FreeBusyRequestItem, len(calList.Items))
-	for _, cal := range calList.Items {
-		items = append(items, &gcalendar.FreeBusyRequestItem{Id: cal.Id})
+	var items = make([]*gcalendar.FreeBusyRequestItem, len(calList))
+	for _, cal := range calList {
+		items = append(items, &gcalendar.FreeBusyRequestItem{Id: cal.CalendarID})
 	}
 
 	response, err := c.Service.Freebusy.Query(&gcalendar.FreeBusyRequest{
