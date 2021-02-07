@@ -113,6 +113,11 @@ type TimeWindow struct {
 	Free         []Timespan
 }
 
+// Duration simply get the duration of a Timespan
+func (w *TimeWindow) Duration() time.Duration {
+	return w.End.Sub(w.Start)
+}
+
 // AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	for index, busy := range w.Busy {
@@ -178,13 +183,9 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 }
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules
-func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface, from time.Time) *Timespan {
+func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) *Timespan {
 	for index, timespan := range w.Free {
 		foundFlag := false
-
-		if timespan.End.Before(from) {
-			continue
-		}
 
 		if len(*rules) == 0 {
 			tmp := timespan
@@ -215,4 +216,23 @@ func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface, from time.Time) *Times
 	}
 
 	return nil
+}
+
+// GetPreferredTimeWindow returns a TimeWindow that was cut to the specified times
+func (w *TimeWindow) GetPreferredTimeWindow(from time.Time, to time.Time) *TimeWindow {
+	preferred := TimeWindow{Start: from, End: to}
+	for _, timespan := range w.Free {
+		if timespan.Start.Before(from) {
+			continue
+		}
+
+		if timespan.End.After(to) || timespan.Start.After(to) {
+			break
+		}
+
+		preferred.Free = append(preferred.Free, timespan)
+		preferred.FreeDuration += timespan.Duration()
+	}
+
+	return &preferred
 }

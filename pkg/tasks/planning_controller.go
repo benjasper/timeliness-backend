@@ -91,8 +91,8 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 // ScheduleNewTask takes a new task a non existent task and creates workunits and pushes events to the calendar
 func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
-	window := calendar.TimeWindow{Start: now, End: t.DueAt.Date.Start}
-	err := c.repository.AddBusyToWindow(&window)
+	windowTotal := calendar.TimeWindow{Start: now, End: t.DueAt.Date.Start}
+	err := c.repository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,12 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 			Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
 			End:   time.Date(0, 0, 0, 15, 30, 0, 0, loc),
 		}}}
-	window.ComputeFree(&constraint)
+
+	windowTotal.ComputeFree(&constraint)
+
+	duration := t.DueAt.Date.Start.Sub(now)
+	durationThird := duration / 3
+	preferredWindow := windowTotal.GetPreferredTimeWindow(now.Add(durationThird), t.DueAt.Date.Start)
 
 	var workunits []WorkUnit
 
@@ -129,7 +134,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 		}
 
 		var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-		timeslot := window.FindTimeSlot(&rules, now)
+		timeslot := preferredWindow.FindTimeSlot(&rules)
 		if timeslot == nil {
 			log.Panic("Found timeslot is nil")
 		}
@@ -139,8 +144,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 			ScheduledAt: calendar.Event{Date: *timeslot},
 		}
 
-		event, err := c.repository.NewEvent("Working at "+t.Name, "", true,
-			&workunit.ScheduledAt)
+		event, err := c.repository.NewEvent("Working at "+t.Name, "", true, &workunit.ScheduledAt)
 		if err != nil {
 			return err
 		}
@@ -154,6 +158,48 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	t.WorkUnits = workunits
 
 	return nil
+}
+
+func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) []WorkUnit {
+	var workunits []WorkUnit
+	if w.FreeDuration < 30*time.Minute {
+		return workunits
+	}
+
+	var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: 30 * time.Minute, Maximum: 6 * time.Hour}}
+
+	durationThird := w.Duration() / 3
+	windowMiddle := w.GetPreferredTimeWindow(w.Start.Add(durationThird), w.Start.Add(durationThird*2))
+
+	for windowMiddle.FreeDuration >= 30*time.Minute {
+		slot := windowMiddle.FindTimeSlot(&rules)
+		durationToFind -= slot.Duration()
+		workunits = append(workunits, WorkUnit{ScheduledAt: calendar.Event{Date: *slot}, Workload: slot.Duration()})
+	}
+
+	windowRight := w.GetPreferredTimeWindow(w.Start.Add(durationThird*2), w.End)
+	if windowRight.FreeDuration > 30*time.Minute {
+		found := findWorkUnitTimes(windowRight, durationToFind)
+		for _, unit := range found {
+			durationToFind -= unit.Workload
+		}
+		if len(found) > 0 {
+			workunits = append(workunits, found...)
+		}
+	}
+
+	windowLeft := w.GetPreferredTimeWindow(w.Start, w.Start.Add(durationThird))
+	if windowLeft.FreeDuration > 30*time.Minute {
+		found := findWorkUnitTimes(windowLeft, durationToFind)
+		for _, unit := range found {
+			durationToFind -= unit.Workload
+		}
+		if len(found) > 0 {
+			workunits = append(workunits, found...)
+		}
+	}
+
+	return workunits
 }
 
 // DeleteTask deletes all events that are connected to a task

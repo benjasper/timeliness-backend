@@ -515,7 +515,7 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 				Free: tt.in,
 			}
 			var rules = []RuleInterface{tt.rule}
-			result := window.FindTimeSlot(&rules, timeDate(2020, 12, 12, 9, 0, 0))
+			result := window.FindTimeSlot(&rules)
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
