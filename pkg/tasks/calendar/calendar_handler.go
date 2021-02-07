@@ -16,6 +16,10 @@ type Handler struct {
 	ErrorManager *communication.ErrorResponseManager
 }
 
+type calendarsPost struct {
+	GoogleCalendar []Calendar `json:"googleCalendar"`
+}
+
 // GetAllCalendars responds with all calendars the user can register for busy time information
 func (handler *Handler) GetAllCalendars(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
@@ -34,7 +38,7 @@ func (handler *Handler) GetAllCalendars(writer http.ResponseWriter, request *htt
 		return
 	}
 
-	googleCalendars, err := googleRepo.GetAllCalendarsOfInterest()
+	googleCalendarMap, err := googleRepo.GetAllCalendarsOfInterest()
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not retrieve Google Calendar calendars", err)
@@ -42,12 +46,18 @@ func (handler *Handler) GetAllCalendars(writer http.ResponseWriter, request *htt
 	}
 
 	for _, calendar := range u.GoogleCalendarConnection.CalendarsOfInterest {
-		if googleCalendars[calendar.CalendarID] != nil {
-			googleCalendars[calendar.CalendarID].IsActive = true
+		if googleCalendarMap[calendar.CalendarID] != nil {
+			googleCalendarMap[calendar.CalendarID].IsActive = true
 		}
 	}
 
-	var response = map[string]map[string]*Calendar{
+	googleCalendars := make([]*Calendar, 0, len(googleCalendarMap))
+
+	for _, c := range googleCalendarMap {
+		googleCalendars = append(googleCalendars, c)
+	}
+
+	var response = map[string][]*Calendar{
 		"googleCalendar": googleCalendars,
 	}
 
@@ -76,9 +86,13 @@ func (handler *Handler) PostCalendars(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	requestBody := struct {
-		GoogleCalendar []Calendar `json:"googleCalendar"`
-	}{}
+	requestBody := calendarsPost{}
+
+	err = json.NewDecoder(request.Body).Decode(&requestBody)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		return
+	}
 
 	// TODO: check which sources have a connection
 	googleRepo, err := NewGoogleCalendarRepository(request.Context(), u)
@@ -95,15 +109,20 @@ func (handler *Handler) PostCalendars(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	err = json.NewDecoder(request.Body).Decode(&requestBody)
+	u.GoogleCalendarConnection.CalendarsOfInterest = matchNewGoogleCalendars(requestBody, googleCalendars, u)
+
+	err = handler.UserService.Update(request.Context(), u)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
 		return
 	}
 
-	// TODO: Restructure this into function maybe?
-	var newCalendars []users.GoogleCalendarSync
-	for _, calendar := range requestBody.GoogleCalendar {
+	writer.WriteHeader(http.StatusAccepted)
+}
+
+func matchNewGoogleCalendars(request calendarsPost, googleCalendars map[string]*Calendar, u *users.User) []users.GoogleCalendarSync {
+	var newGoogleCalendars []users.GoogleCalendarSync
+	for _, calendar := range request.GoogleCalendar {
 		if googleCalendars[calendar.CalendarID] == nil {
 			continue
 		}
@@ -112,6 +131,7 @@ func (handler *Handler) PostCalendars(writer http.ResponseWriter, request *http.
 		for _, userCalendar := range u.GoogleCalendarConnection.CalendarsOfInterest {
 			if userCalendar.CalendarID == calendar.CalendarID && calendar.IsActive {
 				foundPresentCalendar = &userCalendar
+				break
 			}
 		}
 
@@ -125,19 +145,12 @@ func (handler *Handler) PostCalendars(writer http.ResponseWriter, request *http.
 		}
 
 		if foundPresentCalendar != nil {
-			newCalendars = append(newCalendars, *foundPresentCalendar)
+			newGoogleCalendars = append(newGoogleCalendars, *foundPresentCalendar)
 			continue
 		}
 
-		newCalendars = append(newCalendars, users.GoogleCalendarSync{CalendarID: calendar.CalendarID})
+		newGoogleCalendars = append(newGoogleCalendars, users.GoogleCalendarSync{CalendarID: calendar.CalendarID})
 	}
 
-	u.GoogleCalendarConnection.CalendarsOfInterest = newCalendars
-	err = handler.UserService.Update(request.Context(), u)
-	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
-		return
-	}
-
-	writer.WriteHeader(http.StatusAccepted)
+	return newGoogleCalendars
 }
