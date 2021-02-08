@@ -128,6 +128,12 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		// TODO priority algorithm
 	}
 
+	if original.IsDone != task.IsDone {
+		if task.IsDone {
+			// TODO task was switched to done so we should remove all workunits left and remove the time from workload
+		}
+	}
+
 	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
