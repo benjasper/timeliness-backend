@@ -110,11 +110,16 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	windowTotal.ComputeFree(&constraint)
 
-	duration := t.DueAt.Date.Start.Sub(now)
-	durationThird := duration / 3
-	preferredWindow := windowTotal.GetPreferredTimeWindow(now.Add(durationThird), t.DueAt.Date.Start)
+	var workUnits []WorkUnit
+	for _, workUnit := range findWorkUnitTimes(&windowTotal, t.WorkloadOverall) {
+		workEvent, err := c.repository.NewEvent("Working on "+t.Name, "", true, &workUnit.ScheduledAt)
+		if err != nil {
+			return err
+		}
 
-	var workunits []WorkUnit
+		workUnit.ScheduledAt = *workEvent
+		workUnits = append(workUnits, workUnit)
+	}
 
 	dueEvent, err := c.repository.NewEvent(t.Name+" is due", "", false, &t.DueAt)
 	if err != nil {
@@ -123,83 +128,75 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	t.DueAt = *dueEvent
 
-	for i := t.WorkloadOverall; i > 0; {
-		minDuration := 2 * time.Hour
-		maxDuration := 6 * time.Hour
-		if i < 6*time.Hour {
-			if i < 2*time.Hour {
-				minDuration = i
-			}
-			maxDuration = i
-		}
-
-		var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-		timeslot := preferredWindow.FindTimeSlot(&rules)
-		if timeslot == nil {
-			log.Panic("Found timeslot is nil")
-		}
-
-		workunit := WorkUnit{
-			Workload:    timeslot.Duration(),
-			ScheduledAt: calendar.Event{Date: *timeslot},
-		}
-
-		event, err := c.repository.NewEvent("Working at "+t.Name, "", true, &workunit.ScheduledAt)
-		if err != nil {
-			return err
-		}
-
-		workunit.ScheduledAt = *event
-		i -= workunit.Workload
-
-		workunits = append(workunits, workunit)
-	}
-
-	t.WorkUnits = workunits
+	t.WorkUnits = workUnits
 
 	return nil
 }
 
 func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) []WorkUnit {
-	var workunits []WorkUnit
-	if w.FreeDuration < 30*time.Minute {
-		return workunits
+	var workUnits []WorkUnit
+	if w.FreeDuration == 0 {
+		return workUnits
 	}
 
-	var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: 30 * time.Minute, Maximum: 6 * time.Hour}}
+	if w.Duration() < 24*time.Hour*7 {
+		minDuration := 2 * time.Hour
+		maxDuration := 6 * time.Hour
+
+		for w.FreeDuration >= minDuration && durationToFind != 0 {
+			if durationToFind < 6*time.Hour {
+				if durationToFind < 2*time.Hour {
+					minDuration = durationToFind
+				}
+				maxDuration = durationToFind
+			}
+
+			var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
+			slot := w.FindTimeSlot(&rules)
+			if slot == nil {
+				break
+			}
+			durationToFind -= slot.Duration()
+			workUnits = append(workUnits, WorkUnit{ScheduledAt: calendar.Event{Date: *slot}, Workload: slot.Duration()})
+		}
+	}
 
 	durationThird := w.Duration() / 3
-	windowMiddle := w.GetPreferredTimeWindow(w.Start.Add(durationThird), w.Start.Add(durationThird*2))
 
-	for windowMiddle.FreeDuration >= 30*time.Minute {
-		slot := windowMiddle.FindTimeSlot(&rules)
-		durationToFind -= slot.Duration()
-		workunits = append(workunits, WorkUnit{ScheduledAt: calendar.Event{Date: *slot}, Workload: slot.Duration()})
+	windowMiddle := w.GetPreferredTimeWindow(w.Start.Add(durationThird), w.Start.Add(durationThird*2))
+	if windowMiddle.FreeDuration > 0 && durationToFind != 0 {
+		found := findWorkUnitTimes(windowMiddle, durationToFind)
+		for _, unit := range found {
+			durationToFind -= unit.Workload
+		}
+		if len(found) > 0 {
+			workUnits = append(workUnits, found...)
+		}
 	}
 
 	windowRight := w.GetPreferredTimeWindow(w.Start.Add(durationThird*2), w.End)
-	if windowRight.FreeDuration > 30*time.Minute {
+	if windowRight.FreeDuration > 0 && durationToFind != 0 {
 		found := findWorkUnitTimes(windowRight, durationToFind)
 		for _, unit := range found {
 			durationToFind -= unit.Workload
 		}
 		if len(found) > 0 {
-			workunits = append(workunits, found...)
+			workUnits = append(workUnits, found...)
 		}
 	}
 
 	windowLeft := w.GetPreferredTimeWindow(w.Start, w.Start.Add(durationThird))
-	if windowLeft.FreeDuration > 30*time.Minute {
+	if windowLeft.FreeDuration > 0 && durationToFind != 0 {
 		found := findWorkUnitTimes(windowLeft, durationToFind)
 		for _, unit := range found {
 			durationToFind -= unit.Workload
 		}
 		if len(found) > 0 {
-			workunits = append(workunits, found...)
+			workUnits = append(workUnits, found...)
 		}
 	}
 
-	return workunits
+	return workUnits
 }
 
 // DeleteTask deletes all events that are connected to a task

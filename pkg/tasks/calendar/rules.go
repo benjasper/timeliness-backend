@@ -16,6 +16,7 @@ type FreeConstraint struct {
 
 // Test tests multiple constrains and cuts free timeslots to these constraints
 func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
+	// TODO: Try to get rid of the splitting by days
 	var free []Timespan
 	splitTimespans := timespan.SplitByDays()
 
@@ -33,12 +34,20 @@ func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
 					continue
 				}
 				switch {
+				case t.Start.After(t.End):
+					continue
 				case allowed.OverflowsStart(t):
 					start := newTimeFromDateAndTime(t.End, allowed.Start)
+					if start == t.End {
+						continue
+					}
 					free = append(free, Timespan{Start: start, End: t.End})
 					continue
 				case allowed.OverflowsEnd(t):
 					end := newTimeFromDateAndTime(t.Start, allowed.End)
+					if t.Start == end {
+						continue
+					}
 					free = append(free, Timespan{Start: t.Start, End: end})
 					continue
 				default:

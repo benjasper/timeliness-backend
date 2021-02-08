@@ -120,6 +120,7 @@ func (w *TimeWindow) Duration() time.Duration {
 
 // AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
+	// TODO: Improve and test this function
 	for index, busy := range w.Busy {
 		// Old timespan is completely enclosing new one
 		if timespan.Start.After(busy.Start) && timespan.End.Before(busy.End) {
@@ -128,8 +129,14 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 
 		// New timespan is completely enclosing one old timespan
 		if timespan.Start.Before(busy.Start) && timespan.End.After(busy.End) {
+			if index-1 >= 0 && w.Busy[index-1] == timespan {
+				copy(w.Busy[index:], w.Busy[index+1:])
+				w.Busy[len(w.Busy)-1] = Timespan{}
+				w.Busy = w.Busy[:len(w.Busy)-1]
+				continue
+			}
 			w.Busy[index] = timespan
-			return
+			continue
 		}
 
 		// Sort by starting

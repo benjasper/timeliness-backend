@@ -10,15 +10,21 @@ func timeDate(year int, month time.Month, day int, hour int, min int, seconds in
 	loc, _ := time.LoadLocation("Local")
 	return time.Date(year, month, day, hour, min, seconds, 0, loc)
 }
+func getLocation() *time.Location {
+	loc, _ := time.LoadLocation("Local")
+	return loc
+}
 
 var timeWindowTests = []struct {
-	in  TimeWindow
-	out []Timespan
+	in         TimeWindow
+	constraint FreeConstraint
+	out        []Timespan
 }{
 	{
 		// Case single busy time
 		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: []Timespan{{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)}}},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
@@ -29,6 +35,7 @@ var timeWindowTests = []struct {
 			Busy: []Timespan{
 				{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)}}},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
@@ -43,6 +50,7 @@ var timeWindowTests = []struct {
 				{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
 			},
 		},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
@@ -58,6 +66,7 @@ var timeWindowTests = []struct {
 				{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
 			},
 		},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
 			{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 12, 14, 30, 0)},
@@ -68,17 +77,36 @@ var timeWindowTests = []struct {
 		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: nil,
 		},
+		FreeConstraint{},
 		[]Timespan{{
 			Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 		}},
+	},
+	{
+		// Case with free constraint
+		TimeWindow{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 7, 17, 00, 0),
+			Busy: []Timespan{
+				{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 4, 23, 59, 0)},
+				{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
+				{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
+			},
+		},
+		FreeConstraint{
+			AllowedTimeSpans: []Timespan{{
+				Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
+				End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
+			}}},
+		[]Timespan{
+			{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
+			{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
+		},
 	},
 }
 
 func TestTimeWindow_ComputeFree(t *testing.T) {
 	for index, tt := range timeWindowTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
-			constraint := FreeConstraint{}
-			free := tt.in.ComputeFree(&constraint)
+			free := tt.in.ComputeFree(&tt.constraint)
 			if !reflect.DeepEqual(free, tt.out) {
 				t.Errorf("got (%d)%q, want (%d)%q", len(free), free, len(tt.out), tt.out)
 			}
