@@ -3,6 +3,7 @@ package tasks
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
@@ -106,6 +107,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		handler.ErrorManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
 	}
+	original := task
 
 	err = json.NewDecoder(request.Body).Decode(&task)
 	if err != nil {
@@ -113,11 +115,80 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
+	if original.WorkloadOverall != task.WorkloadOverall {
+		// TODO Add or remove workunits and schedule those
+	}
+
+	if original.DueAt != task.DueAt {
+		// TODO if workunits still fit => don't need to do anything
+		// TODO if workunits or part of the don't fit => reschedule them
+	}
+
+	if original.WorkloadOverall != task.WorkloadOverall {
+		// TODO priority algorithm
+	}
+
 	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
 	}
+	writer.WriteHeader(http.StatusNoContent)
+}
+
+// WorkUnitUpdate updates a workunit inside a task
+func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+	indexString := mux.Vars(request)["index"]
+	index, err := strconv.Atoi(indexString)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
+		return
+	}
+
+	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		return
+	}
+
+	if index > len(task.WorkUnits)-1 || index < 0 {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+		return
+	}
+
+	workUnit := task.WorkUnits[index]
+	original := workUnit
+	err = json.NewDecoder(request.Body).Decode(&workUnit)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		return
+	}
+
+	if workUnit.ScheduledAt != original.ScheduledAt {
+		// TODO Update the event of the work unit
+
+		workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
+	}
+
+	if workUnit.ScheduledAt == original.ScheduledAt && workUnit.Workload != original.Workload {
+		// TODO Reschedule this work unit
+	}
+
+	if workUnit.Workload != original.Workload {
+		task.WorkloadOverall -= original.Workload
+		task.WorkloadOverall += workUnit.Workload
+	}
+
+	task.WorkUnits[index] = workUnit
+
+	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
+	if err != nil {
+		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
+		return
+	}
+
 	writer.WriteHeader(http.StatusNoContent)
 }
 
