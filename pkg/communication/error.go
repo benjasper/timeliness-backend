@@ -12,7 +12,7 @@ type ErrorResponseManager struct {
 	Logger logger.Interface
 }
 
-// CalendarAuthInvalid is an error thrown if the auth token is invalid
+// CalendarAuthInvalid is an error thrown if calendar auth is invalid
 var CalendarAuthInvalid = errors.New("calendar auth is invalid")
 
 // RespondWithError takes several arguments to return an error to the user and logs the error as well
