@@ -2,7 +2,6 @@ package tasks
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
@@ -326,11 +325,6 @@ func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Reques
 
 	timeslots, err := planningController.SuggestTimeslot(u, &window)
 	if err != nil {
-		if errors.Is(err, calendar.ErrorInvalidToken) {
-			handler.ErrorManager.RespondWithError(writer, http.StatusMethodNotAllowed,
-				"No Google calendar connection", err)
-			return
-		}
 		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem while marshalling tasks into json", err)
 		return
