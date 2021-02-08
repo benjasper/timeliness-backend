@@ -2,12 +2,14 @@ package google
 
 import (
 	"context"
+	"fmt"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gcalendar "google.golang.org/api/calendar/v3"
 	"io/ioutil"
 	"log"
+	"os"
 )
 
 // ReadGoogleConfig reads and parses the json file where google credentials are stored
@@ -45,6 +47,14 @@ func GetGoogleAuthURL() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+
+	apiBaseURL := "http://localhost"
+	envBaseURL, ok := os.LookupEnv("BASE_URL")
+	if ok {
+		apiBaseURL = envBaseURL
+	}
+
+	config.RedirectURL = fmt.Sprintf("%s/v1/auth/google", apiBaseURL)
 
 	stateToken := uuid.New().String()
 
