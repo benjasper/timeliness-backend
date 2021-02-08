@@ -33,7 +33,7 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 	newRepo.Config = config
 
 	if u.GoogleCalendarConnection.Token.AccessToken == "" {
-		return nil, communication.CalendarAuthInvalid
+		return nil, communication.ErrCalendarAuthInvalid
 	}
 
 	if u.GoogleCalendarConnection.Token.Expiry.Before(time.Now()) {
@@ -61,7 +61,7 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 func checkForInvalidTokenError(err error) error {
 	if e, ok := err.(*googleapi.Error); ok {
 		if e.Code == 401 {
-			return communication.CalendarAuthInvalid
+			return communication.ErrCalendarAuthInvalid
 		}
 	}
 

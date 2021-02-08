@@ -12,12 +12,12 @@ type ErrorResponseManager struct {
 	Logger logger.Interface
 }
 
-// CalendarAuthInvalid is an error thrown if calendar auth is invalid
-var CalendarAuthInvalid = errors.New("calendar auth is invalid")
+// ErrCalendarAuthInvalid is an error thrown if calendar auth is invalid
+var ErrCalendarAuthInvalid = errors.New("calendar auth is invalid")
 
 // RespondWithError takes several arguments to return an error to the user and logs the error as well
 func (m *ErrorResponseManager) RespondWithError(writer http.ResponseWriter, status int, message string, err error) {
-	if errors.Is(err, CalendarAuthInvalid) {
+	if errors.Is(err, ErrCalendarAuthInvalid) {
 		status = http.StatusUnauthorized
 		message = "Calendar connection authentication is invalid"
 	}
