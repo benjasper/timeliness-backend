@@ -21,7 +21,7 @@ func ReadGoogleConfig() (*oauth2.Config, error) {
 	}
 
 	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, gcalendar.CalendarScope)
+	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created")
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
