@@ -112,7 +112,11 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	var workUnits []WorkUnit
 	for _, workUnit := range findWorkUnitTimes(&windowTotal, t.WorkloadOverall) {
-		workEvent, err := c.repository.NewEvent("Working on "+t.Name, "", true, &workUnit.ScheduledAt)
+		workUnit.ScheduledAt.Blocking = true
+		workUnit.ScheduledAt.Title = "Working on " + t.Name
+		workUnit.ScheduledAt.Description = ""
+
+		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
 		if err != nil {
 			return err
 		}
@@ -121,7 +125,11 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 		workUnits = append(workUnits, workUnit)
 	}
 
-	dueEvent, err := c.repository.NewEvent(t.Name+" is due", "", false, &t.DueAt)
+	t.DueAt.Blocking = false
+	t.DueAt.Title = t.Name + " is due"
+	t.DueAt.Description = ""
+
+	dueEvent, err := c.repository.NewEvent(&t.DueAt)
 	if err != nil {
 		return err
 	}

@@ -100,8 +100,8 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 }
 
 // NewEvent creates a new Event in Google Calendar
-func (c *GoogleCalendarRepository) NewEvent(title string, description string, blocking bool, event *Event) (*Event, error) {
-	googleEvent := createGoogleEvent(title, description, blocking, event)
+func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
+	googleEvent := createGoogleEvent(event)
 
 	createdEvent, err := c.Service.Events.Insert(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, googleEvent).Do()
 	if err != nil {
@@ -115,8 +115,8 @@ func (c *GoogleCalendarRepository) NewEvent(title string, description string, bl
 }
 
 // UpdateEvent updates an existing Google Calendar event
-func (c *GoogleCalendarRepository) UpdateEvent(title string, description string, blocking bool, event *Event) error {
-	googleEvent := createGoogleEvent(title, description, blocking, event)
+func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
+	googleEvent := createGoogleEvent(event)
 
 	_, err := c.Service.Events.
 		Update(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, event.CalendarEventID, googleEvent).Do()
@@ -127,7 +127,7 @@ func (c *GoogleCalendarRepository) UpdateEvent(title string, description string,
 	return nil
 }
 
-func createGoogleEvent(title string, description string, blocking bool, event *Event) *gcalendar.Event {
+func createGoogleEvent(event *Event) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
 		DateTime: event.Date.Start.Format(time.RFC3339),
 	}
@@ -137,7 +137,7 @@ func createGoogleEvent(title string, description string, blocking bool, event *E
 	}
 
 	transparency := "opaque"
-	if !blocking {
+	if !event.Blocking {
 		transparency = "transparent"
 	}
 
@@ -146,8 +146,8 @@ func createGoogleEvent(title string, description string, blocking bool, event *E
 	googleEvent := gcalendar.Event{
 		Start:        &start,
 		End:          &end,
-		Summary:      title,
-		Description:  description,
+		Summary:      event.Title,
+		Description:  event.Description,
 		Transparency: transparency,
 		Source:       &source,
 	}

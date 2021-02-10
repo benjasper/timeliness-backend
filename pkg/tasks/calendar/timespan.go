@@ -136,7 +136,7 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 				continue
 			}
 			w.Busy[index] = timespan
-			continue
+			return
 		}
 
 		// Sort by starting

@@ -96,7 +96,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 	}
 }
 
-// TaskUpdate is the route for updating a task
+// TaskUpdate is the route for updating a Task
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
@@ -123,7 +123,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		// TODO if workunits or part of the don't fit => reschedule them
 	}
 
-	if original.WorkloadOverall != task.WorkloadOverall {
+	if original.Priority != task.Priority {
 		// TODO priority algorithm
 	}
 
@@ -141,7 +141,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-// WorkUnitUpdate updates a workunit inside a task
+// WorkUnitUpdate updates a WorkUnit inside a task
 func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]

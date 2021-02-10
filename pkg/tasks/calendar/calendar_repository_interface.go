@@ -4,8 +4,8 @@ package calendar
 type RepositoryInterface interface {
 	CreateCalendar() (string, error)
 	GetAllCalendarsOfInterest() (map[string]*Calendar, error)
-	NewEvent(title string, description string, blocking bool, event *Event) (*Event, error)
-	UpdateEvent(title string, description string, blocking bool, event *Event) error
+	NewEvent(event *Event) (*Event, error)
+	UpdateEvent(event *Event) error
 	DeleteEvent(event *Event) error
 	AddBusyToWindow(window *TimeWindow) error
 }

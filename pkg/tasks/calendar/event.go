@@ -10,7 +10,10 @@ const (
 
 // Event represents a simple calendar event
 type Event struct {
-	Date Timespan `json:"date" bson:"date" validate:"required"`
+	Date        Timespan `json:"date" bson:"date" validate:"required"`
+	Title       string   `json:"-" bson:"title"`
+	Description string   `json:"-" bson:"description"`
+	Blocking    bool     `json:"-" bson:"blocking"`
 
 	CalendarType    Type   `json:"-" bson:"calendarType"`
 	CalendarEventID string `json:"-" bson:"calendarEventID"`
