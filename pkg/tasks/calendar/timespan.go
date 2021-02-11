@@ -132,40 +132,6 @@ func (w *TimeWindow) Duration() time.Duration {
 	return w.End.Sub(w.Start)
 }
 
-/*
-// AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
-func (w *TimeWindow) AddToBusy(timespan Timespan) {
-	// TODO: Improve and test this function
-	for index, busy := range w.Busy {
-		// Old timespan is completely enclosing new one
-		if timespan.Start.After(busy.Start) && timespan.End.Before(busy.End) {
-			return
-		}
-
-		// New timespan is completely enclosing one old timespan
-		if timespan.Start.Before(busy.Start) && timespan.End.After(busy.End) {
-			if index-1 >= 0 && w.Busy[index-1] == timespan {
-				copy(w.Busy[index:], w.Busy[index+1:])
-				w.Busy[len(w.Busy)-1] = Timespan{}
-				w.Busy = w.Busy[:len(w.Busy)-1]
-				continue
-			}
-			w.Busy[index] = timespan
-			return
-		}
-
-		// Sort by starting
-		if busy.Start.After(timespan.Start) {
-			w.Busy = append(w.Busy, Timespan{})
-			copy(w.Busy[index+1:], w.Busy[index:])
-			w.Busy[index] = timespan
-			return
-		}
-	}
-	w.Busy = append(w.Busy, timespan)
-}
-*/
-
 // AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	if len(w.Busy) == 0 {
