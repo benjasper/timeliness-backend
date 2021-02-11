@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -114,6 +115,502 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 	}
 }
 
+func TestTimeWindow_AddToBusy(t *testing.T) {
+	var timespanAddToBusyTests = []struct {
+		input  Timespan
+		window TimeWindow
+		output []Timespan
+	}{
+		{
+			// Case 0 new is before all old ones
+			input: Timespan{
+				Start: timeDate(2021, 2, 28, 9, 30, 0),
+				End:   timeDate(2021, 2, 28, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 28, 9, 30, 0),
+					End:   timeDate(2021, 2, 28, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 1 new is after all old ones
+			input: Timespan{
+				Start: timeDate(2021, 3, 7, 9, 30, 0),
+				End:   timeDate(2021, 3, 7, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 7, 9, 30, 0),
+					End:   timeDate(2021, 3, 7, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 2 new is contained by existing timeslot
+			input: Timespan{
+				Start: timeDate(2021, 3, 1, 9, 30, 0),
+				End:   timeDate(2021, 3, 1, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 3 existing is contained by new without other intersections
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 17, 30, 0),
+				End:   timeDate(2021, 3, 4, 17, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 2, 17, 30, 0),
+					End:   timeDate(2021, 3, 4, 17, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 4 new timeslot between two existing ones
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 17, 30, 0),
+				End:   timeDate(2021, 3, 3, 7, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 2, 17, 30, 0),
+					End:   timeDate(2021, 3, 3, 7, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 5 overlaps multiple whole timeslot and intersects with two others
+			input: Timespan{
+				Start: timeDate(2021, 3, 1, 10, 30, 0),
+				End:   timeDate(2021, 3, 5, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 2, 6, 9, 30, 0),
+					End:   timeDate(2021, 2, 7, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 4, 17, 30, 0),
+					End:   timeDate(2021, 3, 5, 7, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 7, 9, 30, 0),
+					End:   timeDate(2021, 3, 8, 16, 30, 0),
+				},
+			},
+			},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 6, 9, 30, 0),
+					End:   timeDate(2021, 2, 7, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 7, 9, 30, 0),
+					End:   timeDate(2021, 3, 8, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 6 intersects with 2 timeslots
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 10, 30, 0),
+				End:   timeDate(2021, 3, 3, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 7 timeslot overlaps all others
+			input: Timespan{
+				Start: timeDate(2021, 2, 2, 10, 30, 0),
+				End:   timeDate(2021, 4, 3, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 2, 10, 30, 0),
+					End:   timeDate(2021, 4, 3, 10, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 8 timeslot overlaps all others except the last
+			input: Timespan{
+				Start: timeDate(2021, 3, 1, 9, 30, 0),
+				End:   timeDate(2021, 4, 3, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 4, 3, 10, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 9 timeslot overlaps all others except the first one
+			input: Timespan{
+				Start: timeDate(2021, 2, 2, 10, 30, 0),
+				End:   timeDate(2021, 3, 6, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 2, 10, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 10 timeslot fits exactly into gap
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 16, 30, 0),
+				End:   timeDate(2021, 3, 3, 9, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 11 timeslot fits exactly into gap but overlaps next one
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 16, 30, 0),
+				End:   timeDate(2021, 3, 3, 12, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 12 timeslot fits exactly into gap but overlaps at the start
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 15, 30, 0),
+				End:   timeDate(2021, 3, 3, 9, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 13 timeslot extends the start
+			input: Timespan{
+				Start: timeDate(2021, 2, 2, 15, 30, 0),
+				End:   timeDate(2021, 3, 1, 9, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 2, 15, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+	}
+
+	for index, tt := range timespanAddToBusyTests {
+		t.Run(fmt.Sprintf("Case %d", index), func(t *testing.T) {
+			tt := tt
+			t.Parallel()
+
+			tt.window.AddToBusy(tt.input)
+			if !reflect.DeepEqual(tt.output, tt.window.Busy) {
+				t.Errorf("got %v, want %v", tt.window.Busy, tt.output)
+			}
+		})
+	}
+}
+
 func TestTimespan_ContainsInClock_Test(t *testing.T) {
 	var timespanContainsTests = []struct {
 		container Timespan
@@ -183,7 +680,7 @@ func TestTimespan_ContainsInClock_Test(t *testing.T) {
 	}
 
 	for index, tt := range timespanContainsTests {
-		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Case %d", index), func(t *testing.T) {
 			tt := tt
 			t.Parallel()
 			result := tt.container.ContainsByClock(tt.contained)

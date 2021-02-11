@@ -4,6 +4,20 @@ import (
 	"time"
 )
 
+// TimeBeforeOrEquals returns whether t1 is before or equal t2
+func TimeBeforeOrEquals(t1 time.Time, t2 time.Time) bool {
+	ts := t1.UnixNano()
+	us := t2.UnixNano()
+	return ts <= us
+}
+
+// TimeAfterOrEquals returns whether t1 is after or equal t2
+func TimeAfterOrEquals(t1 time.Time, t2 time.Time) bool {
+	ts := t1.UnixNano()
+	us := t2.UnixNano()
+	return ts >= us
+}
+
 // Timespan is a simple timespan between to times/dates
 type Timespan struct {
 	Start time.Time `json:"start" bson:"start" validate:"required"`
@@ -118,6 +132,7 @@ func (w *TimeWindow) Duration() time.Duration {
 	return w.End.Sub(w.Start)
 }
 
+/*
 // AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	// TODO: Improve and test this function
@@ -148,6 +163,100 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 		}
 	}
 	w.Busy = append(w.Busy, timespan)
+}
+*/
+
+// AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
+func (w *TimeWindow) AddToBusy(timespan Timespan) {
+	if len(w.Busy) == 0 {
+		w.Busy = append(w.Busy, timespan)
+		return
+	}
+
+	isOverlapping := false
+	overlappingIndex := 0
+	for index, busy := range w.Busy {
+		if isOverlapping {
+			if w.Busy[overlappingIndex].End.Before(timespan.End) && overlappingIndex == len(w.Busy)-1 {
+				w.Busy = append(w.Busy[:overlappingIndex], w.Busy[overlappingIndex+1:]...)
+				overlappingIndex--
+				w.Busy[overlappingIndex].End = timespan.End
+				return
+			}
+
+			if TimeBeforeOrEquals(w.Busy[overlappingIndex].Start, timespan.End) && TimeAfterOrEquals(w.Busy[overlappingIndex].End, timespan.End) {
+				if overlappingIndex == 0 {
+					return
+				}
+
+				end := w.Busy[overlappingIndex].End
+				if len(w.Busy)-1 == overlappingIndex {
+					w.Busy = w.Busy[:len(w.Busy)-1]
+				} else {
+					w.Busy = append(w.Busy[:overlappingIndex], w.Busy[overlappingIndex+1:]...)
+				}
+				overlappingIndex--
+				w.Busy[overlappingIndex].End = end
+				return
+			}
+
+			if overlappingIndex < len(w.Busy)-1 && w.Busy[overlappingIndex].End.Before(timespan.End) && w.Busy[overlappingIndex+1].Start.After(timespan.End) {
+				w.Busy[overlappingIndex].End = timespan.End
+				return
+			}
+
+			if w.Busy[overlappingIndex].End.Before(timespan.End) {
+				w.Busy = append(w.Busy[:overlappingIndex], w.Busy[overlappingIndex+1:]...)
+				continue
+			}
+		}
+
+		// Case: new timespan is contained by existing timespan
+		if TimeBeforeOrEquals(busy.Start, timespan.Start) && TimeAfterOrEquals(busy.End, timespan.End) {
+			return
+		}
+
+		// Case: timespan is before all others
+		if index == 0 && timespan.End.Before(busy.Start) {
+			w.Busy = append(w.Busy, Timespan{})
+			copy(w.Busy[index+1:], w.Busy[index:])
+			w.Busy[index] = timespan
+			return
+		}
+
+		// Case: timespan is after all others
+		if index == len(w.Busy)-1 && timespan.End.After(busy.End) {
+			w.Busy = append(w.Busy, timespan)
+			return
+		}
+
+		// Case: new timespan is in the middle of two existing timeslots
+		if index < len(w.Busy)-1 && busy.End.Before(timespan.Start) && w.Busy[index+1].Start.After(timespan.End) {
+			w.Busy = append(w.Busy, Timespan{})
+			copy(w.Busy[index+2:], w.Busy[index+1:])
+			w.Busy[index+1] = timespan
+			return
+		}
+
+		// Case the start of the timeslot is inside an existing busy timeslot and overlaps it in the end
+		if TimeBeforeOrEquals(busy.Start, timespan.Start) && TimeAfterOrEquals(busy.End, timespan.Start) {
+			isOverlapping = true
+			overlappingIndex = index + 1
+			continue
+		}
+
+		// Case the start of the timeslot is before an existing busy timeslot and overlaps the next one
+		if busy.Start.After(timespan.Start) {
+			w.Busy[index].Start = timespan.Start
+			isOverlapping = true
+			if index < len(w.Busy)-1 && w.Busy[index+1].Start.After(timespan.End) {
+				overlappingIndex = index
+				continue
+			}
+			overlappingIndex = index + 1
+			continue
+		}
+	}
 }
 
 // ComputeFree computes the free times, that are the inverse of busy times in the specified window
