@@ -1,6 +1,6 @@
 module github.com/timeliness-app/timeliness-backend
 
-go 1.15
+go 1.16
 
 require (
 	cloud.google.com/go v0.74.0 // indirect

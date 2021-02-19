@@ -68,6 +68,16 @@ func checkForInvalidTokenError(err error) error {
 	return err
 }
 
+func checkForIsGone(err error) error {
+	if e, ok := err.(*googleapi.Error); ok {
+		if e.Code == 410 {
+			return nil
+		}
+	}
+
+	return err
+}
+
 // CreateCalendar creates a calendar and returns its id
 func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	// calendarId := "refm50ua0bukpdmp52a84cgshk@group.gcalendar.google.com"
@@ -196,6 +206,10 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
 	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, event.CalendarEventID).Do()
 	if err != nil {
+		if checkForIsGone(err) == nil {
+			return nil
+		}
+
 		return checkForInvalidTokenError(err)
 	}
 

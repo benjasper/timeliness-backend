@@ -53,22 +53,22 @@ func main() {
 	userCollection := db.Collection("Users")
 	taskCollection := db.Collection("Tasks")
 
-	errorManager := communication.ErrorResponseManager{Logger: logging}
+	responseManager := communication.ResponseManager{Logger: logging}
 
 	userService := users.UserService{DB: userCollection, Logger: logging}
-	userHandler := users.Handler{UserService: userService, Logger: logging, ErrorManager: &errorManager}
-	calendarHandler := calendar.Handler{UserService: &userService, Logger: logging, ErrorManager: &errorManager}
+	userHandler := users.Handler{UserService: userService, Logger: logging, ResponseManager: &responseManager}
+	calendarHandler := calendar.Handler{UserService: &userService, Logger: logging, ErrorManager: &responseManager}
 
 	var taskService = tasks.TaskService{DB: taskCollection, Logger: logging}
 	taskHandler := tasks.Handler{
-		TaskService:  &taskService,
-		Logger:       logging,
-		ErrorManager: &errorManager,
-		UserService:  &userService}
+		TaskService:     &taskService,
+		Logger:          logging,
+		ResponseManager: &responseManager,
+		UserService:     &userService}
 
 	r := mux.NewRouter()
 
-	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &errorManager}
+	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &responseManager}
 
 	authAPI := r.PathPrefix("/" + apiVersion + "/auth/").Subrouter()
 	authAPI.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)

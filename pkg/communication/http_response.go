@@ -7,8 +7,8 @@ import (
 	"net/http"
 )
 
-// ErrorResponseManager handles errors that have to be returned to the user
-type ErrorResponseManager struct {
+// ResponseManager handles errors that have to be returned to the user
+type ResponseManager struct {
 	Logger logger.Interface
 }
 
@@ -16,14 +16,14 @@ type ErrorResponseManager struct {
 var ErrCalendarAuthInvalid = errors.New("calendar auth is invalid")
 
 // RespondWithError takes several arguments to return an error to the user and logs the error as well
-func (m *ErrorResponseManager) RespondWithError(writer http.ResponseWriter, status int, message string, err error) {
+func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status int, message string, err error) {
 	if errors.Is(err, ErrCalendarAuthInvalid) {
 		status = http.StatusUnauthorized
 		message = "Calendar connection authentication is invalid"
 	}
 
 	if status >= 500 {
-		m.Logger.Error(message, err)
+		r.Logger.Error(message, err)
 	}
 
 	writer.WriteHeader(status)
@@ -40,11 +40,28 @@ func (m *ErrorResponseManager) RespondWithError(writer http.ResponseWriter, stat
 
 	binary, err := json.Marshal(response)
 	if err != nil {
-		m.Logger.Fatal(err)
+		r.Logger.Fatal(err)
 	}
 
 	_, err = writer.Write(binary)
 	if err != nil {
-		m.Logger.Fatal(err)
+		r.Logger.Fatal(err)
+	}
+}
+
+// Respond takes an object and turns it into json and responds with it and a 200 HTTP status
+func (r ResponseManager) Respond(writer http.ResponseWriter, i interface{}) {
+	binary, err := json.Marshal(i)
+	if err != nil {
+		r.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem while marshalling tasks into json", err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		r.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem writing response", err)
+		return
 	}
 }
