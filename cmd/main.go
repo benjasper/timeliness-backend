@@ -14,11 +14,16 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
 func main() {
 	apiVersion := "v1"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
 	var logging logger.Interface = logger.Logger{}
 	fmt.Println("Server is starting up...")
 
@@ -70,6 +75,9 @@ func main() {
 
 	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &responseManager}
 
+	r.Path("/").HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = writer.Write([]byte("Welcome to the Timeliness API 🚀"))
+	})
 	authAPI := r.PathPrefix("/" + apiVersion + "/auth/").Subrouter()
 	authAPI.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
 	authAPI.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
@@ -97,5 +105,5 @@ func main() {
 	})
 
 	http.Handle("/", r)
-	log.Panic(http.ListenAndServe(":80", r))
+	log.Panic(http.ListenAndServe(":"+port, r))
 }
