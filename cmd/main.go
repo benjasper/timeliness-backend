@@ -57,7 +57,6 @@ func main() {
 
 	userCollection := db.Collection("Users")
 	taskCollection := db.Collection("Tasks")
-	workUnitCollection := db.Collection("WorkUnits")
 
 	responseManager := communication.ResponseManager{Logger: logging}
 
@@ -66,10 +65,8 @@ func main() {
 	calendarHandler := calendar.Handler{UserService: &userService, Logger: logging, ErrorManager: &responseManager}
 
 	var taskService = tasks.TaskService{DB: taskCollection, Logger: logging}
-	var workUnitService = tasks.WorkUnitService{DB: workUnitCollection, Logger: logging}
 	taskHandler := tasks.Handler{
 		TaskService:     &taskService,
-		WorkUnitService: &workUnitService,
 		Logger:          logging,
 		ResponseManager: &responseManager,
 		UserService:     &userService}
@@ -93,8 +90,7 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskDelete).Methods(http.MethodDelete)
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
-	authenticatedAPI.Path("/tasks/{taskID}/workunits").HandlerFunc(taskHandler.GetWorkUnitsByTask).Methods(http.MethodGet)
-	authenticatedAPI.Path("/tasks/{taskID}/workunits/{workUnitID}").HandlerFunc(taskHandler.WorkUnitUpdate).Methods(http.MethodPatch)
+	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}").HandlerFunc(taskHandler.WorkUnitUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/calendar/suggest").HandlerFunc(taskHandler.Suggest).Methods(http.MethodGet)
 	authenticatedAPI.Path("/calendar/connect/google").
 		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
