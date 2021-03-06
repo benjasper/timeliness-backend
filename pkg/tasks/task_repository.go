@@ -22,6 +22,13 @@ func (s TaskService) Add(ctx context.Context, task *Task) error {
 	task.CreatedAt = time.Now()
 	task.LastModifiedAt = time.Now()
 	task.ID = primitive.NewObjectID()
+
+	for index, unit := range task.WorkUnits {
+		if unit.ID.IsZero() {
+			task.WorkUnits[index].ID = primitive.NewObjectID()
+		}
+	}
+
 	_, err := s.DB.InsertOne(ctx, task)
 	return err
 }
@@ -29,6 +36,12 @@ func (s TaskService) Add(ctx context.Context, task *Task) error {
 // Update updates a task
 func (s TaskService) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
 	task.LastModifiedAt = time.Now()
+
+	for index, unit := range task.WorkUnits {
+		if unit.ID.IsZero() {
+			task.WorkUnits[index].ID = primitive.NewObjectID()
+		}
+	}
 
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
@@ -63,13 +76,54 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 	offset := page * pageSize
 
 	findOptions := options.Find()
-	findOptions.SetSort(bson.M{"dueAt": 1})
+	findOptions.SetSort(bson.M{"dueAt.date.start": 1})
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
 	filter := bson.M{"userId": userObjectID}
 
 	cursor, err := s.DB.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := s.DB.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = cursor.All(ctx, &t)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return t, int(count), nil
+}
+
+// FindAllByWorkUnits finds all task paginated, but unwound by their work units
+func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int) ([]TaskUnwound, int, error) {
+	var t []TaskUnwound
+
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	offset := page * pageSize
+
+	findOptions := options.Find()
+	findOptions.SetSort(bson.M{"dueAt": 1})
+	findOptions.SetSkip(int64(offset))
+	findOptions.SetLimit(int64(pageSize))
+
+	filter := bson.M{"userId": userObjectID}
+
+	matchStage := bson.D{{"$match", bson.M{"userId": userObjectID}}}
+	addFieldsStage := bson.D{{"$addFields", bson.M{"workUnitsCount": bson.M{"$size": "$workUnits"}}}}
+	unwindStage := bson.D{{"$unwind", bson.M{"path": "$workUnits", "includeArrayIndex": "workUnitsIndex"}}}
+	sortStage := bson.D{{"$sort", bson.M{"workUnits.scheduledAt.date": 1}}} //nolint:govet
+
+	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, unwindStage, sortStage})
 	if err != nil {
 		return nil, 0, err
 	}
