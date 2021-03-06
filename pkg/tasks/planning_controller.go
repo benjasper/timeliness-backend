@@ -88,18 +88,18 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 	return &free, nil
 }
 
-// ScheduleNewTask takes a new task a non existent task and creates workunits and pushes events to the calendar
-func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
+// ScheduleNewTask takes a new task a non existent task and creates work units and pushes events to the calendar
+func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) (*Task, []WorkUnit, error) {
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now, End: t.DueAt.Date.Start}
 	err := c.repository.AddBusyToWindow(&windowTotal)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	loc, err := time.LoadLocation("")
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	constraint := calendar.FreeConstraint{
@@ -118,7 +118,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 
 		workUnit.ScheduledAt = *workEvent
@@ -131,14 +131,12 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	dueEvent, err := c.repository.NewEvent(&t.DueAt)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	t.DueAt = *dueEvent
 
-	t.WorkUnits = workUnits
-
-	return nil
+	return t, workUnits, err
 }
 
 func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) []WorkUnit {
@@ -208,8 +206,8 @@ func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) []W
 }
 
 // DeleteTask deletes all events that are connected to a task
-func (c *PlanningController) DeleteTask(task *Task) error {
-	for _, unit := range task.WorkUnits {
+func (c *PlanningController) DeleteTask(task *Task, workUnits []WorkUnit) error {
+	for _, unit := range workUnits {
 		err := c.repository.DeleteEvent(&unit.ScheduledAt)
 		if err != nil {
 			return err

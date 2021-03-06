@@ -2,7 +2,6 @@ package tasks
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
@@ -20,6 +19,7 @@ import (
 // Handler handles all task related API calls
 type Handler struct {
 	TaskService     *TaskService
+	WorkUnitService *WorkUnitService
 	UserService     *users.UserService
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
@@ -67,7 +67,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	err = planning.ScheduleNewTask(&task, user)
+	_, workUnits, err := planning.ScheduleNewTask(&task, user)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with creating calendar events", err)
@@ -75,6 +75,13 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 	}
 
 	err = handler.TaskService.Add(request.Context(), &task)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Persisting task in database did not work", err)
+		return
+	}
+
+	err = handler.WorkUnitService.AddMultiple(request.Context(), workUnits, userID, task.ID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Persisting task in database did not work", err)
@@ -132,16 +139,63 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	handler.ResponseManager.Respond(writer, &returnTask)
 }
 
+// GetAllWorkUnits is the route for getting all tasks
+func (handler *Handler) GetAllWorkUnits(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	var page = 0
+	var pageSize = 10
+	var err error
+
+	queryPage := request.URL.Query().Get("page")
+	queryPageSize := request.URL.Query().Get("pageSize")
+
+	if queryPage != "" {
+		page, err = strconv.Atoi(queryPage)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter page", err)
+			return
+		}
+	}
+
+	if queryPageSize != "" {
+		pageSize, err = strconv.Atoi(queryPageSize)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter pageSize", err)
+			return
+		}
+
+		if pageSize > 25 {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Page size can't be more than 25", nil)
+			return
+		}
+	}
+
+	tasks, count, _ := handler.WorkUnitService.FindAll(request.Context(), userID, page, pageSize)
+
+	pages := float64(count) / float64(pageSize)
+
+	var response = map[string]interface{}{
+		"results": tasks,
+		"pagination": map[string]interface{}{
+			"pageCount": count,
+			"pageSize":  pageSize,
+			"pageIndex": page,
+			"pages":     int(math.Ceil(pages)),
+		},
+	}
+
+	handler.ResponseManager.Respond(writer, response)
+}
+
 // WorkUnitUpdate updates a WorkUnit inside a task
 func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
-	indexString := mux.Vars(request)["index"]
-	index, err := strconv.Atoi(indexString)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
-		return
-	}
+	workUnitID := mux.Vars(request)["workUnitID"]
 
 	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
 	if err != nil {
@@ -149,12 +203,12 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	if index > len(task.WorkUnits)-1 || index < 0 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+	workUnit, err := handler.WorkUnitService.FindUpdatableByID(request.Context(), workUnitID, userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find workunit", err)
 		return
 	}
 
-	workUnit := task.WorkUnits[index]
 	original := workUnit
 	err = json.NewDecoder(request.Body).Decode(&workUnit)
 	if err != nil {
@@ -177,7 +231,11 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		task.WorkloadOverall += workUnit.Workload
 	}
 
-	task.WorkUnits[index] = workUnit
+	err = handler.WorkUnitService.Update(request.Context(), taskID, userID, &workUnit)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist work unit", err)
+		return
+	}
 
 	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
@@ -206,6 +264,12 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
+	workUnits, err := handler.WorkUnitService.FindByTask(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		return
+	}
+
 	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
@@ -213,7 +277,7 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	err = planning.DeleteTask(&task)
+	err = planning.DeleteTask(&task, workUnits)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not delete task events", err)
@@ -221,6 +285,13 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 	}
 
 	err = handler.TaskService.Delete(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not delete task", err)
+		return
+	}
+
+	err = handler.WorkUnitService.DeleteMultiple(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not delete task", err)
@@ -310,4 +381,19 @@ func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Reques
 	}
 
 	handler.ResponseManager.Respond(writer, &timeslots)
+}
+
+// GetWorkUnitsByTask gets the work units for a specific task
+func (handler *Handler) GetWorkUnitsByTask(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+
+	workUnits, err := handler.WorkUnitService.FindByTask(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem finding work units for task", err)
+		return
+	}
+
+	handler.ResponseManager.Respond(writer, &workUnits)
 }

@@ -21,7 +21,6 @@ type Task struct {
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       []WorkUnit     `json:"workUnits" bson:"workUnits"`
 }
 
 // TaskUpdate is the view of a task for an update
@@ -38,5 +37,4 @@ type TaskUpdate struct {
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       []WorkUnit     `json:"-" bson:"workUnits"`
 }
