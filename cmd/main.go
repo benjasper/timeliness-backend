@@ -24,6 +24,12 @@ func main() {
 	if port == "" {
 		port = "80"
 	}
+
+	accessControl := os.Getenv("CORS")
+	if accessControl == "" {
+		accessControl = "*"
+	}
+
 	var logging logger.Interface = logger.Logger{}
 	fmt.Println("Server is starting up...")
 
@@ -75,6 +81,13 @@ func main() {
 
 	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &responseManager}
 
+	r.Methods(http.MethodOptions).HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Headers", r.Header.Get("Access-Control-Request-Headers"))
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS, DELETE")
+			w.Header().Set("Access-Control-Max-Age", "804800")
+		})
+
 	r.Path("/").HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		_, _ = writer.Write([]byte("Welcome to the Timeliness API 🚀"))
 	})
@@ -100,6 +113,7 @@ func main() {
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", accessControl)
 			w.Header().Add("Content-Type", "application/json")
 			next.ServeHTTP(w, r)
 		})
