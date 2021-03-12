@@ -11,7 +11,7 @@ import (
 
 // AuthenticationMiddleware checks if the user login token is valid and responds with an error if it's not the case
 type AuthenticationMiddleware struct {
-	ErrorManager *communication.ErrorResponseManager
+	ErrorManager *communication.ResponseManager
 }
 
 type key string

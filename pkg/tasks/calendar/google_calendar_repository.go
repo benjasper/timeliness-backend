@@ -2,19 +2,17 @@ package calendar
 
 import (
 	"context"
-	"errors"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
+	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"time"
 
 	"golang.org/x/oauth2"
 	gcalendar "google.golang.org/api/calendar/v3"
 )
-
-// ErrorInvalidToken is an error thrown if the google token is invalid
-var ErrorInvalidToken = errors.New("google token is invalid")
 
 // GoogleCalendarRepository provides function for easily editing the users google calendar
 type GoogleCalendarRepository struct {
@@ -35,7 +33,7 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 	newRepo.Config = config
 
 	if u.GoogleCalendarConnection.Token.AccessToken == "" {
-		return nil, ErrorInvalidToken
+		return nil, communication.ErrCalendarAuthInvalid
 	}
 
 	if u.GoogleCalendarConnection.Token.Expiry.Before(time.Now()) {
@@ -60,6 +58,26 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 	return &newRepo, nil
 }
 
+func checkForInvalidTokenError(err error) error {
+	if e, ok := err.(*googleapi.Error); ok {
+		if e.Code == 401 {
+			return communication.ErrCalendarAuthInvalid
+		}
+	}
+
+	return err
+}
+
+func checkForIsGone(err error) error {
+	if e, ok := err.(*googleapi.Error); ok {
+		if e.Code == 410 {
+			return nil
+		}
+	}
+
+	return err
+}
+
 // CreateCalendar creates a calendar and returns its id
 func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	// calendarId := "refm50ua0bukpdmp52a84cgshk@group.gcalendar.google.com"
@@ -68,7 +86,7 @@ func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	}
 	cal, err := c.Service.Calendars.Insert(&newCalendar).Do()
 	if err != nil {
-		return "", err
+		return "", checkForInvalidTokenError(err)
 	}
 
 	return cal.Id, nil
@@ -79,7 +97,7 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 	var calendars = make(map[string]*Calendar)
 	calList, err := c.Service.CalendarList.List().Do()
 	if err != nil {
-		return calendars, err
+		return calendars, checkForInvalidTokenError(err)
 	}
 
 	for _, cal := range calList.Items {
@@ -92,12 +110,12 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 }
 
 // NewEvent creates a new Event in Google Calendar
-func (c *GoogleCalendarRepository) NewEvent(title string, description string, blocking bool, event *Event) (*Event, error) {
-	googleEvent := createGoogleEvent(title, description, blocking, event)
+func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
+	googleEvent := createGoogleEvent(event)
 
 	createdEvent, err := c.Service.Events.Insert(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, googleEvent).Do()
 	if err != nil {
-		return nil, err
+		return nil, checkForInvalidTokenError(err)
 	}
 
 	event.CalendarEventID = createdEvent.Id
@@ -107,19 +125,19 @@ func (c *GoogleCalendarRepository) NewEvent(title string, description string, bl
 }
 
 // UpdateEvent updates an existing Google Calendar event
-func (c *GoogleCalendarRepository) UpdateEvent(title string, description string, blocking bool, event *Event) error {
-	googleEvent := createGoogleEvent(title, description, blocking, event)
+func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
+	googleEvent := createGoogleEvent(event)
 
 	_, err := c.Service.Events.
 		Update(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, event.CalendarEventID, googleEvent).Do()
 	if err != nil {
-		return err
+		return checkForInvalidTokenError(err)
 	}
 
 	return nil
 }
 
-func createGoogleEvent(title string, description string, blocking bool, event *Event) *gcalendar.Event {
+func createGoogleEvent(event *Event) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
 		DateTime: event.Date.Start.Format(time.RFC3339),
 	}
@@ -129,7 +147,7 @@ func createGoogleEvent(title string, description string, blocking bool, event *E
 	}
 
 	transparency := "opaque"
-	if !blocking {
+	if !event.Blocking {
 		transparency = "transparent"
 	}
 
@@ -138,8 +156,8 @@ func createGoogleEvent(title string, description string, blocking bool, event *E
 	googleEvent := gcalendar.Event{
 		Start:        &start,
 		End:          &end,
-		Summary:      title,
-		Description:  description,
+		Summary:      event.Title,
+		Description:  event.Description,
 		Transparency: transparency,
 		Source:       &source,
 	}
@@ -162,7 +180,7 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 		TimeMax: window.End.Format(time.RFC3339),
 		Items:   items}).Do()
 	if err != nil {
-		return err
+		return checkForInvalidTokenError(err)
 	}
 
 	for _, v := range response.Calendars {
@@ -179,6 +197,20 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 
 			window.AddToBusy(Timespan{Start: start, End: end})
 		}
+	}
+
+	return nil
+}
+
+// DeleteEvent deletes a single Event
+func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
+	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, event.CalendarEventID).Do()
+	if err != nil {
+		if checkForIsGone(err) == nil {
+			return nil
+		}
+
+		return checkForInvalidTokenError(err)
 	}
 
 	return nil

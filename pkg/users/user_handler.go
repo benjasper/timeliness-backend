@@ -16,9 +16,9 @@ import (
 
 // Handler is the handler for user API calls
 type Handler struct {
-	UserService  UserService
-	Logger       logger.Interface
-	ErrorManager *communication.ErrorResponseManager
+	UserService     UserService
+	Logger          logger.Interface
+	ResponseManager *communication.ResponseManager
 }
 
 // UserRegister is the route for registering a user
@@ -30,7 +30,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	err := decoder.Decode(&body)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Wrong format", err)
 		return
 	}
@@ -41,7 +41,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	presentUser, err := handler.UserService.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"User with email "+presentUser.Email+" already exists", err)
 		return
 	}
@@ -50,7 +50,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem hashing password", err)
 		return
 	}
@@ -60,28 +60,28 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	err = v.Struct(user)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
 			return
 		}
 	}
 
 	err = handler.UserService.Add(request.Context(), &user)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"User couldn't be persisted in the database", err)
 		return
 	}
 
 	binary, err := json.Marshal(user)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Parsing users didn't work", err)
 		return
 	}
 
 	_, err = writer.Write(binary)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusInternalServerError,
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Writing response data didn't work", err)
 		return
 	}
@@ -92,7 +92,7 @@ func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Reques
 	vars := mux.Vars(request)
 	u, err := handler.UserService.FindByID(request.Context(), vars["id"])
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusNotFound,
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
 			"User wasn't found", err)
 		return
 	}
@@ -115,7 +115,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	userLogin := UserLogin{}
 	err := json.NewDecoder(request.Body).Decode(&userLogin)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Wrong format", err)
 		return
 	}
@@ -124,14 +124,14 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	err = v.Struct(userLogin)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
 			return
 		}
 	}
 
 	user, err := handler.UserService.FindByEmail(request.Context(), userLogin.Email)
 	if err != nil || user == nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Wrong credentials", err)
 		return
 	}
@@ -140,7 +140,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	inputPassword := []byte(userLogin.Password)
 	err = bcrypt.CompareHashAndPassword(hashedPassword, inputPassword)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Wrong credentials", err)
 		return
 	}
@@ -157,7 +157,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	// TODO change to secret to env var
 	accessTokenString, err := accessToken.Sign("secret")
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest,
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Problem signing access token", err)
 		return
 	}
@@ -191,13 +191,13 @@ func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, r
 
 	u, err := handler.UserService.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
 		return
 	}
 
 	url, stateToken, err := google.GetGoogleAuthURL()
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
 		return
 	}
 
@@ -205,7 +205,7 @@ func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, r
 
 	err = handler.UserService.Update(request.Context(), u)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
 		return
 	}
 
@@ -234,13 +234,13 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 
 	usr, err := handler.UserService.FindByGoogleStateToken(request.Context(), stateToken)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
 		return
 	}
 
 	token, err := google.GetGoogleToken(request.Context(), authCode)
 	if err != nil {
-		handler.ErrorManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
 		return
 	}
 

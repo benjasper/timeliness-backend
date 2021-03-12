@@ -10,5 +10,13 @@ services:
     volumes:
       - ./scripts/mongo/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
       - mongo-data:/data/db
+  swagger:
+    image: 'swaggerapi/swagger-ui'
+    ports:
+      - 90:8080
+    volumes:
+      - ./docs:/docs
+    environment:
+      - SWAGGER_JSON=/docs/timeliness-api.yaml
 volumes:
   mongo-data:

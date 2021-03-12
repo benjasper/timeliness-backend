@@ -13,7 +13,7 @@ import (
 type Handler struct {
 	UserService  *users.UserService
 	Logger       logger.Interface
-	ErrorManager *communication.ErrorResponseManager
+	ErrorManager *communication.ResponseManager
 }
 
 type calendarsPost struct {
