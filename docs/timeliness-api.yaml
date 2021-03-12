@@ -105,6 +105,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    patch:
+      summary: 'Update a task'
+      operationId: updateTask
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+      tags:
+        - tasks
+      responses:
+        '200':
+          description: 'Task'
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/Task'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     delete:
       summary: 'Delete a task and its work units by id'
       operationId: deleteTask
