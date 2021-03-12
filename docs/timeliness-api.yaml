@@ -1,0 +1,254 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Timeliness
+servers:
+  - url: 'http://localhost/v1'
+security:
+  - BearerAuth: [ ]
+paths:
+  /tasks:
+    get:
+      summary: 'Get all tasks'
+      operationId: listTasks
+      tags:
+        - tasks
+      parameters:
+        - name: page
+          in: query
+          description: Page index, starting with 0
+          example: 0
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: pageSize
+          in: query
+          description: Page size
+          required: false
+          example: 10
+          schema:
+            type: integer
+            format: int32
+            maximum: 25
+      responses:
+        '200':
+          description: 'Tasks paginated'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pagination:
+                    type: object
+                    $ref: '#/components/schemas/Pagination'
+                  result:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: 'Create a new task'
+      operationId: newTask
+      tags:
+        - tasks
+      requestBody:
+        description: A task
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Task'
+      responses:
+        '200':
+          description: 'New task'
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/Task'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tasks/{taskId}:
+    get:
+      summary: 'Get a task by id'
+      operationId: getTask
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+      tags:
+        - tasks
+      responses:
+        '200':
+          description: 'Task'
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/Task'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: 'Delete a task and its work units by id'
+      operationId: deleteTask
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+      tags:
+        - tasks
+      responses:
+        '204':
+          description: 'No content'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /user:
+    get:
+      summary: 'Sample endpoint: Returns details about a particular user'
+      operationId: getUser
+      tags:
+        - user
+      parameters:
+        - name: id
+          in: query
+          description: ID of the user
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: 'Get user by id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Pagination:
+      type: object
+      properties:
+        pageCount:
+          type: integer
+        pageIndex:
+          type: integer
+        pageSize:
+          type: integer
+        pages:
+          type: integer
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 604b9e9424626d1b5f27e938
+        userID:
+          type: string
+          example: 602189830cde616a98c09379
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          example: Testtask
+        description:
+          type: string
+          example: Description text
+        isDone:
+          type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+        priority:
+          type: integer
+          description: Prority 1 - 3, low to high
+        workloadOverall:
+          type: integer
+          example: 36000000000000
+          description: Duration of the whole task in nano seconds
+        dueAt:
+          type: string
+          format: date-time
+        workUnits:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkUnit"
+    WorkUnit:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 604b9e9424626d1b5f27e938
+        isDone:
+          type: boolean
+        markedDoneAt:
+          type: string
+          format: date-time
+        scheduledAt:
+          type: string
+          format: date-time
+        workload:
+          type: integer
+          example: 36000000000000
+          description: Duration of this specific task in nano seconds
+    User:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        tag:
+          type: string
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string

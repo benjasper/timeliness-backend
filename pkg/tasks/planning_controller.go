@@ -90,8 +90,9 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 
 // ScheduleNewTask takes a new task a non existent task and creates workunits and pushes events to the calendar
 func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
-	window := calendar.TimeWindow{Start: time.Now().Add(time.Minute * 15).Round(time.Minute * 15), End: t.DueAt.Date.Start}
-	err := c.repository.AddBusyToWindow(&window)
+	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := calendar.TimeWindow{Start: now, End: t.DueAt.Date.Start}
+	err := c.repository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return err
 	}
@@ -106,51 +107,119 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 			Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
 			End:   time.Date(0, 0, 0, 15, 30, 0, 0, loc),
 		}}}
-	window.ComputeFree(&constraint)
 
-	var workunits []WorkUnit
+	windowTotal.ComputeFree(&constraint)
 
-	dueEvent, err := c.repository.NewEvent(t.Name+" is due", "", false, &t.DueAt)
+	var workUnits []WorkUnit
+	for _, workUnit := range findWorkUnitTimes(&windowTotal, t.WorkloadOverall) {
+		workUnit.ScheduledAt.Blocking = true
+		workUnit.ScheduledAt.Title = "Working on " + t.Name
+		workUnit.ScheduledAt.Description = ""
+
+		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
+		if err != nil {
+			return err
+		}
+
+		workUnit.ScheduledAt = *workEvent
+		workUnits = append(workUnits, workUnit)
+	}
+
+	t.DueAt.Blocking = false
+	t.DueAt.Title = t.Name + " is due"
+	t.DueAt.Description = ""
+
+	dueEvent, err := c.repository.NewEvent(&t.DueAt)
 	if err != nil {
 		return err
 	}
 
 	t.DueAt = *dueEvent
 
-	for i := t.WorkloadOverall; i > 0; {
+	t.WorkUnits = workUnits
+
+	return nil
+}
+
+func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) []WorkUnit {
+	var workUnits []WorkUnit
+	if w.FreeDuration == 0 {
+		return workUnits
+	}
+
+	if w.Duration() < 24*time.Hour*7 {
 		minDuration := 2 * time.Hour
 		maxDuration := 6 * time.Hour
-		if i < 6*time.Hour {
-			if i < 2*time.Hour {
-				minDuration = i
+
+		for w.FreeDuration >= minDuration && durationToFind != 0 {
+			if durationToFind < 6*time.Hour {
+				if durationToFind < 2*time.Hour {
+					minDuration = durationToFind
+				}
+				maxDuration = durationToFind
 			}
-			maxDuration = i
-		}
 
-		var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-		timeslot := window.FindTimeSlot(&rules)
-		if timeslot == nil {
-			log.Panic("Found timeslot is nil")
+			var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
+			slot := w.FindTimeSlot(&rules)
+			if slot == nil {
+				break
+			}
+			durationToFind -= slot.Duration()
+			workUnits = append(workUnits, WorkUnit{ScheduledAt: calendar.Event{Date: *slot}, Workload: slot.Duration()})
 		}
+	}
 
-		workunit := WorkUnit{
-			Workload:    timeslot.Duration(),
-			ScheduledAt: calendar.Event{Date: *timeslot},
+	durationThird := w.Duration() / 3
+
+	windowMiddle := w.GetPreferredTimeWindow(w.Start.Add(durationThird), w.Start.Add(durationThird*2))
+	if windowMiddle.FreeDuration > 0 && durationToFind != 0 {
+		found := findWorkUnitTimes(windowMiddle, durationToFind)
+		for _, unit := range found {
+			durationToFind -= unit.Workload
 		}
+		if len(found) > 0 {
+			workUnits = append(workUnits, found...)
+		}
+	}
 
-		event, err := c.repository.NewEvent("Working at "+t.Name, "", true,
-			&workunit.ScheduledAt)
+	windowRight := w.GetPreferredTimeWindow(w.Start.Add(durationThird*2), w.End)
+	if windowRight.FreeDuration > 0 && durationToFind != 0 {
+		found := findWorkUnitTimes(windowRight, durationToFind)
+		for _, unit := range found {
+			durationToFind -= unit.Workload
+		}
+		if len(found) > 0 {
+			workUnits = append(workUnits, found...)
+		}
+	}
+
+	windowLeft := w.GetPreferredTimeWindow(w.Start, w.Start.Add(durationThird))
+	if windowLeft.FreeDuration > 0 && durationToFind != 0 {
+		found := findWorkUnitTimes(windowLeft, durationToFind)
+		for _, unit := range found {
+			durationToFind -= unit.Workload
+		}
+		if len(found) > 0 {
+			workUnits = append(workUnits, found...)
+		}
+	}
+
+	return workUnits
+}
+
+// DeleteTask deletes all events that are connected to a task
+func (c *PlanningController) DeleteTask(task *Task) error {
+	for _, unit := range task.WorkUnits {
+		err := c.repository.DeleteEvent(&unit.ScheduledAt)
 		if err != nil {
 			return err
 		}
-
-		workunit.ScheduledAt = *event
-		i -= workunit.Workload
-
-		workunits = append(workunits, workunit)
 	}
 
-	t.WorkUnits = workunits
+	err := c.repository.DeleteEvent(&task.DueAt)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

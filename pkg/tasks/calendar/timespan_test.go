@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -10,15 +11,21 @@ func timeDate(year int, month time.Month, day int, hour int, min int, seconds in
 	loc, _ := time.LoadLocation("Local")
 	return time.Date(year, month, day, hour, min, seconds, 0, loc)
 }
+func getLocation() *time.Location {
+	loc, _ := time.LoadLocation("Local")
+	return loc
+}
 
 var timeWindowTests = []struct {
-	in  TimeWindow
-	out []Timespan
+	in         TimeWindow
+	constraint FreeConstraint
+	out        []Timespan
 }{
 	{
 		// Case single busy time
 		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: []Timespan{{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)}}},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
@@ -29,6 +36,7 @@ var timeWindowTests = []struct {
 			Busy: []Timespan{
 				{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)}}},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
@@ -43,6 +51,7 @@ var timeWindowTests = []struct {
 				{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
 			},
 		},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
@@ -58,6 +67,7 @@ var timeWindowTests = []struct {
 				{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
 			},
 		},
+		FreeConstraint{},
 		[]Timespan{
 			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
 			{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 12, 14, 30, 0)},
@@ -68,19 +78,534 @@ var timeWindowTests = []struct {
 		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: nil,
 		},
+		FreeConstraint{},
 		[]Timespan{{
 			Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 		}},
+	},
+	{
+		// Case with free constraint
+		TimeWindow{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 7, 17, 00, 0),
+			Busy: []Timespan{
+				{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 4, 23, 59, 0)},
+				{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
+				{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
+			},
+		},
+		FreeConstraint{
+			AllowedTimeSpans: []Timespan{{
+				Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
+				End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
+			}}},
+		[]Timespan{
+			{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
+			{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
+		},
 	},
 }
 
 func TestTimeWindow_ComputeFree(t *testing.T) {
 	for index, tt := range timeWindowTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
-			constraint := FreeConstraint{}
-			free := tt.in.ComputeFree(&constraint)
+			free := tt.in.ComputeFree(&tt.constraint)
 			if !reflect.DeepEqual(free, tt.out) {
 				t.Errorf("got (%d)%q, want (%d)%q", len(free), free, len(tt.out), tt.out)
+			}
+		})
+	}
+}
+
+func TestTimeWindow_AddToBusy(t *testing.T) {
+	var timespanAddToBusyTests = []struct {
+		input  Timespan
+		window TimeWindow
+		output []Timespan
+	}{
+		{
+			// Case 0 new is before all old ones
+			input: Timespan{
+				Start: timeDate(2021, 2, 28, 9, 30, 0),
+				End:   timeDate(2021, 2, 28, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 28, 9, 30, 0),
+					End:   timeDate(2021, 2, 28, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 1 new is after all old ones
+			input: Timespan{
+				Start: timeDate(2021, 3, 7, 9, 30, 0),
+				End:   timeDate(2021, 3, 7, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 7, 9, 30, 0),
+					End:   timeDate(2021, 3, 7, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 2 new is contained by existing timeslot
+			input: Timespan{
+				Start: timeDate(2021, 3, 1, 9, 30, 0),
+				End:   timeDate(2021, 3, 1, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 3 existing is contained by new without other intersections
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 17, 30, 0),
+				End:   timeDate(2021, 3, 4, 17, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 2, 17, 30, 0),
+					End:   timeDate(2021, 3, 4, 17, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 4 new timeslot between two existing ones
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 17, 30, 0),
+				End:   timeDate(2021, 3, 3, 7, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 2, 17, 30, 0),
+					End:   timeDate(2021, 3, 3, 7, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 5 overlaps multiple whole timeslot and intersects with two others
+			input: Timespan{
+				Start: timeDate(2021, 3, 1, 10, 30, 0),
+				End:   timeDate(2021, 3, 5, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 2, 6, 9, 30, 0),
+					End:   timeDate(2021, 2, 7, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 4, 17, 30, 0),
+					End:   timeDate(2021, 3, 5, 7, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 7, 9, 30, 0),
+					End:   timeDate(2021, 3, 8, 16, 30, 0),
+				},
+			},
+			},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 6, 9, 30, 0),
+					End:   timeDate(2021, 2, 7, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 7, 9, 30, 0),
+					End:   timeDate(2021, 3, 8, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 6 intersects with 2 timeslots
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 10, 30, 0),
+				End:   timeDate(2021, 3, 3, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 7 timeslot overlaps all others
+			input: Timespan{
+				Start: timeDate(2021, 2, 2, 10, 30, 0),
+				End:   timeDate(2021, 4, 3, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 2, 10, 30, 0),
+					End:   timeDate(2021, 4, 3, 10, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 8 timeslot overlaps all others except the last
+			input: Timespan{
+				Start: timeDate(2021, 3, 1, 9, 30, 0),
+				End:   timeDate(2021, 4, 3, 10, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 4, 3, 10, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 9 timeslot overlaps all others except the first one
+			input: Timespan{
+				Start: timeDate(2021, 2, 2, 10, 30, 0),
+				End:   timeDate(2021, 3, 6, 16, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 2, 10, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 10 timeslot fits exactly into gap
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 16, 30, 0),
+				End:   timeDate(2021, 3, 3, 9, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 11 timeslot fits exactly into gap but overlaps next one
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 16, 30, 0),
+				End:   timeDate(2021, 3, 3, 12, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 12 timeslot fits exactly into gap but overlaps at the start
+			input: Timespan{
+				Start: timeDate(2021, 3, 2, 15, 30, 0),
+				End:   timeDate(2021, 3, 3, 9, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+		{
+			// Case 13 timeslot extends the start
+			input: Timespan{
+				Start: timeDate(2021, 2, 2, 15, 30, 0),
+				End:   timeDate(2021, 3, 1, 9, 30, 0),
+			},
+			window: TimeWindow{Busy: []Timespan{
+				{
+					Start: timeDate(2021, 3, 1, 9, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			}},
+			output: []Timespan{
+				{
+					Start: timeDate(2021, 2, 2, 15, 30, 0),
+					End:   timeDate(2021, 3, 2, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 3, 9, 30, 0),
+					End:   timeDate(2021, 3, 4, 16, 30, 0),
+				},
+				{
+					Start: timeDate(2021, 3, 5, 9, 30, 0),
+					End:   timeDate(2021, 3, 6, 16, 30, 0),
+				},
+			},
+		},
+	}
+
+	for index, tt := range timespanAddToBusyTests {
+		t.Run(fmt.Sprintf("Case %d", index), func(t *testing.T) {
+			tt := tt
+			t.Parallel()
+
+			tt.window.AddToBusy(tt.input)
+			if !reflect.DeepEqual(tt.output, tt.window.Busy) {
+				t.Errorf("got %v, want %v", tt.window.Busy, tt.output)
 			}
 		})
 	}
@@ -155,7 +680,8 @@ func TestTimespan_ContainsInClock_Test(t *testing.T) {
 	}
 
 	for index, tt := range timespanContainsTests {
-		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Case %d", index), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.ContainsByClock(tt.contained)
 			if result != tt.out {
@@ -199,7 +725,7 @@ func TestTimespan_OverflowsStart(t *testing.T) {
 			Timespan{
 				Start: timeDate(0, 0, 0, 8, 0, 0),
 				End:   timeDate(0, 0, 0, 18, 0, 0)},
-			false,
+			true,
 		},
 		{
 			// Start not contained
@@ -235,6 +761,7 @@ func TestTimespan_OverflowsStart(t *testing.T) {
 
 	for index, tt := range timespanOverflowStartTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.OverflowsStart(tt.contained)
 			if result != tt.out {
@@ -278,7 +805,7 @@ func TestTimespan_OverflowsEnd(t *testing.T) {
 			Timespan{
 				Start: timeDate(0, 0, 0, 8, 0, 0),
 				End:   timeDate(0, 0, 0, 18, 0, 0)},
-			false,
+			true,
 		},
 		{
 			// Start not contained
@@ -314,6 +841,7 @@ func TestTimespan_OverflowsEnd(t *testing.T) {
 
 	for index, tt := range timespanOverflowEndTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.OverflowsEnd(tt.contained)
 			if result != tt.out {
@@ -413,6 +941,7 @@ func TestTimespan_IntersectsWith(t *testing.T) {
 
 	for index, tt := range timespanIntersectTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			result := tt.container.IntersectsWith(tt.contained)
 			if result != tt.out {
@@ -475,6 +1004,10 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 					Start: timeDate(2020, 12, 12, 9, 0, 0),
 					End:   timeDate(2020, 12, 12, 12, 0, 0),
 				},
+				{
+					Start: timeDate(2020, 12, 13, 8, 0, 0),
+					End:   timeDate(2020, 12, 13, 10, 0, 0),
+				},
 			},
 			&RuleDuration{Minimum: time.Hour * 2, Maximum: time.Hour * 6},
 			&Timespan{
@@ -501,6 +1034,7 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 
 	for index, tt := range ruleTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
 			t.Parallel()
 			window := TimeWindow{
 				Free: tt.in,
