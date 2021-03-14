@@ -38,7 +38,8 @@ type TaskUnwound struct {
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       WorkUnit       `json:"workUnits" bson:"workUnits"`
+	WorkUnit        WorkUnit       `json:"workUnit" bson:"workUnit"`
+	WorkUnits       []WorkUnit     `json:"workUnits" bson:"workUnits"`
 	WorkUnitsIndex  int            `json:"workUnitsIndex" bson:"workUnitsIndex"`
 	WorkUnitsCount  int            `json:"workUnitsCount" bson:"workUnitsCount"`
 }

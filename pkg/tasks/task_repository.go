@@ -120,10 +120,11 @@ func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page
 
 	matchStage := bson.D{{Key: "$match", Value: bson.M{"userId": userObjectID}}}
 	addFieldsStage := bson.D{{Key: "$addFields", Value: bson.M{"workUnitsCount": bson.M{"$size": "$workUnits"}}}}
-	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnits", "includeArrayIndex": "workUnitsIndex"}}}
+	addFieldStage2 := bson.D{{Key: "$addFields", Value: bson.M{"workUnit": "$workUnits"}}}
+	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
 	sortStage := bson.D{{Key: "$sort", Value: bson.M{"workUnits.scheduledAt.date": 1}}}
 
-	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, unwindStage, sortStage})
+	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, addFieldStage2, unwindStage, sortStage})
 	if err != nil {
 		return nil, 0, err
 	}

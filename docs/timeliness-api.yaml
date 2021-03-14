@@ -200,7 +200,7 @@ components:
         id:
           type: string
           example: 604b9e9424626d1b5f27e938
-        userID:
+        userId:
           type: string
           example: 602189830cde616a98c09379
         createdAt:
@@ -223,18 +223,30 @@ components:
             type: string
         priority:
           type: integer
+          example: 1
           description: Prority 1 - 3, low to high
         workloadOverall:
           type: integer
           example: 36000000000000
           description: Duration of the whole task in nano seconds
         dueAt:
-          type: string
-          format: date-time
+          $ref: "#/components/schemas/Event"
         workUnits:
           type: array
           items:
             $ref: "#/components/schemas/WorkUnit"
+    Event:
+      type: object
+      properties:
+        date:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
     WorkUnit:
       type: object
       properties:
@@ -244,11 +256,9 @@ components:
         isDone:
           type: boolean
         markedDoneAt:
-          type: string
-          format: date-time
+          $ref: "#/components/schemas/Event"
         scheduledAt:
-          type: string
-          format: date-time
+          $ref: "#/components/schemas/Event"
         workload:
           type: integer
           example: 36000000000000
