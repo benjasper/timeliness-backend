@@ -232,6 +232,9 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 
 	if len(w.Busy) == 0 {
 		w.Free = append(w.Free, constraint.Test(Timespan{Start: w.Start, End: w.End})...)
+		for _, timespan := range w.Free {
+			w.FreeDuration += timespan.Duration()
+		}
 	}
 
 	for index, busy := range w.Busy {
