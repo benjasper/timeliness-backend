@@ -282,6 +282,19 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	handler.ResponseManager.Respond(writer, response)
 }
 
+// TaskGet get a single task
+func (handler *Handler) TaskGet(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+
+	task, err := handler.TaskService.FindByID(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find task", err)
+	}
+
+	handler.ResponseManager.Respond(writer, task)
+}
+
 // GetAllTasksByWorkUnits is the route for getting all tasks, but by TaskUnwound
 func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
