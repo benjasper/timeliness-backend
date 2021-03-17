@@ -177,6 +177,26 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		task.WorkloadOverall += workUnit.Workload
 	}
 
+	if original.IsDone != workUnit.IsDone {
+		if !workUnit.IsDone {
+			if original.IsDone {
+				task.IsDone = false
+			}
+		} else {
+			allAreDone := true
+			for _, unit := range task.WorkUnits {
+				if !unit.IsDone && unit.ID != workUnit.ID {
+					allAreDone = false
+					break
+				}
+			}
+
+			if allAreDone {
+				task.IsDone = true
+			}
+		}
+	}
+
 	task.WorkUnits[index] = workUnit
 
 	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
