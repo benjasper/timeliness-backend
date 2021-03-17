@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"log"
@@ -113,7 +114,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	var workUnits []WorkUnit
 	for _, workUnit := range findWorkUnitTimes(&windowTotal, t.WorkloadOverall) {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = "Working on " + t.Name
+		workUnit.ScheduledAt.Title = fmt.Sprintf("⚙️ Working on %s", t.Name)
 		workUnit.ScheduledAt.Description = ""
 
 		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
@@ -126,7 +127,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	}
 
 	t.DueAt.Blocking = false
-	t.DueAt.Title = t.Name + " is due"
+	t.DueAt.Title = fmt.Sprintf("📅 %s is due", t.Name)
 	t.DueAt.Description = ""
 
 	dueEvent, err := c.repository.NewEvent(&t.DueAt)
