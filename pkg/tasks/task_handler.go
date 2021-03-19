@@ -329,6 +329,9 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
+	queryWorkUnitIsDone := request.URL.Query().Get("workUnit.isDone")
+
+	var filters []TaskByWorkUnitFilter
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -354,7 +357,16 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		}
 	}
 
-	tasks, count, err := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize)
+	if queryWorkUnitIsDone != "" {
+		value := false
+		if queryWorkUnitIsDone == "true" || queryWorkUnitIsDone == "1" {
+			value = true
+		}
+
+		filters = append(filters, TaskByWorkUnitFilter{Field: "workUnit.isDone", Value: value})
+	}
+
+	tasks, count, err := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return

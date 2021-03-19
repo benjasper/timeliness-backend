@@ -101,7 +101,7 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int) ([]TaskUnwound, int, error) {
+func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []TaskByWorkUnitFilter) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound
@@ -118,10 +118,19 @@ func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page
 
 	offset := page * pageSize
 
-	matchStage := bson.D{{Key: "$match", Value: bson.M{"userId": userObjectID}}}
+	queryFilters := bson.D{{Key: "userId", Value: userObjectID}}
+
+	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
 	addFieldsStage := bson.D{{Key: "$addFields", Value: bson.M{"workUnitsCount": bson.M{"$size": "$workUnits"}}}}
 	addFieldStage2 := bson.D{{Key: "$addFields", Value: bson.M{"workUnit": "$workUnits"}}}
 	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
+
+	queryWorkUnitFilters := bson.D{}
+	for _, filter := range filters {
+		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: filter.Value})
+	}
+	matchStage2 := bson.D{{Key: "$match", Value: queryWorkUnitFilters}}
+
 	facetStage := bson.D{
 		{
 			Key: "$facet",
@@ -135,13 +144,17 @@ func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page
 
 	unwindCountStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$totalCount"}}}
 
-	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, addFieldStage2, unwindStage, facetStage, unwindCountStage})
+	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, addFieldStage2, unwindStage, matchStage2, facetStage, unwindCountStage})
 	if err != nil {
 		return nil, 0, err
 	}
 
 	err = cursor.All(ctx, &results)
 	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(results) == 0 {
 		return nil, 0, err
 	}
 
