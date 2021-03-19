@@ -285,7 +285,11 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, count, _ := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
+	tasks, count, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		return
+	}
 
 	pages := float64(count) / float64(pageSize)
 
@@ -350,7 +354,11 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		}
 	}
 
-	tasks, count, _ := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize)
+	tasks, count, err := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		return
+	}
 
 	pages := float64(count) / float64(pageSize)
 
