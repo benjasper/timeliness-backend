@@ -128,6 +128,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	t.DueAt.Blocking = false
 	t.DueAt.Title = fmt.Sprintf("📅 %s is due", t.Name)
+	t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
 	t.DueAt.Description = ""
 
 	dueEvent, err := c.repository.NewEvent(&t.DueAt)

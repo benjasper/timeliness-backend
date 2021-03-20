@@ -260,6 +260,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
+	queryDueAt := request.URL.Query().Get("dueAt.date.start")
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -285,7 +286,18 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, count, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
+	filters := []Filter{}
+
+	if queryDueAt != "" {
+		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Wrong date format in query string", err)
+			return
+		}
+		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
+	}
+
+	tasks, count, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize, filters)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
@@ -331,7 +343,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryWorkUnitIsDone := request.URL.Query().Get("workUnit.isDone")
 
-	var filters []TaskByWorkUnitFilter
+	var filters []Filter
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -363,7 +375,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 			value = true
 		}
 
-		filters = append(filters, TaskByWorkUnitFilter{Field: "workUnit.isDone", Value: value})
+		filters = append(filters, Filter{Field: "workUnit.isDone", Value: value})
 	}
 
 	tasks, count, err := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters)

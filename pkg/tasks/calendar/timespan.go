@@ -21,7 +21,7 @@ func TimeAfterOrEquals(t1 time.Time, t2 time.Time) bool {
 // Timespan is a simple timespan between to times/dates
 type Timespan struct {
 	Start time.Time `json:"start" bson:"start" validate:"required"`
-	End   time.Time `json:"end" bson:"end" validate:"required"`
+	End   time.Time `json:"end" bson:"end"`
 }
 
 // Duration simply get the duration of a Timespan

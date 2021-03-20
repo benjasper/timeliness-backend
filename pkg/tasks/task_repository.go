@@ -65,7 +65,7 @@ func (s TaskService) Update(ctx context.Context, taskID string, userID string, t
 }
 
 // FindAll finds all task paginated
-func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error) {
+func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -80,14 +80,21 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	filter := bson.M{"userId": userObjectID}
+	queryFilter := bson.D{{Key: "userId", Value: userObjectID}}
+	for _, filter := range filters {
+		if filter.Operator != "" {
+			queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
+			continue
+		}
+		queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: filter.Value})
+	}
 
-	cursor, err := s.DB.Find(ctx, filter, findOptions)
+	cursor, err := s.DB.Find(ctx, queryFilter, findOptions)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err := s.DB.CountDocuments(ctx, filter)
+	count, err := s.DB.CountDocuments(ctx, queryFilter)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -101,7 +108,7 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []TaskByWorkUnitFilter) ([]TaskUnwound, int, error) {
+func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound

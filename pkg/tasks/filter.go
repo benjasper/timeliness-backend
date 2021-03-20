@@ -1,7 +1,8 @@
 package tasks
 
-// TaskByWorkUnitFilter is a model for the rest api filter
-type TaskByWorkUnitFilter struct {
-	Field string
-	Value interface{}
+// Filter is a model for the rest api filter
+type Filter struct {
+	Field    string
+	Value    interface{}
+	Operator string
 }
