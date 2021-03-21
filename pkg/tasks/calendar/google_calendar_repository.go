@@ -195,7 +195,7 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 				return err
 			}
 
-			window.AddToBusy(Timespan{Start: start, End: end})
+			window.AddToBusy(Timespan{Start: start.UTC(), End: end.UTC()})
 		}
 	}
 
