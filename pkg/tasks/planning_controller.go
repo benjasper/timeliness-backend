@@ -92,7 +92,7 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 // ScheduleNewTask takes a new task a non existent task and creates workunits and pushes events to the calendar
 func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: now, End: t.DueAt.Date.Start}
+	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 	err := c.repository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return err
@@ -105,8 +105,8 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	constraint := calendar.FreeConstraint{
 		AllowedTimeSpans: []calendar.Timespan{{
-			Start: time.Date(0, 0, 0, 8, 0, 0, 0, loc),
-			End:   time.Date(0, 0, 0, 16, 30, 0, 0, loc),
+			Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
+			End:   time.Date(0, 0, 0, 15, 30, 0, 0, loc),
 		}}}
 
 	windowTotal.ComputeFree(&constraint)
