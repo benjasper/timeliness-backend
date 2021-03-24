@@ -177,6 +177,26 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		task.WorkloadOverall += workUnit.Workload
 	}
 
+	if original.IsDone != workUnit.IsDone {
+		if !workUnit.IsDone {
+			if original.IsDone {
+				task.IsDone = false
+			}
+		} else {
+			allAreDone := true
+			for _, unit := range task.WorkUnits {
+				if !unit.IsDone && unit.ID != workUnit.ID {
+					allAreDone = false
+					break
+				}
+			}
+
+			if allAreDone {
+				task.IsDone = true
+			}
+		}
+	}
+
 	task.WorkUnits[index] = workUnit
 
 	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
@@ -240,6 +260,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
+	queryDueAt := request.URL.Query().Get("dueAt.date.start")
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -265,7 +286,22 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, count, _ := handler.TaskService.FindAll(request.Context(), userID, page, pageSize)
+	filters := []Filter{}
+
+	if queryDueAt != "" {
+		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Wrong date format in query string", err)
+			return
+		}
+		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
+	}
+
+	tasks, count, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize, filters)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		return
+	}
 
 	pages := float64(count) / float64(pageSize)
 
@@ -282,6 +318,19 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	handler.ResponseManager.Respond(writer, response)
 }
 
+// TaskGet get a single task
+func (handler *Handler) TaskGet(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+
+	task, err := handler.TaskService.FindByID(request.Context(), taskID, userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find task", err)
+	}
+
+	handler.ResponseManager.Respond(writer, task)
+}
+
 // GetAllTasksByWorkUnits is the route for getting all tasks, but by TaskUnwound
 func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
@@ -292,6 +341,9 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
+	queryWorkUnitIsDone := request.URL.Query().Get("workUnit.isDone")
+
+	var filters []Filter
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -317,7 +369,20 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		}
 	}
 
-	tasks, count, _ := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize)
+	if queryWorkUnitIsDone != "" {
+		value := false
+		if queryWorkUnitIsDone == "true" || queryWorkUnitIsDone == "1" {
+			value = true
+		}
+
+		filters = append(filters, Filter{Field: "workUnit.isDone", Value: value})
+	}
+
+	tasks, count, err := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		return
+	}
 
 	pages := float64(count) / float64(pageSize)
 

@@ -65,7 +65,7 @@ func (s TaskService) Update(ctx context.Context, taskID string, userID string, t
 }
 
 // FindAll finds all task paginated
-func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error) {
+func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -80,14 +80,21 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	filter := bson.M{"userId": userObjectID}
+	queryFilter := bson.D{{Key: "userId", Value: userObjectID}}
+	for _, filter := range filters {
+		if filter.Operator != "" {
+			queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
+			continue
+		}
+		queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: filter.Value})
+	}
 
-	cursor, err := s.DB.Find(ctx, filter, findOptions)
+	cursor, err := s.DB.Find(ctx, queryFilter, findOptions)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err := s.DB.CountDocuments(ctx, filter)
+	count, err := s.DB.CountDocuments(ctx, queryFilter)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -101,8 +108,15 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int) ([]TaskUnwound, int, error) {
-	var t []TaskUnwound
+func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error) {
+
+	var results []struct {
+		AllResults []TaskUnwound
+
+		TotalCount struct {
+			Count int
+		}
+	}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
@@ -111,34 +125,47 @@ func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page
 
 	offset := page * pageSize
 
-	findOptions := options.Find()
-	findOptions.SetSort(bson.M{"dueAt": 1})
-	findOptions.SetSkip(int64(offset))
-	findOptions.SetLimit(int64(pageSize))
+	queryFilters := bson.D{{Key: "userId", Value: userObjectID}}
 
-	filter := bson.M{"userId": userObjectID}
-
-	matchStage := bson.D{{Key: "$match", Value: bson.M{"userId": userObjectID}}}
+	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
 	addFieldsStage := bson.D{{Key: "$addFields", Value: bson.M{"workUnitsCount": bson.M{"$size": "$workUnits"}}}}
-	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnits", "includeArrayIndex": "workUnitsIndex"}}}
-	sortStage := bson.D{{Key: "$sort", Value: bson.M{"workUnits.scheduledAt.date": 1}}}
+	addFieldStage2 := bson.D{{Key: "$addFields", Value: bson.M{"workUnit": "$workUnits"}}}
+	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
 
-	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, unwindStage, sortStage})
+	queryWorkUnitFilters := bson.D{}
+	for _, filter := range filters {
+		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: filter.Value})
+	}
+	matchStage2 := bson.D{{Key: "$match", Value: queryWorkUnitFilters}}
+
+	facetStage := bson.D{
+		{
+			Key: "$facet",
+			Value: bson.M{
+				"allResults": bson.A{bson.D{{Key: "$skip", Value: offset}}, bson.D{{Key: "$limit", Value: pageSize}},
+					bson.D{{Key: "$sort", Value: bson.M{"workUnits.scheduledAt.date": 1}}}},
+				"totalCount": bson.A{bson.D{{Key: "$count", Value: "count"}}},
+			},
+		},
+	}
+
+	unwindCountStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$totalCount"}}}
+
+	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, addFieldStage2, unwindStage, matchStage2, facetStage, unwindCountStage})
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err := s.DB.CountDocuments(ctx, filter)
+	err = cursor.All(ctx, &results)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = cursor.All(ctx, &t)
-	if err != nil {
+	if len(results) == 0 {
 		return nil, 0, err
 	}
 
-	return t, int(count), nil
+	return results[0].AllResults, results[0].TotalCount.Count, nil
 }
 
 // FindByID finds a specific task by ID

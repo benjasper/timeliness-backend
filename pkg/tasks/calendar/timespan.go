@@ -21,7 +21,7 @@ func TimeAfterOrEquals(t1 time.Time, t2 time.Time) bool {
 // Timespan is a simple timespan between to times/dates
 type Timespan struct {
 	Start time.Time `json:"start" bson:"start" validate:"required"`
-	End   time.Time `json:"end" bson:"end" validate:"required"`
+	End   time.Time `json:"end" bson:"end"`
 }
 
 // Duration simply get the duration of a Timespan
@@ -232,6 +232,9 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 
 	if len(w.Busy) == 0 {
 		w.Free = append(w.Free, constraint.Test(Timespan{Start: w.Start, End: w.End})...)
+		for _, timespan := range w.Free {
+			w.FreeDuration += timespan.Duration()
+		}
 	}
 
 	for index, busy := range w.Busy {
