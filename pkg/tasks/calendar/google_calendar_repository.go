@@ -215,17 +215,3 @@ func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
 
 	return nil
 }
-
-// DeleteEvent deletes a single Event
-func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
-	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendar.CalendarID, event.CalendarEventID).Do()
-	if err != nil {
-		if checkForIsGone(err) == nil {
-			return nil
-		}
-
-		return checkForInvalidTokenError(err)
-	}
-
-	return nil
-}
