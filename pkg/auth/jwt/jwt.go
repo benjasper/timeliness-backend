@@ -19,6 +19,14 @@ const (
 	TypJWT = "JWT"
 )
 
+const (
+	// TokenTypeAccess a access token
+	TokenTypeAccess string = "access_token"
+
+	// TokenTypeRefresh a refresh token
+	TokenTypeRefresh string = "refresh_token"
+)
+
 // Header part of a JWT
 type Header struct {
 	Alg string `json:"alg"`
@@ -44,10 +52,14 @@ type Token struct {
 }
 
 // Verify checks a token against the parameterized claims
-func (c *Claims) Verify() error {
+func (c *Claims) Verify(tokenType string) error {
 	// TODO: More verification
-	if time.Unix(c.ExpirationTime, 0).Before(time.Now()) {
+	if c.ExpirationTime != 0 && time.Unix(c.ExpirationTime, 0).Before(time.Now()) {
 		return fmt.Errorf("token expired: %s > %d", time.Now(), c.ExpirationTime)
+	}
+
+	if tokenType != "" && c.TokenType != tokenType {
+		return fmt.Errorf("wrong token type")
 	}
 
 	return nil
@@ -96,7 +108,7 @@ func (t *Token) Sign(secret string) (string, error) {
 }
 
 // Verify checks if token is valid
-func Verify(token string, secret string, algorithm string, payload Claims) (*Token, error) {
+func Verify(token string, tokenType string, secret string, algorithm string, payload Claims) (*Token, error) {
 	if token == "" {
 		return nil, errors.New("token is empty")
 	}
@@ -157,7 +169,7 @@ func Verify(token string, secret string, algorithm string, payload Claims) (*Tok
 		return nil, errors.New("payload json not valid")
 	}
 
-	err = payload.Verify()
+	err = payload.Verify(tokenType)
 	if err != nil {
 		return nil, err
 	}

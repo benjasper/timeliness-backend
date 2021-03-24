@@ -15,6 +15,7 @@ type User struct {
 	Email          string             `json:"email" validate:"required,email"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt" validate:"isdefault"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
+	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
 
 	GoogleCalendarConnection GoogleCalendarConnection `json:"-" bson:"googleCalendarConnection,omitempty"`
 }

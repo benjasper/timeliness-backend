@@ -30,7 +30,8 @@ func (m *AuthenticationMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		claims := jwt.Claims{}
-		token, err := jwt.Verify(extractedToken, "secret", jwt.AlgHS256, claims)
+		// TODO: change secret to env var
+		token, err := jwt.Verify(extractedToken, jwt.TokenTypeAccess, "secret", jwt.AlgHS256, claims)
 		if err != nil {
 			m.ErrorManager.RespondWithError(writer, http.StatusUnauthorized, "Token invalid", err)
 			return
