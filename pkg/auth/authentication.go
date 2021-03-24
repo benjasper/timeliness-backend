@@ -48,7 +48,7 @@ func extractTokenStringFromHeader(r *http.Request) (string, error) {
 	}
 
 	tokenParts := strings.Fields(nonformatted)
-	if tokenParts[0] != "Bearer" {
+	if tokenParts[0] != "Bearer" || len(tokenParts) != 2 {
 		return "", errors.New("token must be a bearer token")
 	}
 
