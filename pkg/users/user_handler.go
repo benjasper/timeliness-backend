@@ -145,14 +145,22 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	claims := jwt.Claims{
+	accessClaims := jwt.Claims{
 		Subject:        user.ID.Hex(),
-		Issuer:         "project-tasks",
+		Issuer:         "timeliness",
 		IssuedAt:       time.Now().Unix(),
 		ExpirationTime: time.Now().AddDate(0, 0, 1).Unix(),
-		TokenType:      "access_token",
+		TokenType:      jwt.TokenTypeAccess,
 	}
-	accessToken := jwt.New(jwt.AlgHS256, claims)
+	accessToken := jwt.New(jwt.AlgHS256, accessClaims)
+
+	refreshTokenClaims := jwt.Claims{
+		Subject:   user.ID.Hex(),
+		Issuer:    "timeliness",
+		IssuedAt:  time.Now().Unix(),
+		TokenType: jwt.TokenTypeRefresh,
+	}
+	refreshToken := jwt.New(jwt.AlgHS256, refreshTokenClaims)
 
 	// TODO change to secret to env var
 	accessTokenString, err := accessToken.Sign("secret")
@@ -162,9 +170,18 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	// TODO change to secret to env var
+	refreshTokenString, err := refreshToken.Sign("secret")
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Problem signing refresh token", err)
+		return
+	}
+
 	var response = map[string]interface{}{
-		"result":      user,
-		"accessToken": accessTokenString,
+		"result":       user,
+		"accessToken":  accessTokenString,
+		"refreshToken": refreshTokenString,
 	}
 
 	binary, err := json.Marshal(response)
@@ -182,7 +199,66 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 
 // UserRefresh TODO: Refreshes a users token with refresh token
 func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Request) {
+	body := struct {
+		RefreshToken string `json:"refreshToken"`
+	}{}
 
+	err := json.NewDecoder(request.Body).Decode(&body)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Wrong format", err)
+		return
+	}
+
+	if body.RefreshToken == "" {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"No refresh refreshToken specified", err)
+		return
+	}
+
+	claims := jwt.Claims{}
+	// TODO: change secret to env var
+	refreshToken, err := jwt.Verify(body.RefreshToken, jwt.TokenTypeRefresh, "secret", jwt.AlgHS256, claims)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Token invalid", err)
+		return
+	}
+
+	userID := refreshToken.Payload.Subject
+
+	u, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "User not found", err)
+		return
+	}
+
+	if u.IsDeactivated {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "User not found", err)
+		return
+	}
+
+	accessClaims := jwt.Claims{
+		Subject:        u.ID.Hex(),
+		Issuer:         "timeliness",
+		IssuedAt:       time.Now().Unix(),
+		ExpirationTime: time.Now().AddDate(0, 0, 1).Unix(),
+		TokenType:      jwt.TokenTypeAccess,
+	}
+	accessToken := jwt.New(jwt.AlgHS256, accessClaims)
+
+	// TODO change to secret to env var
+	accessTokenString, err := accessToken.Sign("secret")
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Problem signing access refreshToken", err)
+		return
+	}
+
+	var response = map[string]interface{}{
+		"accessToken": accessTokenString,
+	}
+
+	handler.ResponseManager.Respond(writer, response)
 }
 
 // InitiateGoogleCalendarAuth responds with the Google Auth URL

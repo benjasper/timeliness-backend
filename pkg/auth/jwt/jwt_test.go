@@ -26,7 +26,7 @@ func TestToken_Sign(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
-	payload := Claims{ExpirationTime: time.Now().Unix() - 100}
+	payload := Claims{ExpirationTime: time.Now().Unix() - 100, TokenType: TokenTypeAccess}
 	token := New(AlgHS256, payload)
 	tokenString, err := token.Sign("secret")
 	if err != nil {
@@ -35,7 +35,7 @@ func TestVerify(t *testing.T) {
 
 	newClaims := Claims{}
 
-	verifiedToken, err := Verify(tokenString, "secret", AlgHS256, newClaims)
+	verifiedToken, err := Verify(tokenString, TokenTypeAccess, "secret", AlgHS256, newClaims)
 	if err == nil && verifiedToken != nil {
 		t.Error(err)
 	}

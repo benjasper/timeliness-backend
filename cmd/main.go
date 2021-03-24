@@ -93,6 +93,7 @@ func main() {
 	})
 	authAPI := r.PathPrefix("/" + apiVersion + "/auth/").Subrouter()
 	authAPI.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
+	authAPI.Path("/refresh").HandlerFunc(userHandler.UserRefresh).Methods(http.MethodPost)
 	authAPI.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
 	authAPI.Path("/google").HandlerFunc(userHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
 
