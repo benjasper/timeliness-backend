@@ -227,12 +227,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 	userID := refreshToken.Payload.Subject
 
 	u, err := handler.UserService.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "User not found", err)
-		return
-	}
-
-	if u.IsDeactivated {
+	if err != nil || u.IsDeactivated {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "User not found", err)
 		return
 	}
