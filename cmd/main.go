@@ -30,10 +30,15 @@ func main() {
 		accessControl = "*"
 	}
 
+	databaseUrl := os.Getenv("DATABASE")
+	if databaseUrl == "" {
+		databaseUrl = "mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"
+	}
+
 	var logging logger.Interface = logger.Logger{}
 	fmt.Println("Server is starting up...")
 
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"))
+	client, err := mongo.NewClient(options.Client().ApplyURI(databaseUrl))
 	if err != nil {
 		log.Fatal(err)
 	}
