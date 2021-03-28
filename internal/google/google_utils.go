@@ -8,7 +8,6 @@ import (
 	"golang.org/x/oauth2/google"
 	gcalendar "google.golang.org/api/calendar/v3"
 	"io/ioutil"
-	"log"
 	"os"
 )
 
@@ -16,23 +15,32 @@ import (
 func ReadGoogleConfig() (*oauth2.Config, error) {
 	b, err := ioutil.ReadFile("./keys/credentials.json")
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
 	// If modifying these scopes, delete your previously saved token.json.
 	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created")
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
+
+	apiBaseURL := "http://localhost"
+	envBaseURL, ok := os.LookupEnv("BASE_URL")
+	if ok {
+		apiBaseURL = envBaseURL
+	}
+
+	config.RedirectURL = fmt.Sprintf("%s/v1/auth/google", apiBaseURL)
 
 	return config, nil
 }
 
 // GetGoogleToken gets a Google OAuth Token with an auth code
 func GetGoogleToken(context context.Context, authCode string) (*oauth2.Token, error) {
-	config, _ := ReadGoogleConfig()
+	config, err := ReadGoogleConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	tok, err := config.Exchange(context, authCode, oauth2.AccessTypeOffline)
 	if err != nil {
@@ -47,14 +55,6 @@ func GetGoogleAuthURL() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-
-	apiBaseURL := "http://localhost"
-	envBaseURL, ok := os.LookupEnv("BASE_URL")
-	if ok {
-		apiBaseURL = envBaseURL
-	}
-
-	config.RedirectURL = fmt.Sprintf("%s/v1/auth/google", apiBaseURL)
 
 	stateToken := uuid.New().String()
 
