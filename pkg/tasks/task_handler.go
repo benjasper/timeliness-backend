@@ -130,8 +130,13 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.DueAt != task.DueAt {
-		// TODO if workunits still fit => don't need to do anything
-		// TODO if workunits or part of the don't fit => reschedule them
+		var toReschedule []WorkUnit
+		for _, unit := range task.WorkUnits {
+			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) {
+				toReschedule = append(toReschedule, unit)
+			}
+		}
+		// TODO reschedule toReschschedule work units
 	}
 
 	if original.Priority != task.Priority {
