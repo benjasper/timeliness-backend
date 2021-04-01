@@ -114,7 +114,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	var workUnits []WorkUnit
 	for _, workUnit := range findWorkUnitTimes(&windowTotal, t.WorkloadOverall) {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = fmt.Sprintf("⚙️ Working on %s", t.Name)
+		workUnit.ScheduledAt.Title = renderWorkUnitEventTitle(t)
 		workUnit.ScheduledAt.Description = ""
 
 		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
@@ -127,7 +127,7 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	}
 
 	t.DueAt.Blocking = false
-	t.DueAt.Title = fmt.Sprintf("📅 %s is due", t.Name)
+	t.DueAt.Title = renderDueEventTitle(t)
 	t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
 	t.DueAt.Description = ""
 
@@ -207,6 +207,39 @@ func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) []W
 	}
 
 	return workUnits
+}
+
+func renderDueEventTitle(task *Task) string {
+	var icon = "📅"
+
+	if task.IsDone {
+		icon = "✔"
+	}
+
+	return fmt.Sprintf("%s %s is due", icon, task.Name)
+}
+
+func renderWorkUnitEventTitle(task *Task) string {
+	return fmt.Sprintf("⚙️ Working on %s", task.Name)
+}
+
+// UpdateTaskTitle updates the events of the tasks and work units
+func (c *PlanningController) UpdateTaskTitle(task *Task) error {
+	task.DueAt.Title = renderDueEventTitle(task)
+	err := c.repository.UpdateEvent(&task.DueAt)
+	if err != nil {
+		return err
+	}
+
+	for _, unit := range task.WorkUnits {
+		unit.ScheduledAt.Title = renderWorkUnitEventTitle(task)
+		err := c.repository.UpdateEvent(&unit.ScheduledAt)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeleteTask deletes all events that are connected to a task

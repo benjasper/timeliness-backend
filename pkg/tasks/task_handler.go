@@ -96,10 +96,33 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 	original := task
 
+	user, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
 	err = json.NewDecoder(request.Body).Decode(&task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
 		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	if original.Name != task.Name {
+		err = planning.UpdateTaskTitle((*Task)(&task))
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem updating event", err)
+			return
+		}
 	}
 
 	if original.WorkloadOverall != task.WorkloadOverall {
@@ -107,8 +130,13 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.DueAt != task.DueAt {
-		// TODO if workunits still fit => don't need to do anything
-		// TODO if workunits or part of the don't fit => reschedule them
+		var toReschedule []WorkUnit
+		for _, unit := range task.WorkUnits {
+			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) {
+				toReschedule = append(toReschedule, unit)
+			}
+		}
+		// TODO reschedule toReschschedule work units
 	}
 
 	if original.Priority != task.Priority {
