@@ -14,7 +14,6 @@ type Event struct {
 	Title       string   `json:"-" bson:"title"`
 	Description string   `json:"-" bson:"description"`
 	Blocking    bool     `json:"-" bson:"blocking"`
-	NoEnd       bool     `json:"-" bson:"noEnd"`
 
 	CalendarType    Type   `json:"-" bson:"calendarType"`
 	CalendarEventID string `json:"-" bson:"calendarEventID"`

@@ -50,7 +50,6 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 	}
 
 	task.UserID = userID
-	task.DueAt.NoEnd = true
 
 	v := validator.New()
 	err = v.Struct(task)
