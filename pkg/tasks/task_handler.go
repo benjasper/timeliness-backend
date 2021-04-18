@@ -130,6 +130,11 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.DueAt != task.DueAt {
+		err := planning.repository.UpdateEvent(&task.DueAt)
+		if err != nil {
+			return
+		}
+
 		var toReschedule []WorkUnit
 		for _, unit := range task.WorkUnits {
 			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) {
