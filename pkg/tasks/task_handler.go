@@ -132,6 +132,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.DueAt != task.DueAt {
 		err := planning.repository.UpdateEvent(&task.DueAt)
 		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating the task", err)
 			return
 		}
 
