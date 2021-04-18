@@ -154,12 +154,13 @@ func createGoogleEvent(event *Event) *gcalendar.Event {
 	source := gcalendar.EventSource{Title: "Timeliness", Url: "https://timeliness.app"}
 
 	googleEvent := gcalendar.Event{
-		Start:        &start,
-		End:          &end,
-		Summary:      event.Title,
-		Description:  event.Description,
-		Transparency: transparency,
-		Source:       &source,
+		Start:              &start,
+		End:                &end,
+		Summary:            event.Title,
+		Description:        event.Description,
+		Transparency:       transparency,
+		Source:             &source,
+		EndTimeUnspecified: event.NoEnd,
 	}
 
 	return &googleEvent
