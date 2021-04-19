@@ -178,6 +178,13 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
+	user, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
 	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
@@ -233,6 +240,20 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 	}
 
 	task.WorkUnits[index] = workUnit
+
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	err = planning.repository.UpdateEvent(&task.DueAt)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
 
 	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
