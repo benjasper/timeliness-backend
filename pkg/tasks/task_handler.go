@@ -117,7 +117,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.Name != task.Name {
-		err = planning.UpdateTaskTitle((*Task)(&task))
+		err = planning.UpdateTaskTitle((*Task)(&task), true)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating event", err)
@@ -248,7 +248,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	err = planning.repository.UpdateEvent(&task.DueAt)
+	err = planning.UpdateTaskTitle((*Task)(&task), false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
