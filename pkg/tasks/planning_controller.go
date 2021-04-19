@@ -213,7 +213,7 @@ func renderDueEventTitle(task *Task) string {
 	var icon = "📅"
 
 	if task.IsDone {
-		icon = "✔"
+		icon = "✔️"
 	}
 
 	return fmt.Sprintf("%s %s is due", icon, task.Name)
@@ -231,7 +231,7 @@ func (c *PlanningController) UpdateTaskTitle(task *Task, updateWorkUnits bool) e
 		return err
 	}
 
-	if updateWorkUnits == false {
+	if !updateWorkUnits {
 		return nil
 	}
 
