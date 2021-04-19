@@ -224,11 +224,15 @@ func renderWorkUnitEventTitle(task *Task) string {
 }
 
 // UpdateTaskTitle updates the events of the tasks and work units
-func (c *PlanningController) UpdateTaskTitle(task *Task) error {
+func (c *PlanningController) UpdateTaskTitle(task *Task, updateWorkUnits bool) error {
 	task.DueAt.Title = renderDueEventTitle(task)
 	err := c.repository.UpdateEvent(&task.DueAt)
 	if err != nil {
 		return err
+	}
+
+	if updateWorkUnits == false {
+		return nil
 	}
 
 	for _, unit := range task.WorkUnits {
