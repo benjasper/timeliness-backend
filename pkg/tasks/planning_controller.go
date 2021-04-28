@@ -107,7 +107,8 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 		AllowedTimeSpans: []calendar.Timespan{{
 			Start: time.Date(0, 0, 0, 6, 0, 0, 0, loc),
 			End:   time.Date(0, 0, 0, 14, 30, 0, 0, loc),
-		}}}
+		}},
+	}
 
 	windowTotal.ComputeFree(&constraint)
 
@@ -143,8 +144,57 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 	return nil
 }
 
-func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) []WorkUnit {
-	var workUnits []WorkUnit
+// RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end
+func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, index int) error {
+	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
+
+	err := c.repository.DeleteEvent(&w.ScheduledAt)
+	if err != nil {
+		return err
+	}
+
+	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
+
+	err = c.repository.AddBusyToWindow(&windowTotal)
+	if err != nil {
+		return err
+	}
+
+	loc, err := time.LoadLocation("")
+	if err != nil {
+		return err
+	}
+
+	constraint := calendar.FreeConstraint{
+		AllowedTimeSpans: []calendar.Timespan{{
+			Start: time.Date(0, 0, 0, 6, 0, 0, 0, loc),
+			End:   time.Date(0, 0, 0, 14, 30, 0, 0, loc),
+		}},
+	}
+
+	windowTotal.ComputeFree(&constraint)
+
+	for _, workUnit := range findWorkUnitTimes(&windowTotal, w.Workload) {
+		workUnit.ScheduledAt.Blocking = true
+		workUnit.ScheduledAt.Title = renderWorkUnitEventTitle((*Task)(t))
+		workUnit.ScheduledAt.Description = ""
+
+		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
+		if err != nil {
+			return err
+		}
+
+		workUnit.ScheduledAt = *workEvent
+
+		t.WorkUnits = t.WorkUnits.Add(&workUnit)
+	}
+
+	return nil
+}
+
+func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) WorkUnits {
+	var workUnits WorkUnits
 	if w.FreeDuration == 0 {
 		return workUnits
 	}
