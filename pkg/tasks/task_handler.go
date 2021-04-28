@@ -8,7 +8,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
-	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
@@ -455,32 +454,61 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	handler.ResponseManager.Respond(writer, response)
 }
 
-// Suggest is the route for getting suggested free times
-func (handler *Handler) Suggest(writer http.ResponseWriter, request *http.Request) {
+// RescheduleWorkUnit is the endpoint implementation for rescheduling workunits
+func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
-
-	u, err := handler.UserService.FindByID(request.Context(), userID)
+	taskID := mux.Vars(request)["taskID"]
+	indexString := mux.Vars(request)["index"]
+	index, err := strconv.Atoi(indexString)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"User not found", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
 		return
 	}
 
-	window := calendar.TimeWindow{Start: time.Now(), End: time.Now().AddDate(0, 0, 8)}
-
-	planningController, err := NewPlanningController(request.Context(), u, handler.UserService, handler.TaskService)
+	user, err := handler.UserService.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"No calendar access", err)
+			"Could not find user", err)
 		return
 	}
 
-	timeslots, err := planningController.SuggestTimeslot(u, &window)
+	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem while marshalling tasks into json", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, &timeslots)
+	if index > len(task.WorkUnits)-1 || index < 0 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+		return
+	}
+
+	workUnit := task.WorkUnits[index]
+
+	err = json.NewDecoder(request.Body).Decode(&workUnit)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	err = planning.RescheduleWorkUnit(&task, &workUnit, index)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
+		return
+	}
+
+	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
+		return
+	}
+
+	handler.ResponseManager.Respond(writer, Task(task))
 }

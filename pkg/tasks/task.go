@@ -3,6 +3,7 @@ package tasks
 import (
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"sort"
 	"time"
 )
 
@@ -21,7 +22,7 @@ type Task struct {
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       []WorkUnit     `json:"workUnits" bson:"workUnits"`
+	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
 }
 
 // TaskUnwound is the model for a task that only has a single work unit extracted
@@ -39,7 +40,7 @@ type TaskUnwound struct {
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnit        WorkUnit       `json:"workUnit" bson:"workUnit"`
-	WorkUnits       []WorkUnit     `json:"workUnits" bson:"workUnits"`
+	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
 	WorkUnitsIndex  int            `json:"workUnitsIndex" bson:"workUnitsIndex"`
 	WorkUnitsCount  int            `json:"workUnitsCount" bson:"workUnitsCount"`
 }
@@ -58,5 +59,30 @@ type TaskUpdate struct {
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       []WorkUnit     `json:"-" bson:"workUnits"`
+	WorkUnits       WorkUnits      `json:"-" bson:"workUnits"`
+}
+
+// WorkUnits represents an array of WorkUnit
+type WorkUnits []WorkUnit
+
+// Add adds a WorkUnit to the slice
+func (w WorkUnits) Add(unit *WorkUnit) WorkUnits {
+	if len(w) == 0 {
+		return append(w, *unit)
+	}
+
+	i := sort.Search(len(w), func(i int) bool {
+		return w[i].ScheduledAt.Date.Start.After(unit.ScheduledAt.Date.Start)
+	})
+
+	array := append(w, WorkUnit{})
+	copy(array[i+1:], array[i:])
+	array[i] = *unit
+
+	return array
+}
+
+// RemoveByIndex removes an entry by index
+func (w WorkUnits) RemoveByIndex(index int) WorkUnits {
+	return append(w[:index], w[index+1:]...)
 }

@@ -112,7 +112,7 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskDelete).Methods(http.MethodDelete)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}").HandlerFunc(taskHandler.WorkUnitUpdate).Methods(http.MethodPatch)
-	authenticatedAPI.Path("/calendar/suggest").HandlerFunc(taskHandler.Suggest).Methods(http.MethodGet)
+	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnit).Methods(http.MethodPost)
 	authenticatedAPI.Path("/calendar/connect/google").
 		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
 	authenticatedAPI.Path("/calendars").HandlerFunc(calendarHandler.GetAllCalendars).Methods(http.MethodGet)
