@@ -7,7 +7,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"log"
-	"sync"
 	"time"
 )
 
@@ -327,7 +326,6 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 	userChannel := make(chan *users.User)
 	go c.repository.SyncEvents(calendarID, &eventChannel, &errorChannel, &userChannel)
 
-	wg := sync.WaitGroup{}
 	for {
 		select {
 		case user := <-userChannel:
@@ -337,21 +335,14 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 			}
 			return nil
 		case event := <-eventChannel:
-			wg.Add(1)
-			go c.processTaskEventChange(event, userID, &wg)
+			go c.processTaskEventChange(event, userID)
 		case err := <-errorChannel:
 			return err
 		}
 	}
-
-	wg.Wait()
-	return nil
 }
 
-func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string,
-	wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
 	context := context.Background()
 	task, err := c.taskService.FindByCalendarEventID(context, event.CalendarEventID, userID)
 	if err != nil {
@@ -364,6 +355,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		// TODO: do other actions based on due date change
 		err = c.taskService.Update(context, task.ID.Hex(), userID, task)
 		if err != nil {
+			c.logger.Error("problem with updating task", err)
 			return
 		}
 		return
@@ -381,6 +373,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	task.WorkUnits[index] = *workunit
 	err = c.taskService.Update(context, task.ID.Hex(), userID, task)
 	if err != nil {
+		c.logger.Error("problem with updating task", err)
 		return
 	}
 }

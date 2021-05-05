@@ -243,14 +243,12 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string,
 			*eventChannel <- event
 		}
 
-		if len(response.Items) == 0 {
-			*userChannel <- user
-			return
-		}
-
 		if response.NextSyncToken != "" {
 			user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken = response.NextSyncToken
-			*userChannel <- user
+			break
+		}
+
+		if len(response.Items) == 0 {
 			break
 		}
 
@@ -261,6 +259,8 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string,
 
 		request = request.PageToken(response.NextPageToken)
 	}
+
+	*userChannel <- user
 }
 
 func createGoogleEvent(event *Event) *gcalendar.Event {
