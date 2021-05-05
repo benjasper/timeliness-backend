@@ -8,7 +8,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
-	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -71,11 +70,13 @@ func main() {
 
 	responseManager := communication.ResponseManager{Logger: logging}
 
+	var taskService = tasks.TaskService{DB: taskCollection, Logger: logging}
+
 	userService := users.UserService{DB: userCollection, Logger: logging}
 	userHandler := users.Handler{UserService: userService, Logger: logging, ResponseManager: &responseManager}
-	calendarHandler := calendar.Handler{UserService: &userService, Logger: logging, ErrorManager: &responseManager}
+	calendarHandler := tasks.CalendarHandler{UserService: &userService, Logger: logging, ResponseManager: &responseManager,
+		TaskService: &taskService}
 
-	var taskService = tasks.TaskService{DB: taskCollection, Logger: logging}
 	taskHandler := tasks.Handler{
 		TaskService:     &taskService,
 		Logger:          logging,

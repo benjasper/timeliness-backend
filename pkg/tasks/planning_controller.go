@@ -3,9 +3,11 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -15,10 +17,12 @@ type PlanningController struct {
 	userService *users.UserService
 	taskService *TaskService
 	ctx         context.Context
+	logger      logger.Interface
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
-func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService, taskService *TaskService) (*PlanningController, error) {
+func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService, taskService *TaskService,
+	logger logger.Interface) (*PlanningController, error) {
 	controller := PlanningController{}
 	var repository calendar.RepositoryInterface
 
@@ -32,6 +36,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 	controller.ctx = ctx
 	controller.userService = userService
 	controller.taskService = taskService
+	controller.logger = logger
 
 	return &controller, nil
 }
@@ -51,13 +56,15 @@ func setupGoogleRepository(ctx context.Context, u *users.User, userService *user
 		}
 	}
 
-	if u.GoogleCalendarConnection.TaskCalendar.CalendarID == "" {
+	if u.GoogleCalendarConnection.TaskCalendarID == "" {
 		calendarID, err := calendarRepository.CreateCalendar()
 		if err != nil {
 			return nil, err
 		}
 
-		u.GoogleCalendarConnection.TaskCalendar.CalendarID = calendarID
+		u.GoogleCalendarConnection.TaskCalendarID = calendarID
+		u.GoogleCalendarConnection.CalendarsOfInterest = append(u.GoogleCalendarConnection.CalendarsOfInterest,
+			users.GoogleCalendarSync{CalendarID: calendarID})
 		err = userService.Update(ctx, u)
 		if err != nil {
 			return nil, err
@@ -311,4 +318,69 @@ func (c *PlanningController) DeleteTask(task *Task) error {
 	}
 
 	return nil
+}
+
+// SyncCalendar triggers a sync on a single calendar
+func (c *PlanningController) SyncCalendar(userID string, calendarID string) error {
+	eventChannel := make(chan *calendar.Event)
+	errorChannel := make(chan error)
+	userChannel := make(chan *users.User)
+	go c.repository.SyncEvents(calendarID, &eventChannel, &errorChannel, &userChannel)
+
+	wg := sync.WaitGroup{}
+	for {
+		select {
+		case user := <-userChannel:
+			err := c.userService.Update(c.ctx, user)
+			if err != nil {
+				return err
+			}
+			return nil
+		case event := <-eventChannel:
+			wg.Add(1)
+			go c.processTaskEventChange(event, userID, &wg)
+		case err := <-errorChannel:
+			return err
+		}
+	}
+
+	wg.Wait()
+	return nil
+}
+
+func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string,
+	wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	context := context.Background()
+	task, err := c.taskService.FindByCalendarEventID(context, event.CalendarEventID, userID)
+	if err != nil {
+		// TODO: check work unit date intersections with tasks
+		return
+	}
+
+	if task.DueAt.CalendarEventID == event.CalendarEventID {
+		task.DueAt = *event
+		// TODO: do other actions based on due date change
+		err = c.taskService.Update(context, task.ID.Hex(), userID, task)
+		if err != nil {
+			return
+		}
+		return
+	}
+
+	index, workunit := task.WorkUnits.FindByCalendarID(event.CalendarEventID)
+	if workunit == nil {
+		c.logger.Error("there was a event id that could not be found inside a task", nil)
+		return
+	}
+
+	// TODO: do other actions based on schedule date change
+
+	workunit.ScheduledAt = *event
+	task.WorkUnits[index] = *workunit
+	err = c.taskService.Update(context, task.ID.Hex(), userID, task)
+	if err != nil {
+		return
+	}
 }
