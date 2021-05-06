@@ -151,7 +151,7 @@ func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
 
 // WatchCalendar activates notifications for
 func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.User) (*users.User, error) {
-	expiration := time.Now().Add(time.Hour * 336)
+	expiration := time.Now().Add(time.Second * 604800)
 	channel := gcalendar.Channel{
 		Id:         uuid.New().String(),
 		Address:    fmt.Sprintf("%s/v1/calendar/google/notifications", c.apiBaseURL),
