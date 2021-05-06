@@ -26,7 +26,7 @@ type GoogleCalendarRepository struct {
 	Service    *gcalendar.Service
 	ctx        context.Context
 	user       *users.User
-	apiBaseUrl string
+	apiBaseURL string
 }
 
 // NewGoogleCalendarRepository constructs a GoogleCalendarRepository
@@ -61,10 +61,10 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 	newRepo.Service = srv
 	newRepo.user = u
 
-	newRepo.apiBaseUrl = "http://localhost"
+	newRepo.apiBaseURL = "http://localhost"
 	envBaseURL, ok := os.LookupEnv("BASE_URL")
 	if ok {
-		newRepo.apiBaseUrl = envBaseURL
+		newRepo.apiBaseURL = envBaseURL
 	}
 
 	return &newRepo, nil
@@ -154,7 +154,7 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	expiration := time.Now().Add(time.Hour * 336)
 	channel := gcalendar.Channel{
 		Id:         uuid.New().String(),
-		Address:    fmt.Sprintf("%s/v1/calendar/google/notifications", c.apiBaseUrl),
+		Address:    fmt.Sprintf("%s/v1/calendar/google/notifications", c.apiBaseURL),
 		Expiration: expiration.Unix(),
 		Token:      encryption.Encrypt(user.ID.Hex()),
 	}
