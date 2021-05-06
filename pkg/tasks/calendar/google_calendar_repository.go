@@ -141,12 +141,24 @@ func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
 }
 
 // WatchCalendar activates notifications for
-func (c *GoogleCalendarRepository) WatchCalendar(calendarID string) (*users.User, error) {
+func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.User) (*users.User, error) {
+	expiration := time.Now().Add(time.Hour * 336)
 	channel := gcalendar.Channel{
 		Id:         uuid.New().String(),
-		Address:    "https://api.timeliness.app/googlecalendar",
-		Expiration: time.Now().Add(time.Hour * 336).Unix(),
-		Token:      encryption.Encrypt(c.user.ID.Hex()),
+		Address:    "https://api.timeliness.app/v1/calendar/google/notifications",
+		Expiration: expiration.Unix(),
+		Token:      encryption.Encrypt(user.ID.Hex()),
+	}
+
+	index := findSyncByID(user.GoogleCalendarConnection, calendarID)
+	if index == -1 {
+		return nil, errors.New("calendar id could not be found in calendars of interest")
+	}
+
+	// TODO: Stop notifications if we are close to end
+	// TODO: rerequest watch if that is the case
+	if user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration.After(time.Now()) {
+		return user, nil
 	}
 
 	response, err := c.Service.Events.Watch(calendarID, &channel).Do()
@@ -154,14 +166,10 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string) (*users.User
 		return nil, err
 	}
 
-	index := findSyncByID(c.user.GoogleCalendarConnection, calendarID)
-	if index == -1 {
-		return nil, errors.New("calendar id could not be found in calendars of interest")
-	}
+	user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
+	user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration = expiration
 
-	c.user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
-
-	return c.user, nil
+	return user, nil
 }
 
 func findSyncByID(connection users.GoogleCalendarConnection, ID string) int {

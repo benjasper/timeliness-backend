@@ -10,8 +10,8 @@ import (
 	"os"
 )
 
-// Encrypt encrypts a string
-func Encrypt(data string) string {
+// Decrypt decrypt a string
+func Decrypt(data string) string {
 	key := []byte(createHash(getSecret()))
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -22,7 +22,8 @@ func Encrypt(data string) string {
 		panic(err.Error())
 	}
 	nonceSize := gcm.NonceSize()
-	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+	dataDecoded, _ := hex.DecodeString(data)
+	nonce, ciphertext := dataDecoded[:nonceSize], dataDecoded[nonceSize:]
 	plaintext, err := gcm.Open(nil, []byte(nonce), []byte(ciphertext), nil)
 	if err != nil {
 		panic(err.Error())
@@ -31,8 +32,8 @@ func Encrypt(data string) string {
 	return string(plaintext)
 }
 
-// Decrypt decrypt a string
-func Decrypt(data string) string {
+// Encrypt encrypts a string
+func Encrypt(data string) string {
 	block, _ := aes.NewCipher([]byte(createHash(getSecret())))
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
@@ -44,13 +45,13 @@ func Decrypt(data string) string {
 	}
 	ciphertext := gcm.Seal(nonce, nonce, []byte(data), nil)
 
-	return string(ciphertext)
+	return hex.EncodeToString(ciphertext)
 }
 
 func getSecret() string {
 	secret := os.Getenv("SECRET")
 	if secret == "" {
-		return "local"
+		return "Secret-dev-key-that-is-32-bytes-long"
 	}
 
 	return secret

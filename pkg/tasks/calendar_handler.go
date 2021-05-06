@@ -1,8 +1,11 @@
 package tasks
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
+	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
@@ -127,12 +130,18 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 	}
 
 	for _, sync := range u.GoogleCalendarConnection.CalendarsOfInterest {
-		err := planning.SyncCalendar(userID, sync.CalendarID)
+		u, err = planning.repository.WatchCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with calendar sync", err)
 			return
 		}
+	}
+
+	err = handler.UserService.Update(request.Context(), u)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
+		return
 	}
 
 	writer.WriteHeader(http.StatusAccepted)
@@ -177,4 +186,57 @@ func matchNewGoogleCalendars(request calendarsPost, googleCalendars map[string]*
 	}
 
 	return newGoogleCalendars
+}
+
+// GoogleCalendarNotification receives event change notifications from Google Calendar
+func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseWriter, request *http.Request) {
+	state := request.Header.Get("X-Goog-Resource-State")
+	token := request.Header.Get("X-Goog-Channel-Token")
+	resourceID := request.Header.Get("X-Goog-Resource-ID")
+
+	if state == "sync" {
+		writer.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if state == "" || token == "" || resourceID == "" {
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	userID := encryption.Decrypt(token)
+
+	user, err := handler.UserService.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	planning, err := NewPlanningController(context.Background(), user, handler.UserService, handler.TaskService, handler.Logger)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	calendarID := ""
+	for _, sync := range user.GoogleCalendarConnection.CalendarsOfInterest {
+		if sync.SyncResourceID == resourceID {
+			calendarID = sync.CalendarID
+		}
+	}
+
+	if calendarID == "" {
+		handler.Logger.Error(fmt.Sprintf("Could not find calendar sync for resourceId %s for user %s", resourceID, userID), nil)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	go func() {
+		err := planning.SyncCalendar(userID, calendarID)
+		if err != nil {
+			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar %s", userID, calendarID), err)
+		}
+	}()
 }

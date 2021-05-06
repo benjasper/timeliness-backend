@@ -343,8 +343,7 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
-	context := context.Background()
-	task, err := c.taskService.FindByCalendarEventID(context, event.CalendarEventID, userID)
+	task, err := c.taskService.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		// TODO: check work unit date intersections with tasks
 		return
@@ -353,7 +352,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	if task.DueAt.CalendarEventID == event.CalendarEventID {
 		task.DueAt = *event
 		// TODO: do other actions based on due date change
-		err = c.taskService.Update(context, task.ID.Hex(), userID, task)
+		err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -371,7 +370,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	workunit.ScheduledAt = *event
 	task.WorkUnits[index] = *workunit
-	err = c.taskService.Update(context, task.ID.Hex(), userID, task)
+	err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
 	if err != nil {
 		c.logger.Error("problem with updating task", err)
 		return
