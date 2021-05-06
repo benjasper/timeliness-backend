@@ -86,3 +86,14 @@ func (w WorkUnits) Add(unit *WorkUnit) WorkUnits {
 func (w WorkUnits) RemoveByIndex(index int) WorkUnits {
 	return append(w[:index], w[index+1:]...)
 }
+
+// FindByCalendarID finds a single work unit by its calendar event ID
+func (w WorkUnits) FindByCalendarID(calendarID string) (int, *WorkUnit) {
+	for i, unit := range w {
+		if unit.ScheduledAt.CalendarEventID == calendarID {
+			return i, &unit
+		}
+	}
+
+	return -1, nil
+}
