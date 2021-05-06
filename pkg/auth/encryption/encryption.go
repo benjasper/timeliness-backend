@@ -26,7 +26,7 @@ func Decrypt(data string) string {
 	nonce, ciphertext := dataDecoded[:nonceSize], dataDecoded[nonceSize:]
 	plaintext, err := gcm.Open(nil, []byte(nonce), []byte(ciphertext), nil)
 	if err != nil {
-		panic(err.Error())
+		return ""
 	}
 
 	return string(plaintext)
