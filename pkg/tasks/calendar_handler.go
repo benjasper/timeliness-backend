@@ -195,7 +195,6 @@ func matchNewGoogleCalendars(request calendarsPost, googleCalendars map[string]*
 
 // GoogleCalendarNotification receives event change notifications from Google Calendar
 func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseWriter, request *http.Request) {
-	handler.Logger.Debug("Endpoint was called")
 	state := request.Header.Get("X-Goog-Resource-State")
 	token := request.Header.Get("X-Goog-Channel-Token")
 	resourceID := request.Header.Get("X-Goog-Resource-ID")

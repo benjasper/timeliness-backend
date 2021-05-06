@@ -159,9 +159,6 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 		Type:    "web_hook",
 	}
 
-	c.Logger.Debug(fmt.Sprintf("%s/v1/calendar/google/notifications", c.apiBaseURL))
-	c.Logger.Debug(encryption.Encrypt(user.ID.Hex()))
-
 	index := findSyncByID(user.GoogleCalendarConnection, calendarID)
 	if index == -1 {
 		return nil, errors.New("calendar id could not be found in calendars of interest")
@@ -254,6 +251,10 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string,
 		}
 
 		for _, item := range response.Items {
+			if item.Status == "cancelled" {
+				// TODO: Figure out what to do with deleted events
+				continue
+			}
 			event, err := googleEventToEvent(item)
 			if err != nil {
 				*errorChannel <- err
