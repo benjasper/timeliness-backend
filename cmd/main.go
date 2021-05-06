@@ -68,12 +68,17 @@ func main() {
 	userCollection := db.Collection("Users")
 	taskCollection := db.Collection("Tasks")
 
+	secret := os.Getenv("SECRET")
+	if secret == "" {
+		secret = "local-secret"
+	}
+
 	responseManager := communication.ResponseManager{Logger: logging}
 
 	var taskService = tasks.TaskService{DB: taskCollection, Logger: logging}
 
 	userService := users.UserService{DB: userCollection, Logger: logging}
-	userHandler := users.Handler{UserService: userService, Logger: logging, ResponseManager: &responseManager}
+	userHandler := users.Handler{UserService: userService, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userService, Logger: logging, ResponseManager: &responseManager,
 		TaskService: &taskService}
 

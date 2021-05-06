@@ -3,6 +3,7 @@ package calendar
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
@@ -11,6 +12,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+	"os"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -19,11 +21,12 @@ import (
 
 // GoogleCalendarRepository provides function for easily editing the users google calendar
 type GoogleCalendarRepository struct {
-	Config  *oauth2.Config
-	Logger  logger.Interface
-	Service *gcalendar.Service
-	ctx     context.Context
-	user    *users.User
+	Config     *oauth2.Config
+	Logger     logger.Interface
+	Service    *gcalendar.Service
+	ctx        context.Context
+	user       *users.User
+	apiBaseUrl string
 }
 
 // NewGoogleCalendarRepository constructs a GoogleCalendarRepository
@@ -57,6 +60,12 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 
 	newRepo.Service = srv
 	newRepo.user = u
+
+	newRepo.apiBaseUrl = "http://localhost"
+	envBaseURL, ok := os.LookupEnv("BASE_URL")
+	if ok {
+		newRepo.apiBaseUrl = envBaseURL
+	}
 
 	return &newRepo, nil
 }
@@ -145,7 +154,7 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	expiration := time.Now().Add(time.Hour * 336)
 	channel := gcalendar.Channel{
 		Id:         uuid.New().String(),
-		Address:    "https://api.timeliness.app/v1/calendar/google/notifications",
+		Address:    fmt.Sprintf("%s/v1/calendar/google/notifications", c.apiBaseUrl),
 		Expiration: expiration.Unix(),
 		Token:      encryption.Encrypt(user.ID.Hex()),
 	}
