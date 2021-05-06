@@ -59,7 +59,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		}
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -108,7 +108,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -240,7 +240,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	task.WorkUnits[index] = workUnit
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -281,7 +281,7 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -491,7 +491,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)

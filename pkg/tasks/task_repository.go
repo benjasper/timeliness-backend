@@ -195,6 +195,35 @@ func (s TaskService) FindByID(ctx context.Context, taskID string, userID string)
 	return t, nil
 }
 
+// FindByCalendarEventID finds a specific task by a calendar event ID in workUnits or dueAt
+func (s TaskService) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error) {
+	t := TaskUpdate{}
+
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := s.DB.FindOne(ctx, bson.D{
+		{Key: "userId", Value: userObjectID},
+		{Key: "$or", Value: bson.A{
+			bson.M{"workUnits.scheduledAt.calendarEventID": calendarEventID},
+			bson.M{"dueAt.calendarEventID": calendarEventID},
+		}},
+	})
+
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	err = result.Decode(&t)
+	if err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
 // FindUpdatableByID Finds a task and returns the TaskUpdate view of the model
 func (s TaskService) FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error) {
 	t := TaskUpdate{}
