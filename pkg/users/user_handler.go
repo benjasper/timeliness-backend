@@ -19,6 +19,7 @@ type Handler struct {
 	UserService     UserService
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
+	Secret          string
 }
 
 // UserRegister is the route for registering a user
@@ -163,7 +164,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	refreshToken := jwt.New(jwt.AlgHS256, refreshTokenClaims)
 
 	// TODO change to secret to env var
-	accessTokenString, err := accessToken.Sign("secret")
+	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Problem signing access token", err)
@@ -171,7 +172,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// TODO change to secret to env var
-	refreshTokenString, err := refreshToken.Sign("secret")
+	refreshTokenString, err := refreshToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Problem signing refresh token", err)
@@ -218,7 +219,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 
 	claims := jwt.Claims{}
 	// TODO: change secret to env var
-	refreshToken, err := jwt.Verify(body.RefreshToken, jwt.TokenTypeRefresh, "secret", jwt.AlgHS256, claims)
+	refreshToken, err := jwt.Verify(body.RefreshToken, jwt.TokenTypeRefresh, handler.Secret, jwt.AlgHS256, claims)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Token invalid", err)
 		return
@@ -242,7 +243,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 	accessToken := jwt.New(jwt.AlgHS256, accessClaims)
 
 	// TODO change to secret to env var
-	accessTokenString, err := accessToken.Sign("secret")
+	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Problem signing access refreshToken", err)

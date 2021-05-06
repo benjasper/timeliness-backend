@@ -11,6 +11,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"net/http"
+	"os"
 )
 
 // CalendarHandler handles all calendar related API calls
@@ -129,11 +130,15 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		return
 	}
 
+	env := os.Getenv("APP_ENV")
 	for _, sync := range u.GoogleCalendarConnection.CalendarsOfInterest {
+		if env != "prod" {
+			continue
+		}
 		u, err = planning.repository.WatchCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem with calendar sync", err)
+				"Problem with calendar notification registration", err)
 			return
 		}
 	}
