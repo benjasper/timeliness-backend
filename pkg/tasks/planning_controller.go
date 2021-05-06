@@ -26,7 +26,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 	var repository calendar.RepositoryInterface
 
 	// TODO: Figure out which repository to use
-	repository, err := setupGoogleRepository(ctx, u, userService)
+	repository, err := setupGoogleRepository(ctx, u, userService, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -41,9 +41,9 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 }
 
 // setupGoogleRepository manages token refreshing and calendar creation
-func setupGoogleRepository(ctx context.Context, u *users.User, userService *users.UserService) (*calendar.GoogleCalendarRepository, error) {
+func setupGoogleRepository(ctx context.Context, u *users.User, userService *users.UserService, logger logger.Interface) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
-	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u)
+	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u, logger)
 	if err != nil {
 		return nil, err
 	}
