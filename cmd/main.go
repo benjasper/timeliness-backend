@@ -102,11 +102,14 @@ func main() {
 	r.Path("/").HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		_, _ = writer.Write([]byte("Welcome to the Timeliness API 🚀"))
 	})
-	authAPI := r.PathPrefix("/" + apiVersion + "/auth/").Subrouter()
-	authAPI.Path("/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
-	authAPI.Path("/refresh").HandlerFunc(userHandler.UserRefresh).Methods(http.MethodPost)
-	authAPI.Path("/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
-	authAPI.Path("/google").HandlerFunc(userHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
+
+	unauthenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
+	unauthenticatedAPI.Path("/auth/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
+	unauthenticatedAPI.Path("/auth/refresh").HandlerFunc(userHandler.UserRefresh).Methods(http.MethodPost)
+	unauthenticatedAPI.Path("/auth/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
+	unauthenticatedAPI.Path("/auth/google").HandlerFunc(userHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
+	unauthenticatedAPI.Path("/calendar/google/notifications").
+		HandlerFunc(calendarHandler.GoogleCalendarNotification).Methods(http.MethodPost)
 
 	authenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)
@@ -121,8 +124,6 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnit).Methods(http.MethodPost)
 	authenticatedAPI.Path("/calendar/google/connect").
 		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
-	authenticatedAPI.Path("/calendar/google/notifications").
-		HandlerFunc(calendarHandler.GoogleCalendarNotification).Methods(http.MethodPost)
 	authenticatedAPI.Path("/calendars").HandlerFunc(calendarHandler.GetAllCalendars).Methods(http.MethodGet)
 	authenticatedAPI.Path("/calendars").HandlerFunc(calendarHandler.PostCalendars).Methods(http.MethodPost)
 
