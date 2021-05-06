@@ -90,7 +90,7 @@ func main() {
 
 	r := mux.NewRouter()
 
-	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &responseManager}
+	authMiddleWare := auth.AuthenticationMiddleware{ErrorManager: &responseManager, Secret: secret}
 
 	r.Methods(http.MethodOptions).HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
