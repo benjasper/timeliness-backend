@@ -175,7 +175,7 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	}
 
 	user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
-	user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration = time.Unix(response.Expiration, 0)
+	user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration = time.Unix(0, response.Expiration*int64(time.Millisecond))
 
 	return user, nil
 }
