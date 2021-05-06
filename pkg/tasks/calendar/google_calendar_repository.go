@@ -30,7 +30,7 @@ type GoogleCalendarRepository struct {
 }
 
 // NewGoogleCalendarRepository constructs a GoogleCalendarRepository
-func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCalendarRepository, error) {
+func NewGoogleCalendarRepository(ctx context.Context, u *users.User, logger logger.Interface) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
 	newRepo.ctx = ctx
@@ -59,6 +59,7 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User) (*GoogleCal
 	}
 
 	newRepo.Service = srv
+	newRepo.Logger = logger
 	newRepo.user = u
 
 	newRepo.apiBaseURL = "http://localhost"
