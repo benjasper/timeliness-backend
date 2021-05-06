@@ -12,6 +12,7 @@ import (
 // AuthenticationMiddleware checks if the user login token is valid and responds with an error if it's not the case
 type AuthenticationMiddleware struct {
 	ErrorManager *communication.ResponseManager
+	Secret       string
 }
 
 type key string
@@ -30,8 +31,7 @@ func (m *AuthenticationMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		claims := jwt.Claims{}
-		// TODO: change secret to env var
-		token, err := jwt.Verify(extractedToken, jwt.TokenTypeAccess, "secret", jwt.AlgHS256, claims)
+		token, err := jwt.Verify(extractedToken, jwt.TokenTypeAccess, m.Secret, jwt.AlgHS256, claims)
 		if err != nil {
 			m.ErrorManager.RespondWithError(writer, http.StatusUnauthorized, "Token invalid", err)
 			return
