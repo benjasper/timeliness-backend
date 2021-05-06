@@ -155,6 +155,7 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 		Id:      uuid.New().String(),
 		Address: fmt.Sprintf("%s/v1/calendar/google/notifications", c.apiBaseURL),
 		Token:   encryption.Encrypt(user.ID.Hex()),
+		Type:    "web_hook",
 	}
 
 	index := findSyncByID(user.GoogleCalendarConnection, calendarID)
