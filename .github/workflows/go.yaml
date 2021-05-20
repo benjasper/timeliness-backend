@@ -62,6 +62,8 @@ jobs:
           errcheck ./...
   coverage:
     runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: 869a1d4d-a5c5-4701-acbf-97cebfbfd414
     steps:
       - uses: actions/checkout@v2
         with:
@@ -72,4 +74,4 @@ jobs:
       - name: Run coverage
         run: go test ./... -race -coverprofile=coverage.txt -covermode=atomic
       - name: Upload coverage to Codecov
-        run: bash <(curl -s https://codecov.io/bash -t 869a1d4d-a5c5-4701-acbf-97cebfbfd414)
+        run: bash <(curl -s https://codecov.io/bash)
