@@ -39,7 +39,7 @@ func (handler *CalendarHandler) GetAllCalendars(writer http.ResponseWriter, requ
 	// TODO: check which sources have a connection
 	googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u, handler.Logger)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusServiceUnavailable,
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with Google Calendar connection", err)
 		return
 	}
