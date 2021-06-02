@@ -1,0 +1,8 @@
+runtime: go115
+main: ./cmd
+threadsafe: true
+env_variables:
+  APP_ENV: prod
+  BASE_URL: https://api.timeliness.app
+  DATABASE: mongodb+srv://app:LH40LlgfV2cJp1zO@cluster0.byyhv.mongodb.net/test?retryWrites=true&w=majority
+  SECRET: AEFC82667184DE543D9BCE58F2AF8
