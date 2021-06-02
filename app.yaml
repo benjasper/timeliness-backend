@@ -1,6 +1,5 @@
 runtime: go115
 main: ./cmd
-threadsafe: true
 env_variables:
   APP_ENV: prod
   BASE_URL: https://api.timeliness.app
