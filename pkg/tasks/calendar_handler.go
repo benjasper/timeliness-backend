@@ -216,7 +216,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 		return
 	}
 
-	pages := int(math.Ceil(float64(count / pageSize)))
+	pages := int(math.Ceil(float64(count) / float64(pageSize)))
 
 	for i := 0; i < pages; i++ {
 		u, _, err := handler.UserService.FindBySyncExpiration(request.Context(), now, i, pageSize)
