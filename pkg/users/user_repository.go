@@ -107,7 +107,7 @@ func (s UserService) FindBySyncExpiration(ctx context.Context, greaterThan time.
 	if err != nil {
 		return nil, 0, err
 	}
-	return nil, int(count), nil
+	return users, int(count), nil
 }
 
 // Update updates a user
