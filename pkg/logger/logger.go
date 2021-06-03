@@ -63,13 +63,6 @@ func NewGoogleCloudLogger() Interface {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 
-	defer func(client *logging.Client) {
-		err := client.Close()
-		if err != nil {
-			log.Fatalf("Failed to close client: %v", err)
-		}
-	}(client)
-
 	// Sets the name of the log to write to.
 	logName := "timeliness"
 
