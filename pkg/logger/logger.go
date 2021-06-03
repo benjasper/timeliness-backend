@@ -54,7 +54,6 @@ type GoogleCloudLogger struct {
 // NewGoogleCloudLogger Constructor for GoogleCloudLogger. It uses the GOOGLE_CLOUD_PROJECT env variable
 func NewGoogleCloudLogger() Interface {
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	log.Print("Initiated cloud logging with project id " + projectID)
 
 	ctx := context.Background()
 
