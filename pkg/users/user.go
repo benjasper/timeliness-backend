@@ -38,6 +38,7 @@ type GoogleCalendarConnection struct {
 type GoogleCalendarSync struct {
 	CalendarID     string    `json:"-" bson:"calendarId,omitempty"`
 	SyncResourceID string    `json:"-" bson:"syncResourceId,omitempty"`
+	ChannelID      string    `json:"-" bson:"channelId,omitempty"`
 	SyncToken      string    `json:"-" bson:"syncToken,omitempty"`
 	Expiration     time.Time `json:"-" bson:"expiration,omitempty"`
 }

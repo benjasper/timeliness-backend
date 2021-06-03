@@ -19,6 +19,9 @@ import (
 	gcalendar "google.golang.org/api/calendar/v3"
 )
 
+// GoogleNotificationExpirationOffset decides how much before an expiration a sync should be renewed
+const GoogleNotificationExpirationOffset = time.Hour * 24
+
 // GoogleCalendarRepository provides function for easily editing the users google calendar
 type GoogleCalendarRepository struct {
 	Config     *oauth2.Config
@@ -164,10 +167,20 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 		return nil, errors.New("calendar id could not be found in calendars of interest")
 	}
 
-	// TODO: Stop notifications if we are close to end
-	// TODO: rerequest watch if that is the case
-	if user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration.After(time.Now()) {
+	if user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration.After(time.Now().Add(GoogleNotificationExpirationOffset)) {
 		return user, nil
+	}
+
+	if user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID != "" &&
+		user.GoogleCalendarConnection.CalendarsOfInterest[index].ChannelID != "" {
+		oldChannel := gcalendar.Channel{
+			Id:         user.GoogleCalendarConnection.CalendarsOfInterest[index].ChannelID,
+			ResourceId: user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID,
+		}
+		err := c.Service.Channels.Stop(&oldChannel).Do()
+		if err != nil {
+			c.Logger.Warning("Bad response on stopping a google notification channel", err)
+		}
 	}
 
 	response, err := c.Service.Events.Watch(calendarID, &channel).Do()
@@ -176,6 +189,7 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	}
 
 	user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
+	user.GoogleCalendarConnection.CalendarsOfInterest[index].ChannelID = response.Id
 	user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration = time.Unix(0, response.Expiration*int64(time.Millisecond))
 
 	return user, nil

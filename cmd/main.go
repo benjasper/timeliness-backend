@@ -110,6 +110,8 @@ func main() {
 	unauthenticatedAPI.Path("/auth/google").HandlerFunc(userHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
 	unauthenticatedAPI.Path("/calendar/google/notifications").
 		HandlerFunc(calendarHandler.GoogleCalendarNotification).Methods(http.MethodPost)
+	unauthenticatedAPI.Path("/calendar/google/notifications/renew").
+		HandlerFunc(calendarHandler.GoogleCalendarSyncRenewal).Methods(http.MethodPost)
 
 	authenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)

@@ -7,6 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
 )
 
@@ -75,6 +76,38 @@ func (s UserService) FindByGoogleStateToken(ctx context.Context, stateToken stri
 		return nil, err
 	}
 	return &u, nil
+}
+
+// FindBySyncExpiration finds user documents where at least one sync is ready for renewal
+func (s UserService) FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error) {
+	var users []*User
+	offset := page * pageSize
+
+	findOptions := options.Find()
+	findOptions.SetSort(bson.M{"_id": 1})
+	findOptions.SetSkip(int64(offset))
+	findOptions.SetLimit(int64(pageSize))
+
+	queryFilter := bson.D{{
+		Key:   "googleCalendarConnection.calendarsOfInterest.expiration",
+		Value: bson.M{"$lte": greaterThan}},
+	}
+
+	cursor, err := s.DB.Find(ctx, queryFilter, findOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := s.DB.CountDocuments(ctx, queryFilter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = cursor.All(ctx, &users)
+	if err != nil {
+		return nil, 0, err
+	}
+	return nil, int(count), nil
 }
 
 // Update updates a user
