@@ -5,6 +5,7 @@ import "log"
 // Interface is the interface all loggers have to implement
 type Interface interface {
 	Error(message string, err error)
+	Warning(message string, err error)
 	Info(message string)
 	Debug(message string)
 	Fatal(err error)
@@ -32,4 +33,9 @@ func (l Logger) Debug(message string) {
 // Fatal is for throwing a log message with status Fatal
 func (l Logger) Fatal(err error) {
 	log.Fatalf("[FATAL] %v\n", err)
+}
+
+// Warning is for throwing a log message with status Warning
+func (l Logger) Warning(message string, err error) {
+	log.Fatalf("[WARNING] %s: %v\n", message, err)
 }

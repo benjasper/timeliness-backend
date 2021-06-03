@@ -10,8 +10,10 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"math"
 	"net/http"
 	"os"
+	"time"
 )
 
 // CalendarHandler handles all calendar related API calls
@@ -191,6 +193,74 @@ func matchNewGoogleCalendars(request calendarsPost, googleCalendars map[string]*
 	}
 
 	return newGoogleCalendars
+}
+
+// GoogleCalendarSyncRenewal is hit by a scheduler to renew sync that are about to expire
+func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWriter, request *http.Request) {
+	pageSize := 25
+	schedulerSecret := os.Getenv("SCHEDULER_SECRET")
+	if schedulerSecret == "" {
+		schedulerSecret = "local"
+	}
+
+	if request.Header.Get("scheduler-secret") != schedulerSecret {
+		handler.ResponseManager.RespondWithError(writer, http.StatusForbidden, "Invalid secret", nil)
+		return
+	}
+
+	now := time.Now().Add(calendar.GoogleNotificationExpirationOffset)
+
+	_, count, err := handler.UserService.FindBySyncExpiration(request.Context(), now, 0, pageSize)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem finding users for renewal", err)
+		return
+	}
+
+	pages := int(math.Ceil(float64(count / pageSize)))
+
+	for i := 0; i < pages; i++ {
+		u, _, err := handler.UserService.FindBySyncExpiration(request.Context(), now, i, pageSize)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem finding users for renewal", err)
+			return
+		}
+
+		for _, user := range u {
+			go handler.processUserForSyncRenewal(user, now)
+		}
+	}
+
+	response := map[string]interface{}{
+		"usersProcessed": count,
+	}
+
+	handler.ResponseManager.Respond(writer, response)
+}
+
+func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time time.Time) {
+	planning, err := NewPlanningController(context.Background(), user, handler.UserService, handler.TaskService, handler.Logger)
+	if err != nil {
+		handler.Logger.Error("Problem while processing user for sync renewal", err)
+		return
+	}
+
+	for _, sync := range user.GoogleCalendarConnection.CalendarsOfInterest {
+		if !sync.Expiration.Before(time) {
+			continue
+		}
+
+		user, err := planning.repository.WatchCalendar(sync.CalendarID, user)
+		if err != nil {
+			handler.Logger.Error("Problem while trying to renew sync", err)
+			return
+		}
+
+		err = handler.UserService.Update(context.Background(), user)
+		if err != nil {
+			handler.Logger.Error("Problem while trying to update user", err)
+			return
+		}
+	}
 }
 
 // GoogleCalendarNotification receives event change notifications from Google Calendar
