@@ -3,15 +3,17 @@ module github.com/timeliness-app/timeliness-backend
 go 1.16
 
 require (
-	cloud.google.com/go v0.74.0 // indirect
+	cloud.google.com/go v0.83.0 // indirect
+	cloud.google.com/go/logging v1.4.2
 	github.com/go-playground/validator/v10 v10.4.1
+	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/mux v1.8.0
 	go.mongodb.org/mongo-driver v1.5.0
 	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
-	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5
-	golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e // indirect
-	google.golang.org/api v0.36.0
-	google.golang.org/genproto v0.0.0-20201214200347-8c77b98c765d // indirect
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
+	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
+	golang.org/x/sys v0.0.0-20210603125802-9665404d3644 // indirect
+	google.golang.org/api v0.47.0
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

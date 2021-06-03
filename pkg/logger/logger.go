@@ -1,6 +1,11 @@
 package logger
 
-import "log"
+import (
+	"cloud.google.com/go/logging"
+	"context"
+	"log"
+	"os"
+)
 
 // Interface is the interface all loggers have to implement
 type Interface interface {
@@ -38,4 +43,63 @@ func (l Logger) Fatal(err error) {
 // Warning is for throwing a log message with status Warning
 func (l Logger) Warning(message string, err error) {
 	log.Fatalf("[WARNING] %s: %v\n", message, err)
+}
+
+// GoogleCloudLogger is for production use on the google cloud
+type GoogleCloudLogger struct {
+	standardLogger Interface
+	logger         *logging.Logger
+}
+
+// NewGoogleCloudLogger Constructor for GoogleCloudLogger. It uses the GOOGLE_CLOUD_PROJECT env variable
+func NewGoogleCloudLogger() Interface {
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+
+	ctx := context.Background()
+
+	// Creates a client.
+	client, err := logging.NewClient(ctx, projectID)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	defer func(client *logging.Client) {
+		err := client.Close()
+		if err != nil {
+			log.Fatalf("Failed to close client: %v", err)
+		}
+	}(client)
+
+	// Sets the name of the log to write to.
+	logName := "timeliness"
+
+	return GoogleCloudLogger{
+		logger:         client.Logger(logName),
+		standardLogger: Logger{},
+	}
+}
+
+// Error severity
+func (g GoogleCloudLogger) Error(message string, err error) {
+	g.logger.StandardLogger(logging.Error).Printf("[ERROR] %s: %v\n", message, err)
+}
+
+// Warning Severity
+func (g GoogleCloudLogger) Warning(message string, err error) {
+	g.logger.StandardLogger(logging.Warning).Printf("[WARNING] %s: %v\n", message, err)
+}
+
+// Info severity
+func (g GoogleCloudLogger) Info(message string) {
+	g.logger.StandardLogger(logging.Info).Printf("[Info] %s\n", message)
+}
+
+// Debug severity
+func (g GoogleCloudLogger) Debug(message string) {
+	g.logger.StandardLogger(logging.Debug).Printf("[DEBUG] %s\n", message)
+}
+
+// Fatal severity
+func (g GoogleCloudLogger) Fatal(err error) {
+	g.logger.StandardLogger(logging.Critical).Printf("[FATAL] %v\n", err)
 }

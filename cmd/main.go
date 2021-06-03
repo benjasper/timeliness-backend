@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
@@ -29,13 +28,22 @@ func main() {
 		accessControl = "*"
 	}
 
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = "dev"
+	}
+
 	databaseURL := os.Getenv("DATABASE")
 	if databaseURL == "" {
 		databaseURL = "mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"
 	}
 
 	var logging logger.Interface = logger.Logger{}
-	fmt.Println("Server is starting up...")
+	if appEnv == "prod" {
+		logging = logger.NewGoogleCloudLogger()
+	}
+
+	logging.Info("Server is starting up...")
 
 	client, err := mongo.NewClient(options.Client().ApplyURI(databaseURL))
 	if err != nil {
@@ -46,11 +54,13 @@ func main() {
 	defer cancel()
 	err = client.Connect(ctx)
 	if err != nil {
+		logging.Fatal(err)
 		log.Panic(err)
 	}
 
 	err = client.Ping(ctx, nil)
 	if err != nil {
+		logging.Fatal(err)
 		log.Panic(err)
 	}
 
@@ -61,7 +71,7 @@ func main() {
 		}
 	}()
 
-	fmt.Println("Database connected")
+	logging.Info("Database connected")
 
 	db := client.Database("test")
 
@@ -138,5 +148,5 @@ func main() {
 	})
 
 	http.Handle("/", r)
-	log.Panic(http.ListenAndServe(":"+port, r))
+	logging.Fatal(http.ListenAndServe(":"+port, r))
 }
