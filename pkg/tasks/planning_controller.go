@@ -74,7 +74,7 @@ func setupGoogleRepository(ctx context.Context, u *users.User, userService *user
 }
 
 // SuggestTimeslot finds a free timeslot
-func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.TimeWindow) (*[]calendar.Timespan, error) {
+func (c *PlanningController) SuggestTimeslot(window *calendar.TimeWindow) (*[]calendar.Timespan, error) {
 	err := c.repository.AddBusyToWindow(window)
 	if err != nil {
 		return nil, err
@@ -95,8 +95,9 @@ func (c *PlanningController) SuggestTimeslot(u *users.User, window *calendar.Tim
 	return &free, nil
 }
 
-// ScheduleNewTask takes a new task a non existent task and creates workunits and pushes events to the calendar
-func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
+// ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
+// and pushes or removes events to and from the calendar
+func (c *PlanningController) ScheduleTask(t *Task) error {
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 	err := c.repository.AddBusyToWindow(&windowTotal)
@@ -118,34 +119,58 @@ func (c *PlanningController) ScheduleNewTask(t *Task, u *users.User) error {
 
 	windowTotal.ComputeFree(&constraint)
 
-	var workUnits []WorkUnit
-	for _, workUnit := range findWorkUnitTimes(&windowTotal, t.WorkloadOverall) {
-		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = renderWorkUnitEventTitle(t)
-		workUnit.ScheduledAt.Description = ""
+	workloadToSchedule := t.WorkloadOverall
+	for _, unit := range t.WorkUnits {
+		workloadToSchedule -= unit.Workload
+	}
 
-		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
+	if workloadToSchedule > 0 {
+		var workUnits []WorkUnit
+		for _, workUnit := range findWorkUnitTimes(&windowTotal, workloadToSchedule) {
+			workUnit.ScheduledAt.Blocking = true
+			workUnit.ScheduledAt.Title = renderWorkUnitEventTitle(t)
+			workUnit.ScheduledAt.Description = ""
+
+			workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
+			if err != nil {
+				return err
+			}
+
+			workUnit.ScheduledAt = *workEvent
+			workUnits = append(workUnits, workUnit)
+			t.WorkUnits = workUnits
+		}
+	} else {
+		for index, unit := range t.WorkUnits {
+			workloadToSchedule += unit.Workload
+
+			if workloadToSchedule < 0 {
+				t.WorkUnits[index].Workload += workloadToSchedule
+				break
+			}
+
+			err := c.repository.DeleteEvent(&unit.ScheduledAt)
+			if err != nil {
+				return err
+			}
+
+			t.WorkUnits.RemoveByIndex(index)
+		}
+	}
+
+	if t.DueAt.CalendarEventID == "" {
+		t.DueAt.Blocking = false
+		t.DueAt.Title = renderDueEventTitle(t)
+		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
+		t.DueAt.Description = ""
+
+		dueEvent, err := c.repository.NewEvent(&t.DueAt)
 		if err != nil {
 			return err
 		}
 
-		workUnit.ScheduledAt = *workEvent
-		workUnits = append(workUnits, workUnit)
+		t.DueAt = *dueEvent
 	}
-
-	t.DueAt.Blocking = false
-	t.DueAt.Title = renderDueEventTitle(t)
-	t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
-	t.DueAt.Description = ""
-
-	dueEvent, err := c.repository.NewEvent(&t.DueAt)
-	if err != nil {
-		return err
-	}
-
-	t.DueAt = *dueEvent
-
-	t.WorkUnits = workUnits
 
 	return nil
 }
