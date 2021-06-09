@@ -124,7 +124,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	if original.WorkloadOverall < task.WorkloadOverall {
+	if original.WorkloadOverall != task.WorkloadOverall {
 		err := planning.ScheduleTask((*Task)(&task))
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
