@@ -125,7 +125,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 	}
 
 	if workloadToSchedule > 0 {
-		var workUnits []WorkUnit
+		workUnits := t.WorkUnits
 		for _, workUnit := range findWorkUnitTimes(&windowTotal, workloadToSchedule) {
 			workUnit.ScheduledAt.Blocking = true
 			workUnit.ScheduledAt.Title = renderWorkUnitEventTitle(t)
@@ -137,7 +137,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			}
 
 			workUnit.ScheduledAt = *workEvent
-			workUnits = append(workUnits, workUnit)
+			workUnits = workUnits.Add(&workUnit)
 		}
 		t.WorkUnits = workUnits
 
