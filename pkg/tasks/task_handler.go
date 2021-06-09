@@ -66,7 +66,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	err = planning.ScheduleNewTask(&task, user)
+	err = planning.ScheduleTask(&task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with creating calendar events", err)
@@ -124,15 +124,21 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	if original.WorkloadOverall != task.WorkloadOverall {
-		// TODO Add or remove workunits and schedule those
+	if original.WorkloadOverall < task.WorkloadOverall {
+		err := planning.ScheduleTask((*Task)(&task))
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem scheduling task", err)
+			return
+		}
 	}
 
 	if original.DueAt != task.DueAt {
 		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
 		err := planning.repository.UpdateEvent(&task.DueAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating the task", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem updating the task", err)
 			return
 		}
 
