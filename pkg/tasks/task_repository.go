@@ -143,7 +143,7 @@ func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page
 			Key: "$facet",
 			Value: bson.M{
 				"allResults": bson.A{bson.D{{Key: "$skip", Value: offset}}, bson.D{{Key: "$limit", Value: pageSize}},
-					bson.D{{Key: "$sort", Value: bson.M{"workUnits.scheduledAt.date": 1}}}},
+					bson.D{{Key: "$sort", Value: bson.M{"workUnit.scheduledAt.date": 1}}}},
 				"totalCount": bson.A{bson.D{{Key: "$count", Value: "count"}}},
 			},
 		},
