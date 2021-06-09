@@ -157,7 +157,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			if err != nil {
 				return err
 			}
-			t.WorkUnits.RemoveByIndex(index)
+			t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
 
 			workloadToSchedule += unit.Workload
 		}
