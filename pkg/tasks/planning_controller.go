@@ -145,7 +145,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			// If we can cut off time of an existing WorkUnit we do that
 			if -workloadToSchedule < unit.Workload {
 				t.WorkUnits[index].Workload += workloadToSchedule
-				t.WorkUnits[index].ScheduledAt.Date.End.Add(workloadToSchedule)
+				t.WorkUnits[index].ScheduledAt.Date.End = unit.ScheduledAt.Date.End.Add(workloadToSchedule)
 				err := c.repository.UpdateEvent(&t.WorkUnits[index].ScheduledAt)
 				if err != nil {
 					return err
