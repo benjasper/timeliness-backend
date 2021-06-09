@@ -138,8 +138,9 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 
 			workUnit.ScheduledAt = *workEvent
 			workUnits = append(workUnits, workUnit)
-			t.WorkUnits = workUnits
 		}
+		t.WorkUnits = workUnits
+
 	} else {
 		var workUnits []WorkUnit
 		for index, unit := range t.WorkUnits {
