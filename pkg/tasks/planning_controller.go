@@ -142,10 +142,14 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		}
 	} else {
 		for index, unit := range t.WorkUnits {
-			workloadToSchedule += unit.Workload
-
-			if workloadToSchedule < 0 {
+			// If we can cut off time of an existing WorkUnit we do that
+			if -workloadToSchedule < unit.Workload {
 				t.WorkUnits[index].Workload += workloadToSchedule
+				t.WorkUnits[index].ScheduledAt.Date.End.Add(workloadToSchedule)
+				err := c.repository.UpdateEvent(&t.WorkUnits[index].ScheduledAt)
+				if err != nil {
+					return err
+				}
 				break
 			}
 
@@ -153,8 +157,9 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			if err != nil {
 				return err
 			}
-
 			t.WorkUnits.RemoveByIndex(index)
+
+			workloadToSchedule += unit.Workload
 		}
 	}
 
