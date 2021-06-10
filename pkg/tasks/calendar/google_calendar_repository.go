@@ -267,6 +267,11 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string,
 		for _, item := range response.Items {
 			if item.Status == "cancelled" {
 				// TODO: Figure out what to do with deleted events
+				*eventChannel <- &Event{
+					CalendarEventID: item.Id,
+					CalendarType:    CalendarTypeGoogleCalendar,
+					Deleted:         true,
+				}
 				continue
 			}
 			event, err := googleEventToEvent(item)
