@@ -409,7 +409,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	// TODO: do other actions based on schedule date change
 
-	task.WorkloadOverall -= workunit.ScheduledAt.Date.Duration()
+	task.WorkloadOverall -= workunit.Workload
 	workunit.ScheduledAt = *event
 	workunit.Workload = workunit.ScheduledAt.Date.Duration()
 
