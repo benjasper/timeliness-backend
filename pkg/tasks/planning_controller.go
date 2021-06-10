@@ -409,7 +409,12 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	// TODO: do other actions based on schedule date change
 
+	task.WorkloadOverall -= workunit.ScheduledAt.Date.Duration()
 	workunit.ScheduledAt = *event
+	workunit.Workload = workunit.ScheduledAt.Date.Duration()
+
+	task.WorkloadOverall += workunit.ScheduledAt.Date.Duration()
+
 	task.WorkUnits[index] = *workunit
 	err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
 	if err != nil {
