@@ -398,7 +398,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		task.DueAt = *event
 		// TODO: do other actions based on due date change
 		if event.Deleted {
-			err := c.taskService.Delete(c.ctx, task.ID.Hex(), userID)
+			err := c.DeleteTask((*Task)(task))
 			if err != nil {
 				c.logger.Error("problem with deleting task", err)
 				return
