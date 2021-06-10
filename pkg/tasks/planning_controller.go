@@ -391,8 +391,20 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	}
 
 	if task.DueAt.CalendarEventID == event.CalendarEventID {
+		if task.DueAt == *event {
+			return
+		}
+
 		task.DueAt = *event
 		// TODO: do other actions based on due date change
+		if event.Deleted {
+			err := c.taskService.Delete(c.ctx, task.ID.Hex(), userID)
+			if err != nil {
+				c.logger.Error("problem with deleting task", err)
+				return
+			}
+		}
+
 		err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
@@ -407,9 +419,22 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		return
 	}
 
-	// TODO: do other actions based on schedule date change
+	if workunit.ScheduledAt == *event {
+		return
+	}
 
 	task.WorkloadOverall -= workunit.Workload
+
+	if event.Deleted {
+		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
+		err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
+		if err != nil {
+			c.logger.Error("problem with updating task", err)
+			return
+		}
+		return
+	}
+
 	workunit.ScheduledAt = *event
 	workunit.Workload = workunit.ScheduledAt.Date.Duration()
 
