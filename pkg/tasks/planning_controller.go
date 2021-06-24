@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
@@ -154,6 +155,10 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 	} else {
 		var workUnits = WorkUnits{}
 		for index := len(t.WorkUnits) - 1; index >= 0; index-- {
+			if index < 0 {
+				return errors.New("workload can't be less than all not done workunits combined")
+			}
+
 			unit := t.WorkUnits[index]
 
 			if workloadToSchedule == 0 {
