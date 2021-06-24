@@ -140,6 +140,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			workUnits = workUnits.Add(&workUnit)
 		}
 		t.WorkUnits = workUnits
+		t.IsDone = false
 
 	} else {
 		var workUnits []WorkUnit
