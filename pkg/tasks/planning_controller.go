@@ -143,10 +143,18 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		t.IsDone = false
 
 	} else {
-		var workUnits []WorkUnit
-		for index, unit := range t.WorkUnits {
+		var workUnits = WorkUnits{}
+		for index := len(t.WorkUnits) - 1; index >= 0; index-- {
+			unit := t.WorkUnits[index]
+
 			if workloadToSchedule == 0 {
-				workUnits = append(workUnits, t.WorkUnits[index])
+				workUnits = workUnits.Add(&t.WorkUnits[index])
+				continue
+			}
+
+			if unit.IsDone {
+				workUnits = workUnits.Add(&t.WorkUnits[index])
+				t.WorkUnits[index].Workload += workloadToSchedule
 				continue
 			}
 
@@ -159,7 +167,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 					return err
 				}
 
-				workUnits = append(workUnits, t.WorkUnits[index])
+				workUnits = workUnits.Add(&t.WorkUnits[index])
 				workloadToSchedule = 0
 				continue
 			}
