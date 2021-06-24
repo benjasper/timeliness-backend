@@ -21,6 +21,7 @@ type Task struct {
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
+	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
 }
@@ -38,6 +39,7 @@ type TaskUnwound struct {
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
+	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnit        WorkUnit       `json:"workUnit" bson:"workUnit"`
 	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
@@ -58,6 +60,7 @@ type TaskUpdate struct {
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
+	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       WorkUnits      `json:"-" bson:"workUnits"`
 }
