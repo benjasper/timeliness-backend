@@ -248,6 +248,9 @@ func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) Wor
 
 	if w.Duration() < 24*time.Hour*7 {
 		minDuration := 2 * time.Hour
+		if durationToFind < 2*time.Hour {
+			minDuration = durationToFind
+		}
 		maxDuration := 6 * time.Hour
 
 		for w.FreeDuration >= minDuration && durationToFind != 0 {
