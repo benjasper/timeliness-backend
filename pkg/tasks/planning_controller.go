@@ -124,6 +124,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 	for _, unit := range t.WorkUnits {
 		workloadToSchedule -= unit.Workload
 	}
+	t.NotScheduled = 0
 
 	if workloadToSchedule > 0 {
 		workUnits := t.WorkUnits
@@ -245,7 +246,9 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 
 	windowTotal.ComputeFree(&constraint)
 
-	for _, workUnit := range findWorkUnitTimes(&windowTotal, w.Workload) {
+	workloadToSchedule := w.Workload
+
+	for _, workUnit := range findWorkUnitTimes(&windowTotal, workloadToSchedule) {
 		workUnit.ScheduledAt.Blocking = true
 		workUnit.ScheduledAt.Title = renderWorkUnitEventTitle((*Task)(t))
 		workUnit.ScheduledAt.Description = ""
@@ -256,8 +259,13 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 		}
 
 		workUnit.ScheduledAt = *workEvent
+		workloadToSchedule -= workloadToSchedule
 
 		t.WorkUnits = t.WorkUnits.Add(&workUnit)
+	}
+
+	if workloadToSchedule > 0 {
+		t.NotScheduled += workloadToSchedule
 	}
 
 	return nil
