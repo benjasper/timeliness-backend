@@ -13,15 +13,15 @@ import (
 
 // The PlanningController combines the calendar and task implementations
 type PlanningController struct {
-	repository  calendar.RepositoryInterface
-	userService *users.UserService
-	taskService *TaskService
-	ctx         context.Context
-	logger      logger.Interface
+	repository     calendar.RepositoryInterface
+	userService    *users.UserService
+	taskRepository TaskRepositoryInterface
+	ctx            context.Context
+	logger         logger.Interface
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
-func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService, taskService *TaskService,
+func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService, taskRepository TaskRepositoryInterface,
 	logger logger.Interface) (*PlanningController, error) {
 	controller := PlanningController{}
 	var repository calendar.RepositoryInterface
@@ -35,7 +35,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 	controller.repository = repository
 	controller.ctx = ctx
 	controller.userService = userService
-	controller.taskService = taskService
+	controller.taskRepository = taskRepository
 	controller.logger = logger
 
 	return &controller, nil
@@ -418,7 +418,7 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
-	task, err := c.taskService.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
+	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		// TODO: check work unit date intersections with tasks
 		return
@@ -439,7 +439,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			}
 		}
 
-		err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
+		err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -461,7 +461,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	if event.Deleted {
 		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
-		err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
+		err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -475,7 +475,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	task.WorkloadOverall += workunit.Workload
 
 	task.WorkUnits[index] = *workunit
-	err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
+	err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
 	if err != nil {
 		c.logger.Error("problem with updating task", err)
 		return
