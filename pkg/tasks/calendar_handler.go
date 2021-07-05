@@ -137,7 +137,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		if env != "prod" {
 			continue
 		}
-		u, err = planning.repository.WatchCalendar(sync.CalendarID, u)
+		u, err = planning.calendarRepository.WatchCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with calendar notification registration", err)
@@ -249,7 +249,7 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			continue
 		}
 
-		user, err := planning.repository.WatchCalendar(sync.CalendarID, user)
+		user, err := planning.calendarRepository.WatchCalendar(sync.CalendarID, user)
 		if err != nil {
 			handler.Logger.Error("Problem while trying to renew sync", err)
 			return
