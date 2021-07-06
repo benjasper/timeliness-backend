@@ -347,12 +347,12 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	filters := []Filter{}
+	var filters []Filter
 
 	if queryDueAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Wrong date format in query string", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
 			return
 		}
 		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
