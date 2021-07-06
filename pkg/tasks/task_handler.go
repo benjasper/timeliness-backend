@@ -369,10 +369,10 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	var response = map[string]interface{}{
 		"results": tasks,
 		"pagination": map[string]interface{}{
-			"pageCount": count,
-			"pageSize":  pageSize,
-			"pageIndex": page,
-			"pages":     int(math.Ceil(pages)),
+			"resultCount": count,
+			"pageSize":    pageSize,
+			"pageIndex":   page,
+			"pages":       int(math.Ceil(pages)),
 		},
 	}
 
@@ -450,10 +450,10 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	var response = map[string]interface{}{
 		"results": tasks,
 		"pagination": map[string]interface{}{
-			"pageCount": count,
-			"pageSize":  pageSize,
-			"pageIndex": page,
-			"pages":     int(math.Ceil(pages)),
+			"resultCount": count,
+			"pageSize":    pageSize,
+			"pageIndex":   page,
+			"pages":       int(math.Ceil(pages)),
 		},
 	}
 

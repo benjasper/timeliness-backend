@@ -186,7 +186,7 @@ components:
     Pagination:
       type: object
       properties:
-        pageCount:
+        resultCount:
           type: integer
         pageIndex:
           type: integer
