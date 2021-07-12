@@ -11,14 +11,26 @@ import (
 	"time"
 )
 
-// TaskService does everything related to storing and finding tasks
-type TaskService struct {
+// TaskRepositoryInterface is an interface for a MongoDBTaskRepository
+type TaskRepositoryInterface interface {
+	Add(ctx context.Context, task *Task) error
+	Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error
+	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error)
+	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error)
+	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
+	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error)
+	FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error)
+	Delete(ctx context.Context, taskID string, userID string) error
+}
+
+// MongoDBTaskRepository does everything related to storing and finding tasks
+type MongoDBTaskRepository struct {
 	DB     *mongo.Collection
 	Logger logger.Interface
 }
 
 // Add adds a task
-func (s TaskService) Add(ctx context.Context, task *Task) error {
+func (s MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 	task.CreatedAt = time.Now()
 	task.LastModifiedAt = time.Now()
 	task.ID = primitive.NewObjectID()
@@ -34,7 +46,7 @@ func (s TaskService) Add(ctx context.Context, task *Task) error {
 }
 
 // Update updates a task
-func (s TaskService) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
+func (s MongoDBTaskRepository) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
 	task.LastModifiedAt = time.Now()
 
 	for index, unit := range task.WorkUnits {
@@ -65,7 +77,7 @@ func (s TaskService) Update(ctx context.Context, taskID string, userID string, t
 }
 
 // FindAll finds all task paginated
-func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error) {
+func (s MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -108,7 +120,7 @@ func (s TaskService) FindAll(ctx context.Context, userID string, page int, pageS
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error) {
+func (s MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound
@@ -169,7 +181,7 @@ func (s TaskService) FindAllByWorkUnits(ctx context.Context, userID string, page
 }
 
 // FindByID finds a specific task by ID
-func (s TaskService) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
+func (s MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
 	t := Task{}
 
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
@@ -196,7 +208,7 @@ func (s TaskService) FindByID(ctx context.Context, taskID string, userID string)
 }
 
 // FindByCalendarEventID finds a specific task by a calendar event ID in workUnits or dueAt
-func (s TaskService) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error) {
+func (s MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error) {
 	t := TaskUpdate{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -225,7 +237,7 @@ func (s TaskService) FindByCalendarEventID(ctx context.Context, calendarEventID 
 }
 
 // FindUpdatableByID Finds a task and returns the TaskUpdate view of the model
-func (s TaskService) FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error) {
+func (s MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error) {
 	t := TaskUpdate{}
 
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
@@ -252,7 +264,7 @@ func (s TaskService) FindUpdatableByID(ctx context.Context, taskID string, userI
 }
 
 // Delete deletes a task
-func (s TaskService) Delete(ctx context.Context, taskID string, userID string) error {
+func (s MongoDBTaskRepository) Delete(ctx context.Context, taskID string, userID string) error {
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
 		return err
