@@ -16,7 +16,7 @@ import (
 
 // Handler is the handler for user API calls
 type Handler struct {
-	UserService     UserService
+	UserRepository  UserRepositoryInterface
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
 	Secret          string
@@ -40,7 +40,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	user.Lastname = body["lastname"]
 	user.Email = body["email"]
 
-	presentUser, err := handler.UserService.FindByEmail(request.Context(), user.Email)
+	presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"User with email "+presentUser.Email+" already exists", err)
@@ -66,7 +66,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		}
 	}
 
-	err = handler.UserService.Add(request.Context(), &user)
+	err = handler.UserRepository.Add(request.Context(), &user)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"User couldn't be persisted in the database", err)
@@ -91,7 +91,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 // UserGet retrieves a single user
 func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
-	u, err := handler.UserService.FindByID(request.Context(), vars["id"])
+	u, err := handler.UserRepository.FindByID(request.Context(), vars["id"])
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
 			"User wasn't found", err)
@@ -130,7 +130,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
-	user, err := handler.UserService.FindByEmail(request.Context(), userLogin.Email)
+	user, err := handler.UserRepository.FindByEmail(request.Context(), userLogin.Email)
 	if err != nil || user == nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Wrong credentials", err)
@@ -227,7 +227,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 
 	userID := refreshToken.Payload.Subject
 
-	u, err := handler.UserService.FindByID(request.Context(), userID)
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil || u.IsDeactivated {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "User not found", err)
 		return
@@ -261,7 +261,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 
-	u, err := handler.UserService.FindByID(request.Context(), userID)
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
 		return
@@ -275,7 +275,7 @@ func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, r
 
 	u.GoogleCalendarConnection.StateToken = stateToken
 
-	err = handler.UserService.Update(request.Context(), u)
+	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
 		return
@@ -304,7 +304,7 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 
 	stateToken := request.URL.Query().Get("state")
 
-	usr, err := handler.UserService.FindByGoogleStateToken(request.Context(), stateToken)
+	usr, err := handler.UserRepository.FindByGoogleStateToken(request.Context(), stateToken)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
 		return
@@ -319,7 +319,7 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 	usr.GoogleCalendarConnection.Token = *token
 	usr.GoogleCalendarConnection.StateToken = ""
 
-	_ = handler.UserService.Update(request.Context(), usr)
+	_ = handler.UserRepository.Update(request.Context(), usr)
 
 	var response = map[string]interface{}{
 		"message": "Successfully connected accounts",

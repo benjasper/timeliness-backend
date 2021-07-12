@@ -11,14 +11,25 @@ import (
 	"time"
 )
 
-// UserService does everything related to user storing
-type UserService struct {
+// UserRepositoryInterface is the interface for a UserRepository
+type UserRepositoryInterface interface {
+	Add(ctx context.Context, user *User) error
+	FindByID(ctx context.Context, id string) (*User, error)
+	FindByEmail(ctx context.Context, email string) (*User, error)
+	FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error)
+	FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error)
+	Update(ctx context.Context, user *User) error
+	Remove(ctx context.Context, id string) error
+}
+
+// UserRepository does everything related to user storing
+type UserRepository struct {
 	DB     *mongo.Collection
 	Logger logger.Interface
 }
 
 // Add adds a user
-func (s UserService) Add(ctx context.Context, user *User) error {
+func (s UserRepository) Add(ctx context.Context, user *User) error {
 	user.CreatedAt = time.Now()
 	user.LastModifiedAt = time.Now()
 	user.ID = primitive.NewObjectID()
@@ -27,7 +38,7 @@ func (s UserService) Add(ctx context.Context, user *User) error {
 }
 
 // FindByID finds a user by ID
-func (s UserService) FindByID(ctx context.Context, id string) (*User, error) {
+func (s UserRepository) FindByID(ctx context.Context, id string) (*User, error) {
 	var u = User{}
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -47,7 +58,7 @@ func (s UserService) FindByID(ctx context.Context, id string) (*User, error) {
 }
 
 // FindByEmail finds a user by Email
-func (s UserService) FindByEmail(ctx context.Context, email string) (*User, error) {
+func (s UserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	var u = User{}
 
 	result := s.DB.FindOne(ctx, bson.M{"email": email})
@@ -63,7 +74,7 @@ func (s UserService) FindByEmail(ctx context.Context, email string) (*User, erro
 }
 
 // FindByGoogleStateToken finds a user by its Google state Token
-func (s UserService) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
+func (s UserRepository) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
 	var u = User{}
 
 	result := s.DB.FindOne(ctx, bson.M{"googleCalendarConnection.stateToken": stateToken})
@@ -79,7 +90,7 @@ func (s UserService) FindByGoogleStateToken(ctx context.Context, stateToken stri
 }
 
 // FindBySyncExpiration finds user documents where at least one sync is ready for renewal
-func (s UserService) FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error) {
+func (s UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error) {
 	var users []*User
 	offset := page * pageSize
 
@@ -111,7 +122,7 @@ func (s UserService) FindBySyncExpiration(ctx context.Context, greaterThan time.
 }
 
 // Update updates a user
-func (s UserService) Update(ctx context.Context, user *User) error {
+func (s UserRepository) Update(ctx context.Context, user *User) error {
 	user.LastModifiedAt = time.Now()
 
 	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": user})
@@ -127,7 +138,7 @@ func (s UserService) Update(ctx context.Context, user *User) error {
 }
 
 // Remove Deletes a user
-func (s UserService) Remove(ctx context.Context, id string) error {
+func (s UserRepository) Remove(ctx context.Context, id string) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return err
