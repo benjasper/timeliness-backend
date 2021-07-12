@@ -472,10 +472,6 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	workunit.ScheduledAt = *event
 	workunit.Workload = workunit.ScheduledAt.Date.Duration()
 
-	// Remove and re-add to sort it naively for now
-	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
-	task.WorkUnits = task.WorkUnits.Add(workunit)
-
 	task.WorkloadOverall += workunit.Workload
 
 	task.WorkUnits[index] = *workunit
