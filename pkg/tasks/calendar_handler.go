@@ -18,8 +18,8 @@ import (
 
 // CalendarHandler handles all calendar related API calls
 type CalendarHandler struct {
-	UserService     *users.UserService
-	TaskService     *TaskService
+	UserService     *users.UserRepository
+	TaskService     *MongoDBTaskRepository
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
 }
@@ -53,9 +53,9 @@ func (handler *CalendarHandler) GetAllCalendars(writer http.ResponseWriter, requ
 		return
 	}
 
-	for _, calendar := range u.GoogleCalendarConnection.CalendarsOfInterest {
-		if googleCalendarMap[calendar.CalendarID] != nil {
-			googleCalendarMap[calendar.CalendarID].IsActive = true
+	for _, calendarSync := range u.GoogleCalendarConnection.CalendarsOfInterest {
+		if googleCalendarMap[calendarSync.CalendarID] != nil {
+			googleCalendarMap[calendarSync.CalendarID].IsActive = true
 		}
 	}
 
@@ -137,7 +137,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		if env != "prod" {
 			continue
 		}
-		u, err = planning.repository.WatchCalendar(sync.CalendarID, u)
+		u, err = planning.calendarRepository.WatchCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with calendar notification registration", err)
@@ -156,25 +156,25 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 
 func matchNewGoogleCalendars(request calendarsPost, googleCalendars map[string]*calendar.Calendar, u *users.User) []users.GoogleCalendarSync {
 	var newGoogleCalendars []users.GoogleCalendarSync
-	for _, calendar := range request.GoogleCalendar {
-		if googleCalendars[calendar.CalendarID] == nil {
+	for _, c := range request.GoogleCalendar {
+		if googleCalendars[c.CalendarID] == nil {
 			continue
 		}
 
 		var foundPresentCalendar *users.GoogleCalendarSync = nil
 		for _, userCalendar := range u.GoogleCalendarConnection.CalendarsOfInterest {
-			if userCalendar.CalendarID == calendar.CalendarID && calendar.IsActive {
+			if userCalendar.CalendarID == c.CalendarID && c.IsActive {
 				foundPresentCalendar = &userCalendar
 				break
 			}
 		}
 
-		if !calendar.IsActive && foundPresentCalendar != nil {
-			// TODO: deregister calendar notifications gracefully
+		if !c.IsActive && foundPresentCalendar != nil {
+			// TODO: deregister c notifications gracefully
 			continue
 		}
 
-		if !calendar.IsActive {
+		if !c.IsActive {
 			continue
 		}
 
@@ -183,7 +183,7 @@ func matchNewGoogleCalendars(request calendarsPost, googleCalendars map[string]*
 			continue
 		}
 
-		newGoogleCalendars = append(newGoogleCalendars, users.GoogleCalendarSync{CalendarID: calendar.CalendarID})
+		newGoogleCalendars = append(newGoogleCalendars, users.GoogleCalendarSync{CalendarID: c.CalendarID})
 	}
 
 	for _, sync := range u.GoogleCalendarConnection.CalendarsOfInterest {
@@ -249,7 +249,7 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			continue
 		}
 
-		user, err := planning.repository.WatchCalendar(sync.CalendarID, user)
+		user, err := planning.calendarRepository.WatchCalendar(sync.CalendarID, user)
 		if err != nil {
 			handler.Logger.Error("Problem while trying to renew sync", err)
 			return

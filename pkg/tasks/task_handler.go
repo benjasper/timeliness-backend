@@ -18,8 +18,8 @@ import (
 
 // Handler handles all task related API calls
 type Handler struct {
-	TaskService     *TaskService
-	UserService     *users.UserService
+	TaskRepository  TaskRepositoryInterface
+	UserRepository  users.UserRepositoryInterface
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
 }
@@ -41,7 +41,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	user, err := handler.UserService.FindByID(request.Context(), userID.Hex())
+	user, err := handler.UserRepository.FindByID(request.Context(), userID.Hex())
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not find user", err)
@@ -59,7 +59,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		}
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -73,7 +73,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	err = handler.TaskService.Add(request.Context(), &task)
+	err = handler.TaskRepository.Add(request.Context(), &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Persisting task in database did not work", err)
@@ -88,14 +88,14 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
-	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
 	}
 	original := task
 
-	user, err := handler.UserService.FindByID(request.Context(), userID)
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not find user", err)
@@ -108,7 +108,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -135,7 +135,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 	if original.DueAt != task.DueAt {
 		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
-		err := planning.repository.UpdateEvent(&task.DueAt)
+		err := planning.calendarRepository.UpdateEvent(&task.DueAt)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating the task", err)
@@ -161,7 +161,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
+	err = handler.TaskRepository.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
@@ -183,14 +183,14 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	user, err := handler.UserService.FindByID(request.Context(), userID)
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not find user", err)
 		return
 	}
 
-	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
@@ -246,7 +246,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	task.WorkUnits[index] = workUnit
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -260,7 +260,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
+	err = handler.TaskRepository.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
@@ -274,20 +274,20 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
-	user, err := handler.UserService.FindByID(request.Context(), userID)
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not find user", err)
 		return
 	}
 
-	task, err := handler.TaskService.FindByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -301,7 +301,7 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	err = handler.TaskService.Delete(request.Context(), taskID, userID)
+	err = handler.TaskRepository.Delete(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not delete task", err)
@@ -347,18 +347,18 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	filters := []Filter{}
+	var filters []Filter
 
 	if queryDueAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Wrong date format in query string", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
 			return
 		}
 		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskService.FindAll(request.Context(), userID, page, pageSize, filters)
+	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
@@ -369,10 +369,10 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	var response = map[string]interface{}{
 		"results": tasks,
 		"pagination": map[string]interface{}{
-			"pageCount": count,
-			"pageSize":  pageSize,
-			"pageIndex": page,
-			"pages":     int(math.Ceil(pages)),
+			"resultCount": count,
+			"pageSize":    pageSize,
+			"pageIndex":   page,
+			"pages":       int(math.Ceil(pages)),
 		},
 	}
 
@@ -384,7 +384,7 @@ func (handler *Handler) TaskGet(writer http.ResponseWriter, request *http.Reques
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
-	task, err := handler.TaskService.FindByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find task", err)
 	}
@@ -439,7 +439,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		filters = append(filters, Filter{Field: "workUnit.isDone", Value: value})
 	}
 
-	tasks, count, err := handler.TaskService.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters)
+	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
@@ -450,10 +450,10 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	var response = map[string]interface{}{
 		"results": tasks,
 		"pagination": map[string]interface{}{
-			"pageCount": count,
-			"pageSize":  pageSize,
-			"pageIndex": page,
-			"pages":     int(math.Ceil(pages)),
+			"resultCount": count,
+			"pageSize":    pageSize,
+			"pageIndex":   page,
+			"pages":       int(math.Ceil(pages)),
 		},
 	}
 
@@ -471,14 +471,14 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	user, err := handler.UserService.FindByID(request.Context(), userID)
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not find user", err)
 		return
 	}
 
-	task, err := handler.TaskService.FindUpdatableByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
@@ -497,7 +497,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserService, handler.TaskService, handler.Logger)
+	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -510,7 +510,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	err = handler.TaskService.Update(request.Context(), taskID, userID, &task)
+	err = handler.TaskRepository.Update(request.Context(), taskID, userID, &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return

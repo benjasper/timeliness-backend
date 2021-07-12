@@ -13,36 +13,36 @@ import (
 
 // The PlanningController combines the calendar and task implementations
 type PlanningController struct {
-	repository  calendar.RepositoryInterface
-	userService *users.UserService
-	taskService *TaskService
-	ctx         context.Context
-	logger      logger.Interface
+	calendarRepository calendar.RepositoryInterface
+	userRepository     users.UserRepositoryInterface
+	taskRepository     TaskRepositoryInterface
+	ctx                context.Context
+	logger             logger.Interface
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
-func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService, taskService *TaskService,
+func NewPlanningController(ctx context.Context, u *users.User, userService users.UserRepositoryInterface, taskRepository TaskRepositoryInterface,
 	logger logger.Interface) (*PlanningController, error) {
 	controller := PlanningController{}
 	var repository calendar.RepositoryInterface
 
-	// TODO: Figure out which repository to use
+	// TODO: Figure out which calendarRepository to use
 	repository, err := setupGoogleRepository(ctx, u, userService, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	controller.repository = repository
+	controller.calendarRepository = repository
 	controller.ctx = ctx
-	controller.userService = userService
-	controller.taskService = taskService
+	controller.userRepository = userService
+	controller.taskRepository = taskRepository
 	controller.logger = logger
 
 	return &controller, nil
 }
 
 // setupGoogleRepository manages token refreshing and calendar creation
-func setupGoogleRepository(ctx context.Context, u *users.User, userService *users.UserService, logger logger.Interface) (*calendar.GoogleCalendarRepository, error) {
+func setupGoogleRepository(ctx context.Context, u *users.User, userService users.UserRepositoryInterface, logger logger.Interface) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
 	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u, logger)
 	if err != nil {
@@ -76,7 +76,7 @@ func setupGoogleRepository(ctx context.Context, u *users.User, userService *user
 
 // SuggestTimeslot finds a free timeslot
 func (c *PlanningController) SuggestTimeslot(window *calendar.TimeWindow) (*[]calendar.Timespan, error) {
-	err := c.repository.AddBusyToWindow(window)
+	err := c.calendarRepository.AddBusyToWindow(window)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (c *PlanningController) SuggestTimeslot(window *calendar.TimeWindow) (*[]ca
 func (c *PlanningController) ScheduleTask(t *Task) error {
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
-	err := c.repository.AddBusyToWindow(&windowTotal)
+	err := c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			workUnit.ScheduledAt.Title = renderWorkUnitEventTitle(t)
 			workUnit.ScheduledAt.Description = ""
 
-			workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
+			workEvent, err := c.calendarRepository.NewEvent(&workUnit.ScheduledAt)
 			if err != nil {
 				return err
 			}
@@ -177,7 +177,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			if -workloadToSchedule < unit.Workload {
 				t.WorkUnits[index].Workload += workloadToSchedule
 				t.WorkUnits[index].ScheduledAt.Date.End = unit.ScheduledAt.Date.End.Add(workloadToSchedule)
-				err := c.repository.UpdateEvent(&t.WorkUnits[index].ScheduledAt)
+				err := c.calendarRepository.UpdateEvent(&t.WorkUnits[index].ScheduledAt)
 				if err != nil {
 					return err
 				}
@@ -187,7 +187,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 				continue
 			}
 
-			err := c.repository.DeleteEvent(&unit.ScheduledAt)
+			err := c.calendarRepository.DeleteEvent(&unit.ScheduledAt)
 			if err != nil {
 				return err
 			}
@@ -204,7 +204,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
 		t.DueAt.Description = ""
 
-		dueEvent, err := c.repository.NewEvent(&t.DueAt)
+		dueEvent, err := c.calendarRepository.NewEvent(&t.DueAt)
 		if err != nil {
 			return err
 		}
@@ -220,14 +220,14 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 
-	err := c.repository.DeleteEvent(&w.ScheduledAt)
+	err := c.calendarRepository.DeleteEvent(&w.ScheduledAt)
 	if err != nil {
 		return err
 	}
 
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
 
-	err = c.repository.AddBusyToWindow(&windowTotal)
+	err = c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 		workUnit.ScheduledAt.Title = renderWorkUnitEventTitle((*Task)(t))
 		workUnit.ScheduledAt.Description = ""
 
-		workEvent, err := c.repository.NewEvent(&workUnit.ScheduledAt)
+		workEvent, err := c.calendarRepository.NewEvent(&workUnit.ScheduledAt)
 		if err != nil {
 			return err
 		}
@@ -357,7 +357,7 @@ func renderWorkUnitEventTitle(task *Task) string {
 // UpdateTaskTitle updates the events of the tasks and work units
 func (c *PlanningController) UpdateTaskTitle(task *Task, updateWorkUnits bool) error {
 	task.DueAt.Title = renderDueEventTitle(task)
-	err := c.repository.UpdateEvent(&task.DueAt)
+	err := c.calendarRepository.UpdateEvent(&task.DueAt)
 	if err != nil {
 		return err
 	}
@@ -368,7 +368,7 @@ func (c *PlanningController) UpdateTaskTitle(task *Task, updateWorkUnits bool) e
 
 	for _, unit := range task.WorkUnits {
 		unit.ScheduledAt.Title = renderWorkUnitEventTitle(task)
-		err := c.repository.UpdateEvent(&unit.ScheduledAt)
+		err := c.calendarRepository.UpdateEvent(&unit.ScheduledAt)
 		if err != nil {
 			return err
 		}
@@ -380,13 +380,13 @@ func (c *PlanningController) UpdateTaskTitle(task *Task, updateWorkUnits bool) e
 // DeleteTask deletes all events that are connected to a task
 func (c *PlanningController) DeleteTask(task *Task) error {
 	for _, unit := range task.WorkUnits {
-		err := c.repository.DeleteEvent(&unit.ScheduledAt)
+		err := c.calendarRepository.DeleteEvent(&unit.ScheduledAt)
 		if err != nil {
 			return err
 		}
 	}
 
-	err := c.repository.DeleteEvent(&task.DueAt)
+	err := c.calendarRepository.DeleteEvent(&task.DueAt)
 	if err != nil {
 		return err
 	}
@@ -399,12 +399,12 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 	eventChannel := make(chan *calendar.Event)
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
-	go c.repository.SyncEvents(calendarID, &eventChannel, &errorChannel, &userChannel)
+	go c.calendarRepository.SyncEvents(calendarID, &eventChannel, &errorChannel, &userChannel)
 
 	for {
 		select {
 		case user := <-userChannel:
-			err := c.userService.Update(c.ctx, user)
+			err := c.userRepository.Update(c.ctx, user)
 			if err != nil {
 				return err
 			}
@@ -418,7 +418,7 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
-	task, err := c.taskService.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
+	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		// TODO: check work unit date intersections with tasks
 		return
@@ -439,7 +439,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			}
 		}
 
-		err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
+		err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -461,7 +461,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	if event.Deleted {
 		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
-		err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
+		err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -472,10 +472,14 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	workunit.ScheduledAt = *event
 	workunit.Workload = workunit.ScheduledAt.Date.Duration()
 
+	// Remove and re-add to sort it naively for now
+	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
+	task.WorkUnits = task.WorkUnits.Add(workunit)
+
 	task.WorkloadOverall += workunit.Workload
 
 	task.WorkUnits[index] = *workunit
-	err = c.taskService.Update(c.ctx, task.ID.Hex(), userID, task)
+	err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
 	if err != nil {
 		c.logger.Error("problem with updating task", err)
 		return
