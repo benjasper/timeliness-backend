@@ -14,14 +14,14 @@ import (
 // The PlanningController combines the calendar and task implementations
 type PlanningController struct {
 	calendarRepository calendar.RepositoryInterface
-	userService        *users.UserService
+	userRepository     users.UserRepositoryInterface
 	taskRepository     TaskRepositoryInterface
 	ctx                context.Context
 	logger             logger.Interface
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
-func NewPlanningController(ctx context.Context, u *users.User, userService *users.UserService, taskRepository TaskRepositoryInterface,
+func NewPlanningController(ctx context.Context, u *users.User, userService users.UserRepositoryInterface, taskRepository TaskRepositoryInterface,
 	logger logger.Interface) (*PlanningController, error) {
 	controller := PlanningController{}
 	var repository calendar.RepositoryInterface
@@ -34,7 +34,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 
 	controller.calendarRepository = repository
 	controller.ctx = ctx
-	controller.userService = userService
+	controller.userRepository = userService
 	controller.taskRepository = taskRepository
 	controller.logger = logger
 
@@ -42,7 +42,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService *user
 }
 
 // setupGoogleRepository manages token refreshing and calendar creation
-func setupGoogleRepository(ctx context.Context, u *users.User, userService *users.UserService, logger logger.Interface) (*calendar.GoogleCalendarRepository, error) {
+func setupGoogleRepository(ctx context.Context, u *users.User, userService users.UserRepositoryInterface, logger logger.Interface) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
 	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u, logger)
 	if err != nil {
@@ -404,7 +404,7 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 	for {
 		select {
 		case user := <-userChannel:
-			err := c.userService.Update(c.ctx, user)
+			err := c.userRepository.Update(c.ctx, user)
 			if err != nil {
 				return err
 			}

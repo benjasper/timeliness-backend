@@ -18,7 +18,7 @@ import (
 
 // CalendarHandler handles all calendar related API calls
 type CalendarHandler struct {
-	UserService     *users.UserService
+	UserService     *users.UserRepository
 	TaskService     *MongoDBTaskRepository
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager

@@ -87,16 +87,16 @@ func main() {
 
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
 
-	userService := users.UserService{DB: userCollection, Logger: logging}
-	userHandler := users.Handler{UserService: userService, Logger: logging, ResponseManager: &responseManager, Secret: secret}
-	calendarHandler := tasks.CalendarHandler{UserService: &userService, Logger: logging, ResponseManager: &responseManager,
+	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
+	userHandler := users.Handler{UserRepository: userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
+	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
 		TaskService: &taskRepository}
 
 	taskHandler := tasks.Handler{
 		TaskRepository:  &taskRepository,
 		Logger:          logging,
 		ResponseManager: &responseManager,
-		UserService:     &userService}
+		UserRepository:  &userRepository}
 
 	r := mux.NewRouter()
 
