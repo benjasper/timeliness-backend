@@ -426,6 +426,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event)
 		if err != nil {
 			c.logger.Error("problem while trying to find tasks intersecting with an event", err)
+			return
 		}
 
 		type Intersection struct {
