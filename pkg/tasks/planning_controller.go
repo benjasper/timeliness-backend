@@ -421,6 +421,10 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) e
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
+	if !event.Blocking {
+		return
+	}
+
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event)
@@ -429,7 +433,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			return
 		}
 
-		if len(intersectingTasks) == 0 || event.Blocking == false {
+		if len(intersectingTasks) == 0 {
 			return
 		}
 
