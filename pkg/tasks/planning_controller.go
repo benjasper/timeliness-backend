@@ -8,6 +8,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -401,6 +402,8 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 	userChannel := make(chan *users.User)
 	go c.calendarRepository.SyncEvents(calendarID, &eventChannel, &errorChannel, &userChannel)
 
+	taskMutexMap := sync.Map{}
+
 	for {
 		select {
 		case user := <-userChannel:
@@ -410,17 +413,30 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 			}
 			return nil
 		case event := <-eventChannel:
-			go c.processTaskEventChange(event, userID)
+			go c.processTaskEventChange(event, userID, &taskMutexMap)
 		case err := <-errorChannel:
 			return err
 		}
 	}
 }
 
-func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
+func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		// TODO: check work unit date intersections with tasks
+		return
+	}
+
+	loaded, _ := taskMutexMap.LoadOrStore(task.ID.Hex(), &sync.Mutex{})
+	mutex := loaded.(*sync.Mutex)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Refresh task, after potential change
+	task, err = c.taskRepository.FindUpdatableByID(c.ctx, task.ID.Hex(), userID)
+	if err != nil {
+		c.logger.Error("could not refresh already loaded task", err)
 		return
 	}
 
