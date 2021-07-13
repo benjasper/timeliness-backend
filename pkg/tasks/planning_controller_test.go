@@ -198,7 +198,7 @@ func TestPlanningController_SyncCalendar(t *testing.T) {
 		logger             logger.Interface
 	}
 	type args struct {
-		userID     string
+		user       *users.User
 		calendarID string
 	}
 	tests := []struct {
@@ -218,7 +218,7 @@ func TestPlanningController_SyncCalendar(t *testing.T) {
 				ctx:                tt.fields.ctx,
 				logger:             tt.fields.logger,
 			}
-			if err := c.SyncCalendar(tt.args.userID, tt.args.calendarID); (err != nil) != tt.wantErr {
+			if err := c.SyncCalendar(tt.args.user, tt.args.calendarID); (err != nil) != tt.wantErr {
 				t.Errorf("SyncCalendar() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

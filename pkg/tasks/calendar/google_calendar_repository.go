@@ -235,7 +235,7 @@ func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 }
 
 // SyncEvents syncs the calendar events of a single calendar
-func (c *GoogleCalendarRepository) SyncEvents(calendarID string,
+func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.User,
 	eventChannel *chan *Event,
 	errorChannel *chan error,
 	userChannel *chan *users.User) {
@@ -243,7 +243,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string,
 	now := time.Now().Format(time.RFC3339)
 	request := c.Service.Events.List(calendarID).SingleEvents(true)
 
-	user := c.user
+	c.user = user
 	syncIndex := findSyncByID(user.GoogleCalendarConnection, calendarID)
 
 	if user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken != "" {
