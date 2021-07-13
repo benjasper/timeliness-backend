@@ -318,9 +318,10 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			if err != nil {
 				tries++
 				time.Sleep(5 * time.Second)
+				handler.Logger.Debug(err.Error())
 				continue
 			}
-
+			handler.Logger.Debug("Worked: Lock aquired")
 			break
 		}
 
@@ -328,6 +329,8 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			handler.Logger.Warning(fmt.Sprintf("Ultimately could not aquire lock for google calendar ID %s after %d tries", calendarID, tries), err)
 			return
 		}
+
+		handler.Logger.Debug("Continuing")
 
 		err := planning.SyncCalendar(userID, calendarID)
 		if err != nil {
@@ -340,5 +343,6 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			handler.Logger.Error(fmt.Sprintf("Could not update user %s to end sync for calendar ID %s", userID, calendarID), err)
 			return
 		}
+		handler.Logger.Debug("Done")
 	}(user, calendarIndex, planning)
 }
