@@ -396,11 +396,11 @@ func (c *PlanningController) DeleteTask(task *Task) error {
 }
 
 // SyncCalendar triggers a sync on a single calendar
-func (c *PlanningController) SyncCalendar(userID string, calendarID string) error {
+func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) error {
 	eventChannel := make(chan *calendar.Event)
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
-	go c.calendarRepository.SyncEvents(calendarID, &eventChannel, &errorChannel, &userChannel)
+	go c.calendarRepository.SyncEvents(calendarID, user, &eventChannel, &errorChannel, &userChannel)
 
 	taskMutexMap := sync.Map{}
 
@@ -413,7 +413,7 @@ func (c *PlanningController) SyncCalendar(userID string, calendarID string) erro
 			}
 			return nil
 		case event := <-eventChannel:
-			go c.processTaskEventChange(event, userID, &taskMutexMap)
+			go c.processTaskEventChange(event, user.ID.Hex(), &taskMutexMap)
 		case err := <-errorChannel:
 			return err
 		}

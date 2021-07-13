@@ -126,6 +126,9 @@ func (s UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan ti
 func (s UserRepository) StartGoogleSync(ctx context.Context, user *User, calendarIndex int) (*User, error) {
 	var u = User{}
 
+	findOptions := options.FindOneAndUpdate()
+	findOptions.SetReturnDocument(options.After)
+
 	result := s.DB.FindOneAndUpdate(ctx, bson.M{
 		"_id": user.ID,
 		fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex): false,
@@ -134,7 +137,7 @@ func (s UserRepository) StartGoogleSync(ctx context.Context, user *User, calenda
 			"$set": bson.M{
 				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex):  true,
 				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.lastSyncStarted", calendarIndex): time.Now()},
-		})
+		}, findOptions)
 	if result.Err() != nil {
 		return nil, result.Err()
 	}
@@ -150,6 +153,9 @@ func (s UserRepository) StartGoogleSync(ctx context.Context, user *User, calenda
 func (s UserRepository) EndGoogleSync(ctx context.Context, user *User, calendarIndex int) (*User, error) {
 	var u = User{}
 
+	findOptions := options.FindOneAndUpdate()
+	findOptions.SetReturnDocument(options.After)
+
 	result := s.DB.FindOneAndUpdate(ctx, bson.M{
 		"_id": user.ID,
 	},
@@ -157,7 +163,7 @@ func (s UserRepository) EndGoogleSync(ctx context.Context, user *User, calendarI
 			"$set": bson.M{
 				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex): false,
 				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.lastSyncEnded", calendarIndex):  time.Now()},
-		})
+		}, findOptions)
 	if result.Err() != nil {
 		return nil, result.Err()
 	}

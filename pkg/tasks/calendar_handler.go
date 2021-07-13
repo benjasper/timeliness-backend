@@ -283,7 +283,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 
 	user, err := handler.UserService.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Could not find user", err)
 		return
 	}
@@ -314,14 +314,14 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 	go func(user *users.User, calendarIndex int, planning *PlanningController) {
 		tries := 0
 		for tries < 3 {
-			user, err = handler.UserService.StartGoogleSync(context.Background(), user, calendarIndex)
+			result, err := handler.UserService.StartGoogleSync(context.Background(), user, calendarIndex)
 			if err != nil {
 				tries++
 				time.Sleep(5 * time.Second)
-				handler.Logger.Debug(err.Error())
 				continue
 			}
-			handler.Logger.Debug("Worked: Lock aquired")
+
+			user = result
 			break
 		}
 
@@ -330,9 +330,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			return
 		}
 
-		handler.Logger.Debug("Continuing")
-
-		err := planning.SyncCalendar(userID, calendarID)
+		err := planning.SyncCalendar(user, calendarID)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
 			// Continue to end sync anyway
@@ -343,6 +341,5 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			handler.Logger.Error(fmt.Sprintf("Could not update user %s to end sync for calendar ID %s", userID, calendarID), err)
 			return
 		}
-		handler.Logger.Debug("Done")
 	}(user, calendarIndex, planning)
 }
