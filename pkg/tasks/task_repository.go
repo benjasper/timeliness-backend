@@ -19,7 +19,7 @@ type TaskRepositoryInterface interface {
 	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error)
 	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error)
-	FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error)
+	FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error)
 	Delete(ctx context.Context, taskID string, userID string) error
 }
 
@@ -237,30 +237,13 @@ func (s MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calend
 }
 
 // FindUpdatableByID Finds a task and returns the TaskUpdate view of the model
-func (s MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string) (TaskUpdate, error) {
-	t := TaskUpdate{}
-
-	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
+func (s MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error) {
+	task, err := s.FindByID(ctx, taskID, userID)
 	if err != nil {
-		return t, err
-	}
-	userObjectID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		return t, err
+		return nil, err
 	}
 
-	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID})
-
-	if result.Err() != nil {
-		return t, result.Err()
-	}
-
-	err = result.Decode(&t)
-	if err != nil {
-		return t, err
-	}
-
-	return t, nil
+	return (*TaskUpdate)(&task), nil
 }
 
 // Delete deletes a task

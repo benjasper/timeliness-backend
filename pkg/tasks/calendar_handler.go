@@ -296,9 +296,12 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 	}
 
 	calendarID := ""
-	for _, sync := range user.GoogleCalendarConnection.CalendarsOfInterest {
+	calendarIndex := -1
+	for i, sync := range user.GoogleCalendarConnection.CalendarsOfInterest {
 		if sync.SyncResourceID == resourceID {
 			calendarID = sync.CalendarID
+			calendarIndex = i
+			break
 		}
 	}
 
@@ -309,9 +312,33 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 	}
 
 	go func() {
+		tries := 0
+		for tries < 3 {
+			user, err = handler.UserService.StartGoogleSync(context.Background(), user, calendarIndex)
+			if err != nil {
+				tries++
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			break
+		}
+
+		if tries >= 3 {
+			handler.Logger.Warning(fmt.Sprintf("Ultimately could not aquire lock for google calendar ID %s after %d tries", calendarID, tries), err)
+			return
+		}
+
 		err := planning.SyncCalendar(userID, calendarID)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar %s", userID, calendarID), err)
+			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
+			// Continue to end sync anyway
+		}
+
+		user, err = handler.UserService.EndGoogleSync(context.Background(), user, calendarIndex)
+		if err != nil {
+			handler.Logger.Error(fmt.Sprintf("Could not update user %s to end sync for calendar ID %s", userID, calendarID), err)
+			return
 		}
 	}()
 }

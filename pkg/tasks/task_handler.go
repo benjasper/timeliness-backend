@@ -116,7 +116,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.Name != task.Name {
-		err = planning.UpdateTaskTitle((*Task)(&task), true)
+		err = planning.UpdateTaskTitle((*Task)(task), true)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating event", err)
@@ -125,7 +125,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.WorkloadOverall != task.WorkloadOverall {
-		err := planning.ScheduleTask((*Task)(&task))
+		err := planning.ScheduleTask((*Task)(task))
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem scheduling task", err)
@@ -161,13 +161,13 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), taskID, userID, &task)
+	err = handler.TaskRepository.Update(request.Context(), taskID, userID, task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
 	}
 
-	returnTask := Task(task)
+	returnTask := Task(*task)
 
 	handler.ResponseManager.Respond(writer, &returnTask)
 }
@@ -253,20 +253,20 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	err = planning.UpdateTaskTitle((*Task)(&task), false)
+	err = planning.UpdateTaskTitle((*Task)(task), false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
 		return
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), taskID, userID, &task)
+	err = handler.TaskRepository.Update(request.Context(), taskID, userID, task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, Task(task))
+	handler.ResponseManager.Respond(writer, Task(*task))
 }
 
 // TaskDelete deletes a task
@@ -504,17 +504,17 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	err = planning.RescheduleWorkUnit(&task, &workUnit, index)
+	err = planning.RescheduleWorkUnit(task, &workUnit, index)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
 		return
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), taskID, userID, &task)
+	err = handler.TaskRepository.Update(request.Context(), taskID, userID, task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, Task(task))
+	handler.ResponseManager.Respond(writer, Task(*task))
 }
