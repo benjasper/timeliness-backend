@@ -429,7 +429,9 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			return
 		}
 
-		c.logger.Debug(fmt.Sprintf("%v", intersectingTasks))
+		if len(intersectingTasks) == 0 {
+			return
+		}
 
 		type Intersection struct {
 			IntersectingWorkUnits       WorkUnits
@@ -454,8 +456,6 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			intersections = append(intersections, intersection)
 		}
 
-		c.logger.Debug(fmt.Sprintf("%v", intersections))
-
 		for _, intersection := range intersections {
 			for i, unit := range intersection.IntersectingWorkUnits {
 				err := c.RescheduleWorkUnit((*TaskUpdate)(&intersection.Task), &unit, intersection.IntersectingWorkUnitIndices[i])
@@ -472,8 +472,6 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 						"Could not persist rescheduled task %s", intersection.Task.ID.Hex()), err)
 					continue
 				}
-
-				c.logger.Debug("DONE")
 			}
 		}
 
