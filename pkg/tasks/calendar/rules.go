@@ -30,7 +30,7 @@ func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
 				free = append(free, t)
 				continue
 			} else {
-				if !allowed.IntersectsWith(t) {
+				if !allowed.IntersectsWithClock(t) {
 					continue
 				}
 				switch {

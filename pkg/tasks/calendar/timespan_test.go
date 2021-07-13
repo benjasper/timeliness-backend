@@ -851,7 +851,7 @@ func TestTimespan_OverflowsEnd(t *testing.T) {
 	}
 }
 
-func TestTimespan_IntersectsWith(t *testing.T) {
+func TestTimespan_IntersectsWithClock(t *testing.T) {
 	var timespanIntersectTests = []struct {
 		container Timespan
 		contained Timespan
@@ -935,6 +935,76 @@ func TestTimespan_IntersectsWith(t *testing.T) {
 			Timespan{
 				Start: timeDate(0, 0, 0, 19, 0, 0),
 				End:   timeDate(0, 0, 0, 22, 0, 0)},
+			false,
+		},
+	}
+
+	for index, tt := range timespanIntersectTests {
+		t.Run("Case "+string(rune(index)), func(t *testing.T) {
+			tt := tt
+			t.Parallel()
+			result := tt.container.IntersectsWithClock(tt.contained)
+			if result != tt.out {
+				t.Errorf("got %v, want %v", result, tt.out)
+			}
+		})
+	}
+}
+
+func TestTimespan_IntersectsWith(t *testing.T) {
+	var timespanIntersectTests = []struct {
+		container Timespan
+		contained Timespan
+		out       bool
+	}{
+		{
+			// Case is contained
+			Timespan{
+				Start: timeDate(2021, 7, 14, 14, 0, 0),
+				End:   timeDate(2021, 7, 14, 15, 0, 0)},
+			Timespan{
+				Start: timeDate(2021, 7, 14, 14, 30, 0),
+				End:   timeDate(2021, 7, 14, 14, 45, 0)},
+			true,
+		},
+		{
+			// Case overflows both
+			Timespan{
+				Start: timeDate(2021, 7, 14, 14, 0, 0),
+				End:   timeDate(2021, 7, 14, 15, 0, 0)},
+			Timespan{
+				Start: timeDate(2021, 7, 14, 13, 30, 0),
+				End:   timeDate(2021, 7, 14, 16, 45, 0)},
+			true,
+		},
+		{
+			// Overflows left
+			Timespan{
+				Start: timeDate(2021, 7, 14, 14, 0, 0),
+				End:   timeDate(2021, 7, 14, 15, 0, 0)},
+			Timespan{
+				Start: timeDate(2021, 7, 14, 12, 30, 0),
+				End:   timeDate(2021, 7, 14, 14, 45, 0)},
+			true,
+		},
+		{
+			// Overflows right
+			Timespan{
+				Start: timeDate(2021, 7, 14, 14, 0, 0),
+				End:   timeDate(2021, 7, 14, 15, 0, 0)},
+			Timespan{
+				Start: timeDate(2021, 7, 14, 14, 30, 0),
+				End:   timeDate(2021, 7, 14, 14, 45, 0)},
+			true,
+		},
+		{
+			// not contained
+			Timespan{
+				Start: timeDate(2021, 7, 14, 14, 0, 0),
+				End:   timeDate(2021, 7, 14, 15, 0, 0)},
+			Timespan{
+				Start: timeDate(2021, 7, 15, 14, 0, 0),
+				End:   timeDate(2021, 7, 15, 15, 0, 0)},
 			false,
 		},
 	}
