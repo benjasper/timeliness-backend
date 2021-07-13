@@ -423,7 +423,46 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) e
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
-		// TODO: check work unit date intersections with tasks
+		intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event)
+		if err != nil {
+			c.logger.Error("problem while trying to find tasks intersecting with an event", err)
+		}
+
+		type Intersection struct {
+			IntersectingWorkUnits       WorkUnits
+			IntersectingWorkUnitIndices []int
+			Task                        Task
+		}
+
+		var intersections []Intersection
+
+		for _, intersectingTask := range intersectingTasks {
+			indices, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event)
+			if len(workUnits) == 0 {
+				continue
+			}
+
+			intersection := Intersection{
+				IntersectingWorkUnits:       workUnits,
+				IntersectingWorkUnitIndices: indices,
+				Task:                        intersectingTask,
+			}
+
+			intersections = append(intersections, intersection)
+		}
+
+		for _, intersection := range intersections {
+			for i, unit := range intersection.IntersectingWorkUnits {
+				err := c.RescheduleWorkUnit((*TaskUpdate)(&intersection.Task), &unit, intersection.IntersectingWorkUnitIndices[i])
+				if err != nil {
+					c.logger.Error(fmt.Sprintf(
+						"Could not reschedule work unit %d for task %s",
+						intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
+					continue
+				}
+			}
+		}
+
 		return
 	}
 
@@ -465,7 +504,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	index, workunit := task.WorkUnits.FindByCalendarID(event.CalendarEventID)
 	if workunit == nil {
-		c.logger.Error("there was a event id that could not be found inside a task", nil)
+		c.logger.Error("there was an event id that could not be found inside a task", nil)
 		return
 	}
 
