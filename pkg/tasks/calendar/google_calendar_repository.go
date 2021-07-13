@@ -260,6 +260,12 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	for {
 		response, err := request.Do()
 		if err != nil {
+			if response != nil && response.HTTPStatusCode == 410 {
+				user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken = ""
+				*userChannel <- user
+				return
+			}
+
 			*errorChannel <- err
 			return
 		}
