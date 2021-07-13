@@ -211,6 +211,17 @@ func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 		blocking = true
 	}
 
+	if event.Start.DateTime == "" || event.End.DateTime == "" {
+		return &Event{
+			CalendarEventID: event.Id,
+			Title:           event.Summary,
+			Description:     event.Description,
+			Blocking:        blocking,
+			CalendarType:    CalendarTypeGoogleCalendar,
+			Deleted:         true,
+		}, nil
+	}
+
 	start, err := time.Parse(time.RFC3339, event.Start.DateTime)
 	if err != nil {
 		return nil, err
