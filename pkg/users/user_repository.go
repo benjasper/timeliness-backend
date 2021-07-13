@@ -128,7 +128,8 @@ func (s UserRepository) StartGoogleSync(ctx context.Context, user *User, calenda
 
 	result := s.DB.FindOneAndUpdate(ctx, bson.M{
 		"_id": user.ID,
-		fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex): false},
+		fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex): false,
+	},
 		bson.M{
 			"$set": bson.M{
 				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex):  true,
