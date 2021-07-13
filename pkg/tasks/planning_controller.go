@@ -421,7 +421,7 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) e
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
-	if !event.Blocking {
+	if !event.Blocking && !event.Deleted {
 		return
 	}
 
