@@ -491,6 +491,10 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	task.WorkloadOverall += workunit.Workload
 
 	task.WorkUnits[index] = *workunit
+
+	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
+	task.WorkUnits = task.WorkUnits.Add(workunit)
+
 	err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
 	if err != nil {
 		c.logger.Error("problem with updating task", err)
