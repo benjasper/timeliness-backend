@@ -421,10 +421,6 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) e
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
-	if !event.Blocking && !event.Deleted {
-		return
-	}
-
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event)
