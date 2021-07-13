@@ -429,7 +429,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			return
 		}
 
-		if len(intersectingTasks) == 0 {
+		if len(intersectingTasks) == 0 || event.Blocking == false {
 			return
 		}
 
