@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,6 +21,7 @@ type TaskRepositoryInterface interface {
 	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error)
+	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event) ([]Task, error)
 	Delete(ctx context.Context, taskID string, userID string) error
 }
 
@@ -244,6 +246,37 @@ func (s MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID str
 	}
 
 	return (*TaskUpdate)(&task), nil
+}
+
+// FindIntersectingWithEvent finds tasks whose WorkUnits are scheduled so that they intersect with a given Event
+func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event) ([]Task, error) {
+	var t []Task
+
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	findOptions := options.Find()
+	findOptions.SetSort(bson.M{"dueAt.date.start": 1})
+
+	queryFilter := bson.D{
+		{Key: "userId", Value: userObjectID},
+		{Key: "workUnits.scheduledAt.date.start", Value: bson.M{"$lt": event.Date.End}},
+		{Key: "workUnits.scheduledAt.date.end", Value: bson.M{"$gt": event.Date.Start}},
+	}
+
+	cursor, err := s.DB.Find(ctx, queryFilter, findOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	err = cursor.All(ctx, &t)
+	if err != nil {
+		return nil, err
+	}
+
+	return t, nil
 }
 
 // Delete deletes a task

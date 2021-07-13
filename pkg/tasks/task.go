@@ -100,3 +100,18 @@ func (w WorkUnits) FindByCalendarID(calendarID string) (int, *WorkUnit) {
 
 	return -1, nil
 }
+
+// FindByEventIntersection finds a single work unit by it
+func (w WorkUnits) FindByEventIntersection(event *calendar.Event) ([]int, []WorkUnit) {
+	var workUnits []WorkUnit
+	var indices []int
+
+	for i, unit := range w {
+		if unit.ScheduledAt.Date.IntersectsWith(event.Date) {
+			indices = append(indices, i)
+			workUnits = append(workUnits, unit)
+		}
+	}
+
+	return indices, workUnits
+}
