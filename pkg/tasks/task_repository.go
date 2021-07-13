@@ -262,9 +262,11 @@ func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, us
 
 	queryFilter := bson.D{
 		{Key: "userId", Value: userObjectID},
-		{Key: "$elemMatch", Value: bson.D{
-			{Key: "workUnits.scheduledAt.date.start", Value: bson.M{"$lt": event.Date.End}},
-			{Key: "workUnits.scheduledAt.date.end", Value: bson.M{"$gt": event.Date.Start}},
+		{Key: "workUnits", Value: bson.M{
+			"$elemMatch": bson.D{
+				{Key: "scheduledAt.date.start", Value: bson.M{"$lt": event.Date.End}},
+				{Key: "scheduledAt.date.end", Value: bson.M{"$gt": event.Date.Start}},
+			},
 		},
 		},
 	}
