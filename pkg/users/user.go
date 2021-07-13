@@ -43,5 +43,5 @@ type GoogleCalendarSync struct {
 	Expiration      time.Time `json:"-" bson:"expiration,omitempty"`
 	LastSyncStarted time.Time `json:"-" bson:"lastSyncStarted,omitempty"`
 	LastSyncEnded   time.Time `json:"-" bson:"lastSyncEnded,omitempty"`
-	SyncInProgress  bool      `json:"-" bson:"syncInProgress,omitempty"`
+	SyncInProgress  bool      `json:"-" bson:"syncInProgress"`
 }
