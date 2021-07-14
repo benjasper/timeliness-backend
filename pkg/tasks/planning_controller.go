@@ -47,12 +47,12 @@ func NewPlanningController(ctx context.Context, u *users.User, userService users
 		Location: location,
 		AllowedTimeSpans: []calendar.Timespan{
 			{
-				Start: time.Date(0, 0, 0, 7, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 10, 0, 0, 0, location),
+				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
 			},
 			{
-				Start: time.Date(0, 0, 0, 11, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 16, 00, 0, 0, location),
+				Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
 			},
 		},
 	}
