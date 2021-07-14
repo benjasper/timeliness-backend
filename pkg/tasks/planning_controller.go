@@ -115,7 +115,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 	constraint := calendar.FreeConstraint{
 		AllowedTimeSpans: []calendar.Timespan{
 			{
-				Start: time.Date(0, 0, 0, 6, 0, 0, 0, loc),
+				Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
 				End:   time.Date(0, 0, 0, 10, 0, 0, 0, loc),
 			},
 			{
