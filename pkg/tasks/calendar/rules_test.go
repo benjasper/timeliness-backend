@@ -217,7 +217,7 @@ func TestFreeConstraint_Test(t *testing.T) {
 
 	for index, tt := range constraintTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
-			constraint := FreeConstraint{AllowedTimeSpans: tt.allowed}
+			constraint := FreeConstraint{AllowedTimeSpans: tt.allowed, Location: getLocation()}
 			result := constraint.Test(tt.in)
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)

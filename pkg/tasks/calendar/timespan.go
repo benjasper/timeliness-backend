@@ -43,6 +43,27 @@ func (t *Timespan) ContainsByClock(timespan Timespan) bool {
 	return false
 }
 
+// ContainsClock checks if a time is contained in a Timespan
+func (t *Timespan) ContainsClock(clock time.Time) bool {
+	cStart := calcSecondsFromClock(t.Start.Clock())
+	cEnd := calcSecondsFromClock(t.End.Clock())
+
+	clockSeconds := calcSecondsFromClock(clock.Clock())
+
+	if cStart <= clockSeconds && clockSeconds <= cEnd {
+		return true
+	}
+	return false
+}
+
+// In changes the location on a Timespan
+func (t *Timespan) In(location *time.Location) Timespan {
+	t.Start = t.Start.In(location)
+	t.End = t.End.In(location)
+
+	return *t
+}
+
 // IntersectsWithClock checks if a timespan even intersects
 func (t *Timespan) IntersectsWithClock(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())

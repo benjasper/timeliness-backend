@@ -7,7 +7,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
-	"log"
 	"sync"
 	"time"
 )
@@ -19,6 +18,7 @@ type PlanningController struct {
 	taskRepository     TaskRepositoryInterface
 	ctx                context.Context
 	logger             logger.Interface
+	constraint         *calendar.FreeConstraint
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
@@ -33,11 +33,29 @@ func NewPlanningController(ctx context.Context, u *users.User, userService users
 		return nil, err
 	}
 
+	location, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return nil, err
+	}
+
 	controller.calendarRepository = repository
 	controller.ctx = ctx
 	controller.userRepository = userService
 	controller.taskRepository = taskRepository
 	controller.logger = logger
+	controller.constraint = &calendar.FreeConstraint{
+		Location: location,
+		AllowedTimeSpans: []calendar.Timespan{
+			{
+				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
+			},
+			{
+				Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
+			},
+		},
+	}
 
 	return &controller, nil
 }
@@ -82,24 +100,7 @@ func (c *PlanningController) SuggestTimeslot(window *calendar.TimeWindow) (*[]ca
 		return nil, err
 	}
 
-	loc, err := time.LoadLocation("Local")
-	if err != nil {
-		log.Panic(err)
-	}
-
-	constraint := calendar.FreeConstraint{
-		AllowedTimeSpans: []calendar.Timespan{
-			{
-				Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
-				End:   time.Date(0, 0, 0, 10, 0, 0, 0, loc),
-			},
-			{
-				Start: time.Date(0, 0, 0, 11, 0, 0, 0, loc),
-				End:   time.Date(0, 0, 0, 16, 00, 0, 0, loc),
-			},
-		},
-	}
-	free := window.ComputeFree(&constraint)
+	free := window.ComputeFree(c.constraint)
 
 	return &free, nil
 }
@@ -114,25 +115,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		return err
 	}
 
-	loc, err := time.LoadLocation("")
-	if err != nil {
-		return err
-	}
-
-	constraint := calendar.FreeConstraint{
-		AllowedTimeSpans: []calendar.Timespan{
-			{
-				Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
-				End:   time.Date(0, 0, 0, 10, 0, 0, 0, loc),
-			},
-			{
-				Start: time.Date(0, 0, 0, 11, 0, 0, 0, loc),
-				End:   time.Date(0, 0, 0, 16, 00, 0, 0, loc),
-			},
-		},
-	}
-
-	windowTotal.ComputeFree(&constraint)
+	windowTotal.ComputeFree(c.constraint)
 
 	workloadToSchedule := t.WorkloadOverall
 	for _, unit := range t.WorkUnits {
@@ -246,25 +229,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 		return err
 	}
 
-	loc, err := time.LoadLocation("")
-	if err != nil {
-		return err
-	}
-
-	constraint := calendar.FreeConstraint{
-		AllowedTimeSpans: []calendar.Timespan{
-			{
-				Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
-				End:   time.Date(0, 0, 0, 10, 0, 0, 0, loc),
-			},
-			{
-				Start: time.Date(0, 0, 0, 11, 0, 0, 0, loc),
-				End:   time.Date(0, 0, 0, 16, 00, 0, 0, loc),
-			},
-		},
-	}
-
-	windowTotal.ComputeFree(&constraint)
+	windowTotal.ComputeFree(c.constraint)
 
 	workloadToSchedule := w.Workload
 
