@@ -93,7 +93,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
 	}
-	original := task
+	original := *task
 
 	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
