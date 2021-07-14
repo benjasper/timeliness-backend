@@ -12,6 +12,7 @@ type RuleInterface interface {
 type FreeConstraint struct {
 	DistanceToBusy   time.Duration
 	AllowedTimeSpans []Timespan
+	Location         *time.Location
 }
 
 // Test tests multiple constrains and cuts free timeslots to these constraints
@@ -22,22 +23,17 @@ func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
 		return append(result, timespan)
 	}
 
-	location, err := time.LoadLocation("Local")
-	if err != nil {
-		panic(err)
-	}
-
-	timespan = timespan.In(location)
+	timespan = timespan.In(r.Location)
 	p := timespan.Start
 
 	for p.Before(timespan.End) {
 
 		for _, span := range r.AllowedTimeSpans {
-			localAllowedTimespan := span.In(location)
+			localAllowedTimespan := span.In(r.Location)
 			allowedDuration := span.Duration()
 
 			if span.ContainsClock(p) {
-				end := time.Date(p.Year(), p.Month(), p.Day(), localAllowedTimespan.End.Hour(), localAllowedTimespan.End.Minute(), 0, 0, location)
+				end := time.Date(p.Year(), p.Month(), p.Day(), localAllowedTimespan.End.Hour(), localAllowedTimespan.End.Minute(), 0, 0, r.Location)
 				if timespan.End.Before(end) {
 					end = timespan.End
 				}
@@ -48,7 +44,7 @@ func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
 
 				result = append(result, Timespan{p, end})
 			} else {
-				start := time.Date(p.Year(), p.Month(), p.Day(), localAllowedTimespan.Start.Hour(), localAllowedTimespan.Start.Minute(), 0, 0, location)
+				start := time.Date(p.Year(), p.Month(), p.Day(), localAllowedTimespan.Start.Hour(), localAllowedTimespan.Start.Minute(), 0, 0, r.Location)
 
 				p = start.Add(allowedDuration)
 				if timespan.End.Before(p) {
@@ -64,7 +60,7 @@ func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
 		}
 
 		nextDay := p.Add(24 * time.Hour)
-		p = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 0, 0, 0, location)
+		p = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 0, 0, 0, r.Location)
 	}
 
 	return result
