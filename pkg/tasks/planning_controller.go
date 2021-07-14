@@ -88,10 +88,17 @@ func (c *PlanningController) SuggestTimeslot(window *calendar.TimeWindow) (*[]ca
 	}
 
 	constraint := calendar.FreeConstraint{
-		AllowedTimeSpans: []calendar.Timespan{{
-			Start: time.Date(0, 0, 0, 8, 0, 0, 0, loc),
-			End:   time.Date(0, 0, 0, 16, 30, 0, 0, loc),
-		}}}
+		AllowedTimeSpans: []calendar.Timespan{
+			{
+				Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
+				End:   time.Date(0, 0, 0, 10, 0, 0, 0, loc),
+			},
+			{
+				Start: time.Date(0, 0, 0, 11, 0, 0, 0, loc),
+				End:   time.Date(0, 0, 0, 16, 00, 0, 0, loc),
+			},
+		},
+	}
 	free := window.ComputeFree(&constraint)
 
 	return &free, nil
@@ -245,10 +252,16 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 	}
 
 	constraint := calendar.FreeConstraint{
-		AllowedTimeSpans: []calendar.Timespan{{
-			Start: time.Date(0, 0, 0, 6, 0, 0, 0, loc),
-			End:   time.Date(0, 0, 0, 14, 30, 0, 0, loc),
-		}},
+		AllowedTimeSpans: []calendar.Timespan{
+			{
+				Start: time.Date(0, 0, 0, 7, 0, 0, 0, loc),
+				End:   time.Date(0, 0, 0, 10, 0, 0, 0, loc),
+			},
+			{
+				Start: time.Date(0, 0, 0, 11, 0, 0, 0, loc),
+				End:   time.Date(0, 0, 0, 16, 00, 0, 0, loc),
+			},
+		},
 	}
 
 	windowTotal.ComputeFree(&constraint)
