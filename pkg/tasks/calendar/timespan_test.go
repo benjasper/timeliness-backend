@@ -93,6 +93,7 @@ var timeWindowTests = []struct {
 			},
 		},
 		FreeConstraint{
+			Location: getLocation(),
 			AllowedTimeSpans: []Timespan{{
 				Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
 				End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
@@ -100,6 +101,34 @@ var timeWindowTests = []struct {
 		[]Timespan{
 			{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
 			{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
+		},
+	},
+	{
+		// Case with two free constraints
+		TimeWindow{Start: timeDate(2021, 3, 5, 8, 30, 0), End: timeDate(2021, 3, 7, 18, 00, 0),
+			Busy: []Timespan{
+				{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
+				{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
+			},
+		},
+		FreeConstraint{
+			Location: getLocation(),
+			AllowedTimeSpans: []Timespan{
+				{
+					Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
+					End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
+				},
+				{
+					Start: time.Date(0, 0, 0, 17, 0, 0, 0, getLocation()),
+					End:   time.Date(0, 0, 0, 18, 0, 0, 0, getLocation()),
+				},
+			}},
+		[]Timespan{
+			{Start: timeDate(2021, 3, 5, 17, 0, 0), End: timeDate(2021, 3, 5, 18, 0, 0)},
+			{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
+			{Start: timeDate(2021, 3, 6, 17, 0, 0), End: timeDate(2021, 3, 6, 18, 0, 0)},
+			{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
+			{Start: timeDate(2021, 3, 7, 17, 0, 0), End: timeDate(2021, 3, 7, 18, 0, 0)},
 		},
 	},
 }

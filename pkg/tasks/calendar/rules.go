@@ -12,55 +12,58 @@ type RuleInterface interface {
 type FreeConstraint struct {
 	DistanceToBusy   time.Duration
 	AllowedTimeSpans []Timespan
+	Location         *time.Location
 }
 
 // Test tests multiple constrains and cuts free timeslots to these constraints
 func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
-	// TODO: Try to get rid of the splitting by days
-	var free []Timespan
-	splitTimespans := timespan.SplitByDays()
+	var result []Timespan
 
 	if len(r.AllowedTimeSpans) == 0 {
-		free = append(free, timespan)
+		return append(result, timespan)
 	}
 
-	for _, t := range splitTimespans {
-		for _, allowed := range r.AllowedTimeSpans {
-			if allowed.ContainsByClock(t) {
-				free = append(free, t)
-				continue
+	timespan = timespan.In(r.Location)
+	p := timespan.Start
+
+	for p.Before(timespan.End) {
+
+		for _, span := range r.AllowedTimeSpans {
+			localAllowedTimespan := span.In(r.Location)
+			allowedDuration := span.Duration()
+
+			if span.ContainsClock(p) {
+				end := time.Date(p.Year(), p.Month(), p.Day(), localAllowedTimespan.End.Hour(), localAllowedTimespan.End.Minute(), 0, 0, r.Location)
+				if timespan.End.Before(end) {
+					end = timespan.End
+				}
+
+				if p.Equal(end) {
+					continue
+				}
+
+				result = append(result, Timespan{p, end})
 			} else {
-				if !allowed.IntersectsWithClock(t) {
+				start := time.Date(p.Year(), p.Month(), p.Day(), localAllowedTimespan.Start.Hour(), localAllowedTimespan.Start.Minute(), 0, 0, r.Location)
+
+				p = start.Add(allowedDuration)
+				if timespan.End.Before(p) {
+					p = timespan.End
+				}
+
+				if start.After(p) || start.Before(timespan.Start) || start.Equal(p) {
 					continue
 				}
-				switch {
-				case t.Start.After(t.End):
-					continue
-				case allowed.OverflowsStart(t):
-					start := newTimeFromDateAndTime(t.End, allowed.Start)
-					if start == t.End {
-						continue
-					}
-					free = append(free, Timespan{Start: start, End: t.End})
-					continue
-				case allowed.OverflowsEnd(t):
-					end := newTimeFromDateAndTime(t.Start, allowed.End)
-					if t.Start == end {
-						continue
-					}
-					free = append(free, Timespan{Start: t.Start, End: end})
-					continue
-				default:
-					start := newTimeFromDateAndTime(t.Start, allowed.Start)
-					end := newTimeFromDateAndTime(t.Start, allowed.End)
-					free = append(free, Timespan{Start: start, End: end})
-					continue
-				}
+
+				result = append(result, Timespan{start, p})
 			}
 		}
+
+		nextDay := p.Add(24 * time.Hour)
+		p = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 0, 0, 0, r.Location)
 	}
 
-	return free
+	return result
 }
 
 func newTimeFromDateAndTime(date time.Time, clock time.Time) time.Time {
