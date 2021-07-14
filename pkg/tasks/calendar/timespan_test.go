@@ -93,6 +93,7 @@ var timeWindowTests = []struct {
 			},
 		},
 		FreeConstraint{
+			Location: getLocation(),
 			AllowedTimeSpans: []Timespan{{
 				Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
 				End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
@@ -111,6 +112,7 @@ var timeWindowTests = []struct {
 			},
 		},
 		FreeConstraint{
+			Location: getLocation(),
 			AllowedTimeSpans: []Timespan{
 				{
 					Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
