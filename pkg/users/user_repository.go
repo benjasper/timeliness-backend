@@ -153,6 +153,9 @@ func (s UserRepository) StartGoogleSync(ctx context.Context, user *User, calenda
 func (s UserRepository) EndGoogleSync(ctx context.Context, user *User, calendarIndex int) (*User, error) {
 	var u = User{}
 
+	user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex].SyncInProgress = false
+	user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex].LastSyncEnded = time.Now()
+
 	findOptions := options.FindOneAndUpdate()
 	findOptions.SetReturnDocument(options.After)
 
@@ -161,8 +164,8 @@ func (s UserRepository) EndGoogleSync(ctx context.Context, user *User, calendarI
 	},
 		bson.M{
 			"$set": bson.M{
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex): false,
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.lastSyncEnded", calendarIndex):  time.Now()},
+				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d", calendarIndex): user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex],
+			},
 		}, findOptions)
 	if result.Err() != nil {
 		return nil, result.Err()

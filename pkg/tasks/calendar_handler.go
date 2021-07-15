@@ -330,7 +330,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			return
 		}
 
-		err := planning.SyncCalendar(user, calendarID)
+		user, err := planning.SyncCalendar(user, calendarID)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
 			// Continue to end sync anyway
