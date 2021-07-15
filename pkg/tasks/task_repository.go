@@ -148,6 +148,10 @@ func (s MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID st
 
 	queryWorkUnitFilters := bson.D{}
 	for _, filter := range filters {
+		if filter.Operator != "" {
+			queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
+			continue
+		}
 		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: filter.Value})
 	}
 	matchStage2 := bson.D{{Key: "$match", Value: queryWorkUnitFilters}}
