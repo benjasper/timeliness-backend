@@ -322,6 +322,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryDueAt := request.URL.Query().Get("dueAt.date.start")
+	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -356,6 +357,15 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 			return
 		}
 		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
+	}
+
+	if lastModifiedAt != "" {
+		timeValue, err := time.Parse(time.RFC3339, lastModifiedAt)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			return
+		}
+		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
 	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters)
@@ -403,6 +413,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryWorkUnitIsDone := request.URL.Query().Get("workUnit.isDone")
+	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
 
 	var filters []Filter
 
@@ -437,6 +448,15 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		}
 
 		filters = append(filters, Filter{Field: "workUnit.isDone", Value: value})
+	}
+
+	if lastModifiedAt != "" {
+		timeValue, err := time.Parse(time.RFC3339, lastModifiedAt)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			return
+		}
+		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
 	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters)
