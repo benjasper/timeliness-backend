@@ -46,16 +46,18 @@ func (r *FreeConstraint) Test(timespan Timespan) []Timespan {
 			} else {
 				start := time.Date(p.Year(), p.Month(), p.Day(), localAllowedTimespan.Start.Hour(), localAllowedTimespan.Start.Minute(), 0, 0, r.Location)
 
-				p = start.Add(allowedDuration)
-				if timespan.End.Before(p) {
-					p = timespan.End
+				newEnd := start.Add(allowedDuration)
+				if timespan.End.Before(newEnd) {
+					newEnd = timespan.End
 				}
 
-				if start.After(p) || start.Before(timespan.Start) || start.Equal(p) {
+				newTimespan := Timespan{start, newEnd}
+
+				if start.After(newEnd) || start.Before(timespan.Start) || start.Equal(newEnd) || !timespan.Contains(newTimespan) {
 					continue
 				}
 
-				result = append(result, Timespan{start, p})
+				result = append(result, newTimespan)
 			}
 		}
 
