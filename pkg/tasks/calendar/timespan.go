@@ -87,6 +87,16 @@ func (t *Timespan) IntersectsWith(timespan Timespan) bool {
 	return false
 }
 
+// Contains checks if one timespan t contains another Timespan timespan
+func (t *Timespan) Contains(timespan Timespan) bool {
+	if TimeAfterOrEquals(timespan.Start, t.Start) &&
+		TimeBeforeOrEquals(timespan.End, t.End) {
+		return true
+	}
+
+	return false
+}
+
 // OverflowsStart checks if the given timespan overflows at end
 func (t *Timespan) OverflowsStart(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())
