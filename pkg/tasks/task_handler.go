@@ -465,6 +465,10 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		return
 	}
 
+	if tasks == nil {
+		tasks = make([]TaskUnwound, 0)
+	}
+
 	pages := float64(count) / float64(pageSize)
 
 	var response = map[string]interface{}{
