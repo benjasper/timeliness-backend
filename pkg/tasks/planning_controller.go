@@ -403,57 +403,7 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
-		intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event)
-		if err != nil {
-			c.logger.Error("problem while trying to find tasks intersecting with an event", err)
-			return
-		}
-
-		if len(intersectingTasks) == 0 {
-			return
-		}
-
-		type Intersection struct {
-			IntersectingWorkUnits       WorkUnits
-			IntersectingWorkUnitIndices []int
-			Task                        Task
-		}
-
-		var intersections []Intersection
-
-		for _, intersectingTask := range intersectingTasks {
-			indices, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event)
-			if len(workUnits) == 0 {
-				continue
-			}
-
-			intersection := Intersection{
-				IntersectingWorkUnits:       workUnits,
-				IntersectingWorkUnitIndices: indices,
-				Task:                        intersectingTask,
-			}
-
-			intersections = append(intersections, intersection)
-		}
-
-		for _, intersection := range intersections {
-			for i, unit := range intersection.IntersectingWorkUnits {
-				err := c.RescheduleWorkUnit((*TaskUpdate)(&intersection.Task), &unit, intersection.IntersectingWorkUnitIndices[i])
-				if err != nil {
-					c.logger.Error(fmt.Sprintf(
-						"Could not reschedule work unit %d for task %s",
-						intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
-					continue
-				}
-
-				err = c.taskRepository.Update(c.ctx, intersection.Task.ID.Hex(), userID, (*TaskUpdate)(&intersection.Task))
-				if err != nil {
-					c.logger.Error(fmt.Sprintf(
-						"Could not persist rescheduled task %s", intersection.Task.ID.Hex()), err)
-					continue
-				}
-			}
-		}
+		_ = c.checkForIntersectingWorkUnits(userID, event)
 
 		return
 	}
@@ -531,4 +481,62 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		c.logger.Error("problem with updating task", err)
 		return
 	}
+
+	_ = c.checkForIntersectingWorkUnits(userID, event)
+}
+
+func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event) int {
+	intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event)
+	if err != nil {
+		c.logger.Error("problem while trying to find tasks intersecting with an event", err)
+		return 0
+	}
+
+	if len(intersectingTasks) == 0 {
+		return 0
+	}
+
+	type Intersection struct {
+		IntersectingWorkUnits       WorkUnits
+		IntersectingWorkUnitIndices []int
+		Task                        Task
+	}
+
+	var intersections []Intersection
+
+	for _, intersectingTask := range intersectingTasks {
+		indices, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event)
+		if len(workUnits) == 0 {
+			continue
+		}
+
+		intersection := Intersection{
+			IntersectingWorkUnits:       workUnits,
+			IntersectingWorkUnitIndices: indices,
+			Task:                        intersectingTask,
+		}
+
+		intersections = append(intersections, intersection)
+	}
+
+	for _, intersection := range intersections {
+		for i, unit := range intersection.IntersectingWorkUnits {
+			err := c.RescheduleWorkUnit((*TaskUpdate)(&intersection.Task), &unit, intersection.IntersectingWorkUnitIndices[i])
+			if err != nil {
+				c.logger.Error(fmt.Sprintf(
+					"Could not reschedule work unit %d for task %s",
+					intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
+				continue
+			}
+
+			err = c.taskRepository.Update(c.ctx, intersection.Task.ID.Hex(), userID, (*TaskUpdate)(&intersection.Task))
+			if err != nil {
+				c.logger.Error(fmt.Sprintf(
+					"Could not persist rescheduled task %s", intersection.Task.ID.Hex()), err)
+				continue
+			}
+		}
+	}
+
+	return len(intersectingTasks)
 }
