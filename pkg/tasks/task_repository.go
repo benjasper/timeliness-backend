@@ -274,7 +274,7 @@ func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, us
 		}
 
 		arrayMatch = append(arrayMatch, bson.E{
-			Key: "_id", Value: bson.E{Key: "$ne", Value: workUnitObjectID},
+			Key: "_id", Value: bson.M{"$ne": workUnitObjectID},
 		})
 	}
 
