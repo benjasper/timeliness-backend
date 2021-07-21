@@ -403,7 +403,7 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
-		_ = c.checkForIntersectingWorkUnits(userID, event)
+		_ = c.checkForIntersectingWorkUnits(userID, event, "")
 
 		return
 	}
@@ -482,11 +482,11 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		return
 	}
 
-	_ = c.checkForIntersectingWorkUnits(userID, event)
+	_ = c.checkForIntersectingWorkUnits(userID, event, workunit.ID.Hex())
 }
 
-func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event) int {
-	intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event)
+func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event, workUnitID string) int {
+	intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event, workUnitID)
 	if err != nil {
 		c.logger.Error("problem while trying to find tasks intersecting with an event", err)
 		return 0
