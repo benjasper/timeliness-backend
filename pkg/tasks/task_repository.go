@@ -21,7 +21,7 @@ type TaskRepositoryInterface interface {
 	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error)
-	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event) ([]Task, error)
+	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string) ([]Task, error)
 	Delete(ctx context.Context, taskID string, userID string) error
 }
 
@@ -253,12 +253,29 @@ func (s MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID str
 }
 
 // FindIntersectingWithEvent finds tasks whose WorkUnits are scheduled so that they intersect with a given Event
-func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event) ([]Task, error) {
+// The ignoreWorkUnitByID Parameter is optional so it can be empty
+func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string) ([]Task, error) {
 	var t []Task
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, err
+	}
+
+	arrayMatch := bson.D{
+		{Key: "scheduledAt.date.start", Value: bson.M{"$lt": event.Date.End}},
+		{Key: "scheduledAt.date.end", Value: bson.M{"$gt": event.Date.Start}},
+	}
+
+	if ignoreWorkUnitByID != "" {
+		workUnitObjectID, err := primitive.ObjectIDFromHex(ignoreWorkUnitByID)
+		if err != nil {
+			return nil, err
+		}
+
+		arrayMatch = append(arrayMatch, bson.E{
+			Key: "_id", Value: bson.E{Key: "$ne", Value: workUnitObjectID},
+		})
 	}
 
 	findOptions := options.Find()
@@ -267,10 +284,7 @@ func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, us
 	queryFilter := bson.D{
 		{Key: "userId", Value: userObjectID},
 		{Key: "workUnits", Value: bson.M{
-			"$elemMatch": bson.D{
-				{Key: "scheduledAt.date.start", Value: bson.M{"$lt": event.Date.End}},
-				{Key: "scheduledAt.date.end", Value: bson.M{"$gt": event.Date.Start}},
-			},
+			"$elemMatch": arrayMatch,
 		},
 		},
 	}
