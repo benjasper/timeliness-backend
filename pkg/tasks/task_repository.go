@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// TaskRepositoryInterface is an interface for a MongoDBTaskRepository
+// TaskRepositoryInterface is an interface for a *MongoDBTaskRepository
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
 	Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error
@@ -25,14 +25,27 @@ type TaskRepositoryInterface interface {
 	Delete(ctx context.Context, taskID string, userID string) error
 }
 
+// TaskObserver is an Observer
+type TaskObserver interface {
+	OnNotify(task *Task)
+}
+
+// TaskObservable is an Observable
+type TaskObservable interface {
+	Subscribe(o TaskObserver)
+	Unsubscribe(o TaskObserver)
+	Publish(task *Task)
+}
+
 // MongoDBTaskRepository does everything related to storing and finding tasks
 type MongoDBTaskRepository struct {
-	DB     *mongo.Collection
-	Logger logger.Interface
+	DB          *mongo.Collection
+	Logger      logger.Interface
+	subscribers []TaskObserver
 }
 
 // Add adds a task
-func (s MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
+func (s *MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 	task.CreatedAt = time.Now()
 	task.LastModifiedAt = time.Now()
 	task.ID = primitive.NewObjectID()
@@ -44,11 +57,17 @@ func (s MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 	}
 
 	_, err := s.DB.InsertOne(ctx, task)
-	return err
+	if err != nil {
+		return err
+	}
+
+	s.Publish(task)
+
+	return nil
 }
 
 // Update updates a task
-func (s MongoDBTaskRepository) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
+func (s *MongoDBTaskRepository) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
 	task.LastModifiedAt = time.Now()
 
 	for index, unit := range task.WorkUnits {
@@ -75,11 +94,13 @@ func (s MongoDBTaskRepository) Update(ctx context.Context, taskID string, userID
 		return errors.New("updated count != 1")
 	}
 
+	s.Publish((*Task)(task))
+
 	return nil
 }
 
 // FindAll finds all task paginated
-func (s MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error) {
+func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -122,7 +143,7 @@ func (s MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page 
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error) {
+func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound
@@ -187,7 +208,7 @@ func (s MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID st
 }
 
 // FindByID finds a specific task by ID
-func (s MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
+func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
 	t := Task{}
 
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
@@ -214,7 +235,7 @@ func (s MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, user
 }
 
 // FindByCalendarEventID finds a specific task by a calendar event ID in workUnits or dueAt
-func (s MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error) {
+func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error) {
 	t := TaskUpdate{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -243,7 +264,7 @@ func (s MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calend
 }
 
 // FindUpdatableByID Finds a task and returns the TaskUpdate view of the model
-func (s MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error) {
+func (s *MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error) {
 	task, err := s.FindByID(ctx, taskID, userID)
 	if err != nil {
 		return nil, err
@@ -254,7 +275,7 @@ func (s MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID str
 
 // FindIntersectingWithEvent finds tasks whose WorkUnits are scheduled so that they intersect with a given Event
 // The ignoreWorkUnitByID Parameter is optional so it can be empty
-func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string) ([]Task, error) {
+func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string) ([]Task, error) {
 	var t []Task
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -303,7 +324,7 @@ func (s MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, us
 }
 
 // Delete deletes a task
-func (s MongoDBTaskRepository) Delete(ctx context.Context, taskID string, userID string) error {
+func (s *MongoDBTaskRepository) Delete(ctx context.Context, taskID string, userID string) error {
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
 		return err
@@ -318,5 +339,32 @@ func (s MongoDBTaskRepository) Delete(ctx context.Context, taskID string, userID
 		return err
 	}
 
+	s.Publish(&Task{ID: taskObjectID, Deleted: true})
+
 	return nil
+}
+
+// Subscribe is useful for listening to task changes
+func (s *MongoDBTaskRepository) Subscribe(o TaskObserver) {
+	s.subscribers = append(s.subscribers, o)
+}
+
+// Unsubscribe unsubscribes from a subscription
+func (s *MongoDBTaskRepository) Unsubscribe(o TaskObserver) {
+	var index int
+	for i, subscriber := range s.subscribers {
+		if subscriber == o {
+			index = i
+			break
+		}
+	}
+
+	s.subscribers = append(s.subscribers[:index], s.subscribers[index+1:]...)
+}
+
+// Publish published a task to all subscribers
+func (s *MongoDBTaskRepository) Publish(task *Task) {
+	for _, subscriber := range s.subscribers {
+		go subscriber.OnNotify(task)
+	}
 }

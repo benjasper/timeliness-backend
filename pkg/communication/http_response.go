@@ -65,3 +65,8 @@ func (r ResponseManager) Respond(writer http.ResponseWriter, i interface{}) {
 		return
 	}
 }
+
+// RespondWithNoContent sends a no content status code
+func (r ResponseManager) RespondWithNoContent(writer http.ResponseWriter) {
+	writer.WriteHeader(http.StatusNoContent)
+}
