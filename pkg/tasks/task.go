@@ -14,6 +14,7 @@ type Task struct {
 	UserID         primitive.ObjectID `json:"userId" bson:"userId" validate:"required"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt"`
+	Deleted        bool               `json:"deleted" bson:"deleted"`
 	Name           string             `json:"name" bson:"name" validate:"required"`
 	Description    string             `json:"description" bson:"description"`
 	IsDone         bool               `json:"isDone" bson:"isDone"`
@@ -32,6 +33,7 @@ type TaskUnwound struct {
 	UserID         primitive.ObjectID `json:"userId" bson:"userId" validate:"required"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt"`
+	Deleted        bool               `json:"deleted" bson:"deleted"`
 	Name           string             `json:"name" bson:"name" validate:"required"`
 	Description    string             `json:"description" bson:"description"`
 	IsDone         bool               `json:"isDone" bson:"isDone"`
@@ -53,6 +55,7 @@ type TaskUpdate struct {
 	UserID         primitive.ObjectID `bson:"userId" json:"-"`
 	CreatedAt      time.Time          `bson:"createdAt" json:"-"`
 	LastModifiedAt time.Time          `bson:"lastModifiedAt" json:"-"`
+	Deleted        bool               `json:"deleted" bson:"deleted"`
 	Name           string             `json:"name" bson:"name" validate:"required"`
 	Description    string             `json:"description" bson:"description"`
 	IsDone         bool               `json:"isDone" bson:"isDone"`

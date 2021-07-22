@@ -15,6 +15,7 @@ type User struct {
 	Email          string             `json:"email" validate:"required,email"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt" validate:"isdefault"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
+	DeviceTokens   []DeviceToken      `json:"-" bson:"deviceTokens" validate:"isdefault"`
 	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
 
 	GoogleCalendarConnection GoogleCalendarConnection `json:"-" bson:"googleCalendarConnection,omitempty"`
@@ -24,6 +25,12 @@ type User struct {
 type UserLogin struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" bson:"password" validate:"required"`
+}
+
+// DeviceToken is a struct for keeping a Firebase Cloud Messaging registration token
+type DeviceToken struct {
+	Token          string
+	LastRegistered time.Time
 }
 
 // GoogleCalendarConnection stores everything related to Google Calendar

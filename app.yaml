@@ -6,3 +6,5 @@ env_variables:
   DATABASE: mongodb+srv://app:LH40LlgfV2cJp1zO@cluster0.byyhv.mongodb.net/test?retryWrites=true&w=majority
   SECRET: AEFC82667184DE543D9BCE58F2AF8
   SCHEDULER_SECRET: ASKNF8912ADS89MVUF213
+  FIREBASE: AAAAhOFhDWY:APA91bERVT0IbX_6zSF-oJJgeEbeBm0FDrQ4Ic7g_5vkzL7Lr6vVhYxKmxQjKldfSJQkWFAkKt5yGmBv0aj1JmqFb-By0edF4ETfUUd3xuT7SKYYDFFIJeUrKTIv58_VifoSmDBDSao2
+  GCP_PROJECT_ID: project-tasks-294214

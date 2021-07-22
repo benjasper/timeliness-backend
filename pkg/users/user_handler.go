@@ -88,10 +88,114 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	}
 }
 
+// UserAddDevice upserts a DeviceToken
+func (handler *Handler) UserAddDevice(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	body := map[string]string{}
+
+	decoder := json.NewDecoder(request.Body)
+
+	err := decoder.Decode(&body)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Wrong format", err)
+		return
+	}
+
+	deviceToken := body["deviceToken"]
+
+	if deviceToken == "" {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Must provide deviceToken", nil)
+		return
+	}
+
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
+			"User wasn't found", err)
+		return
+	}
+
+	found := false
+	for i, token := range u.DeviceTokens {
+		if token.Token == deviceToken {
+			u.DeviceTokens[i].LastRegistered = time.Now()
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		if len(u.DeviceTokens) >= 10 {
+			handler.ResponseManager.RespondWithError(writer, http.StatusTooManyRequests,
+				"Too many registered devices", err)
+			return
+		}
+
+		u.DeviceTokens = append(u.DeviceTokens, DeviceToken{Token: deviceToken, LastRegistered: time.Now()})
+	}
+
+	err = handler.UserRepository.Update(request.Context(), u)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not update user", err)
+		return
+	}
+
+	handler.ResponseManager.RespondWithNoContent(writer)
+}
+
+// UserRemoveDevice deletes a DeviceToken
+func (handler *Handler) UserRemoveDevice(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	deviceToken := mux.Vars(request)["deviceToken"]
+
+	if deviceToken == "" {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Must provide deviceToken", nil)
+		return
+	}
+
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
+			"User wasn't found", err)
+		return
+	}
+
+	found := false
+	for index, token := range u.DeviceTokens {
+		if token.Token == deviceToken {
+			u.DeviceTokens = append(u.DeviceTokens[:index], u.DeviceTokens[index+1:]...)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"device token not registered", err)
+		return
+	}
+
+	err = handler.UserRepository.Update(request.Context(), u)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not update user", err)
+		return
+	}
+
+	handler.ResponseManager.RespondWithNoContent(writer)
+}
+
 // UserGet retrieves a single user
 func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Request) {
-	vars := mux.Vars(request)
-	u, err := handler.UserRepository.FindByID(request.Context(), vars["id"])
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
 			"User wasn't found", err)

@@ -5,6 +5,7 @@ go 1.16
 require (
 	cloud.google.com/go v0.83.0 // indirect
 	cloud.google.com/go/logging v1.4.2
+	firebase.google.com/go/v4 v4.6.0 // indirect
 	github.com/go-playground/validator/v10 v10.4.1
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/uuid v1.1.2

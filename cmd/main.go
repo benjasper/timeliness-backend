@@ -6,6 +6,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/notifications"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -84,10 +85,13 @@ func main() {
 	}
 
 	responseManager := communication.ResponseManager{Logger: logging}
+	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
+
+	notificationController := notifications.NewNotificationController(logging, userRepository)
 
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
+	taskRepository.Subscribe(&notificationController)
 
-	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
 	userHandler := users.Handler{UserRepository: userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
 		TaskService: &taskRepository}
@@ -114,10 +118,12 @@ func main() {
 	})
 
 	unauthenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
+
 	unauthenticatedAPI.Path("/auth/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
 	unauthenticatedAPI.Path("/auth/refresh").HandlerFunc(userHandler.UserRefresh).Methods(http.MethodPost)
 	unauthenticatedAPI.Path("/auth/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
 	unauthenticatedAPI.Path("/auth/google").HandlerFunc(userHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
+
 	unauthenticatedAPI.Path("/calendar/google/notifications").
 		HandlerFunc(calendarHandler.GoogleCalendarNotification).Methods(http.MethodPost)
 	unauthenticatedAPI.Path("/calendar/google/notifications/renew").
@@ -125,7 +131,10 @@ func main() {
 
 	authenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)
-	authenticatedAPI.Path("/user/{id}").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
+	authenticatedAPI.Path("/user").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
+	authenticatedAPI.Path("/user/device").HandlerFunc(userHandler.UserAddDevice).Methods(http.MethodPost)
+	authenticatedAPI.Path("/user/device/{deviceToken}").HandlerFunc(userHandler.UserRemoveDevice).Methods(http.MethodDelete)
+
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
 	authenticatedAPI.Path("/tasks/workunits").HandlerFunc(taskHandler.GetAllTasksByWorkUnits).Methods(http.MethodGet)
@@ -134,6 +143,7 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskDelete).Methods(http.MethodDelete)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}").HandlerFunc(taskHandler.WorkUnitUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnit).Methods(http.MethodPost)
+
 	authenticatedAPI.Path("/calendar/google/connect").
 		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
 	authenticatedAPI.Path("/calendars").HandlerFunc(calendarHandler.GetAllCalendars).Methods(http.MethodGet)
