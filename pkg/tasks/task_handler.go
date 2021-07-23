@@ -527,11 +527,5 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), task)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
-		return
-	}
-
 	handler.ResponseManager.Respond(writer, Task(*task))
 }
