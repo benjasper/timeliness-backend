@@ -15,7 +15,7 @@ import (
 // TaskRepositoryInterface is an interface for a *MongoDBTaskRepository
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
-	Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error
+	Update(ctx context.Context, task *TaskUpdate) error
 	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error)
 	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error)
 	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
@@ -67,7 +67,7 @@ func (s *MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 }
 
 // Update updates a task
-func (s *MongoDBTaskRepository) Update(ctx context.Context, taskID string, userID string, task *TaskUpdate) error {
+func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate) error {
 	task.LastModifiedAt = time.Now()
 
 	for index, unit := range task.WorkUnits {
@@ -76,16 +76,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, taskID string, userI
 		}
 	}
 
-	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
-	if err != nil {
-		return err
-	}
-	userObjectID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		return err
-	}
-
-	result, err := s.DB.UpdateOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID}, bson.M{"$set": task})
+	result, err := s.DB.UpdateOne(ctx, bson.M{"userId": task.UserID, "_id": task.ID}, bson.M{"$set": task})
 	if err != nil {
 		return err
 	}

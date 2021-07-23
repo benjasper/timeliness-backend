@@ -151,6 +151,8 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		t.IsDone = false
 
 	} else {
+		var shouldDelete = WorkUnits{}
+		var shouldUpdate = WorkUnits{}
 		var workUnits = WorkUnits{}
 		for index := len(t.WorkUnits) - 1; index >= 0; index-- {
 			if index < 0 {
@@ -174,25 +176,39 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 			if -workloadToSchedule < unit.Workload {
 				t.WorkUnits[index].Workload += workloadToSchedule
 				t.WorkUnits[index].ScheduledAt.Date.End = unit.ScheduledAt.Date.End.Add(workloadToSchedule)
-				err := c.calendarRepository.UpdateEvent(&t.WorkUnits[index].ScheduledAt)
-				if err != nil {
-					return err
-				}
+
+				shouldUpdate = append(shouldUpdate, t.WorkUnits[index])
 
 				workUnits = workUnits.Add(&t.WorkUnits[index])
 				workloadToSchedule = 0
 				continue
 			}
 
-			err := c.calendarRepository.DeleteEvent(&unit.ScheduledAt)
-			if err != nil {
-				return err
-			}
+			shouldDelete = append(shouldDelete, unit)
 
 			workloadToSchedule += unit.Workload
 		}
 
 		t.WorkUnits = workUnits
+
+		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t))
+		if err != nil {
+			return err
+		}
+
+		for _, unit := range shouldDelete {
+			err := c.calendarRepository.DeleteEvent(&unit.ScheduledAt)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, unit := range shouldUpdate {
+			err = c.calendarRepository.UpdateEvent(&unit.ScheduledAt)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if t.DueAt.CalendarEventID == "" {
@@ -217,12 +233,16 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 
-	err := c.calendarRepository.DeleteEvent(&w.ScheduledAt)
+	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
+	err := c.taskRepository.Update(c.ctx, t)
 	if err != nil {
 		return err
 	}
 
-	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
+	err = c.calendarRepository.DeleteEvent(&w.ScheduledAt)
+	if err != nil {
+		return err
+	}
 
 	err = c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
@@ -364,6 +384,11 @@ func (c *PlanningController) UpdateTaskTitle(task *Task, updateWorkUnits bool) e
 
 // DeleteTask deletes all events that are connected to a task
 func (c *PlanningController) DeleteTask(task *Task) error {
+	err := c.taskRepository.Delete(c.ctx, task.ID.Hex(), task.UserID.Hex())
+	if err != nil {
+		return err
+	}
+
 	for _, unit := range task.WorkUnits {
 		err := c.calendarRepository.DeleteEvent(&unit.ScheduledAt)
 		if err != nil {
@@ -371,7 +396,7 @@ func (c *PlanningController) DeleteTask(task *Task) error {
 		}
 	}
 
-	err := c.calendarRepository.DeleteEvent(&task.DueAt)
+	err = c.calendarRepository.DeleteEvent(&task.DueAt)
 	if err != nil {
 		return err
 	}
@@ -436,7 +461,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			}
 		}
 
-		err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
+		err = c.taskRepository.Update(c.ctx, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -458,7 +483,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	if event.Deleted {
 		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
-		err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
+		err = c.taskRepository.Update(c.ctx, task)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -476,7 +501,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
 	task.WorkUnits = task.WorkUnits.Add(workunit)
 
-	err = c.taskRepository.Update(c.ctx, task.ID.Hex(), userID, task)
+	err = c.taskRepository.Update(c.ctx, task)
 	if err != nil {
 		c.logger.Error("problem with updating task", err)
 		return
@@ -529,7 +554,7 @@ func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event 
 				continue
 			}
 
-			err = c.taskRepository.Update(c.ctx, intersection.Task.ID.Hex(), userID, (*TaskUpdate)(&intersection.Task))
+			err = c.taskRepository.Update(c.ctx, (*TaskUpdate)(&intersection.Task))
 			if err != nil {
 				c.logger.Error(fmt.Sprintf(
 					"Could not persist rescheduled task %s", intersection.Task.ID.Hex()), err)
