@@ -225,6 +225,13 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		t.DueAt = *dueEvent
 	}
 
+	if !t.ID.IsZero() {
+		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t))
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
