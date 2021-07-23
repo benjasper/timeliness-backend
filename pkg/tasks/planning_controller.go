@@ -511,7 +511,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		return
 	}
 
-	if workunit.ScheduledAt == *event {
+	if workunit.ScheduledAt.Date.Start == event.Date.Start && workunit.ScheduledAt.Date.End == event.Date.End {
 		return
 	}
 
