@@ -19,6 +19,7 @@ type PlanningController struct {
 	ctx                context.Context
 	logger             logger.Interface
 	constraint         *calendar.FreeConstraint
+	taskMutexMap       sync.Map
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
@@ -43,6 +44,7 @@ func NewPlanningController(ctx context.Context, u *users.User, userService users
 	controller.userRepository = userService
 	controller.taskRepository = taskRepository
 	controller.logger = logger
+	controller.taskMutexMap = sync.Map{}
 	controller.constraint = &calendar.FreeConstraint{
 		Location: location,
 		AllowedTimeSpans: []calendar.Timespan{
@@ -108,9 +110,23 @@ func (c *PlanningController) SuggestTimeslot(window *calendar.TimeWindow) (*[]ca
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
 // and pushes or removes events to and from the calendar
 func (c *PlanningController) ScheduleTask(t *Task) error {
+	loaded, _ := c.taskMutexMap.LoadOrStore(t.ID.Hex(), &sync.Mutex{})
+	mutex := loaded.(*sync.Mutex)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Refresh task, after potential change
+	taskUpdatable, err := c.taskRepository.FindUpdatableByID(c.ctx, t.ID.Hex(), t.UserID.Hex())
+	if err != nil {
+		return err
+	}
+
+	t = (*Task)(taskUpdatable)
+
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
-	err := c.calendarRepository.AddBusyToWindow(&windowTotal)
+	err = c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return err
 	}
@@ -237,11 +253,23 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
 func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, index int) error {
+	loaded, _ := c.taskMutexMap.LoadOrStore(t.ID.Hex(), &sync.Mutex{})
+	mutex := loaded.(*sync.Mutex)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Refresh task, after potential change
+	t, err := c.taskRepository.FindUpdatableByID(c.ctx, t.ID.Hex(), t.UserID.Hex())
+	if err != nil {
+		return err
+	}
+
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
-	err := c.taskRepository.Update(c.ctx, t)
+	err = c.taskRepository.Update(c.ctx, t)
 	if err != nil {
 		return err
 	}
@@ -423,21 +451,19 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 	userChannel := make(chan *users.User)
 	go c.calendarRepository.SyncEvents(calendarID, user, &eventChannel, &errorChannel, &userChannel)
 
-	taskMutexMap := sync.Map{}
-
 	for {
 		select {
 		case user := <-userChannel:
 			return user, nil
 		case event := <-eventChannel:
-			go c.processTaskEventChange(event, user.ID.Hex(), &taskMutexMap)
+			go c.processTaskEventChange(event, user.ID.Hex())
 		case err := <-errorChannel:
 			return nil, err
 		}
 	}
 }
 
-func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
+func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		if event.Deleted {
@@ -448,7 +474,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		return
 	}
 
-	loaded, _ := taskMutexMap.LoadOrStore(task.ID.Hex(), &sync.Mutex{})
+	loaded, _ := c.taskMutexMap.LoadOrStore(task.ID.Hex(), &sync.Mutex{})
 	mutex := loaded.(*sync.Mutex)
 
 	mutex.Lock()
