@@ -161,7 +161,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), taskID, userID, task)
+	err = handler.TaskRepository.Update(request.Context(), task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
@@ -260,7 +260,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), taskID, userID, task)
+	err = handler.TaskRepository.Update(request.Context(), task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
@@ -298,13 +298,6 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not delete task events", err)
-		return
-	}
-
-	err = handler.TaskRepository.Delete(request.Context(), taskID, userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not delete task", err)
 		return
 	}
 
@@ -534,7 +527,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), taskID, userID, task)
+	err = handler.TaskRepository.Update(request.Context(), task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return

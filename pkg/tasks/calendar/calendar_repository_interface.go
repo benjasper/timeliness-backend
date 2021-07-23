@@ -7,7 +7,11 @@ type RepositoryInterface interface {
 	CreateCalendar() (string, error)
 	GetAllCalendarsOfInterest() (map[string]*Calendar, error)
 	NewEvent(event *Event) (*Event, error)
+
+	// UpdateEvent updates an event in a calendar, make sure to persist changes to the event before calling this method
 	UpdateEvent(event *Event) error
+
+	// DeleteEvent deletes an event in a calendar, make sure to persist the deletion of the event before calling this method
 	DeleteEvent(event *Event) error
 	AddBusyToWindow(window *TimeWindow) error
 	WatchCalendar(calendarID string, user *users.User) (*users.User, error)
