@@ -235,23 +235,12 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 	return nil
 }
 
-// RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end
+// RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
 func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, index int) error {
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 
-	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
-	err := c.taskRepository.Update(c.ctx, t)
-	if err != nil {
-		return err
-	}
-
-	err = c.calendarRepository.DeleteEvent(&w.ScheduledAt)
-	if err != nil {
-		return err
-	}
-
-	err = c.calendarRepository.AddBusyToWindow(&windowTotal)
+	err := c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return err
 	}
@@ -260,7 +249,32 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 
 	workloadToSchedule := w.Workload
 
-	for _, workUnit := range findWorkUnitTimes(&windowTotal, workloadToSchedule) {
+	foundWorkUnits := findWorkUnitTimes(&windowTotal, workloadToSchedule)
+	for i, workUnit := range foundWorkUnits {
+		if i == 0 {
+			workUnit.ID = w.ID
+			workUnit.ScheduledAt.CalendarEventID = w.ScheduledAt.CalendarEventID
+			workUnit.ScheduledAt.Blocking = true
+			workUnit.ScheduledAt.Title = renderWorkUnitEventTitle((*Task)(t))
+			workUnit.ScheduledAt.Description = ""
+
+			t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
+			t.WorkUnits = t.WorkUnits.Add(&workUnit)
+
+			err := c.taskRepository.Update(c.ctx, t)
+			if err != nil {
+				return err
+			}
+
+			err = c.calendarRepository.UpdateEvent(&workUnit.ScheduledAt)
+			if err != nil {
+				return err
+			}
+
+			workloadToSchedule -= workloadToSchedule
+			continue
+		}
+
 		workUnit.ScheduledAt.Blocking = true
 		workUnit.ScheduledAt.Title = renderWorkUnitEventTitle((*Task)(t))
 		workUnit.ScheduledAt.Description = ""
@@ -278,6 +292,21 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 
 	if workloadToSchedule > 0 {
 		t.NotScheduled += workloadToSchedule
+		t.WorkUnits.RemoveByIndex(index)
+	}
+
+	err = c.taskRepository.Update(c.ctx, t)
+	if err != nil {
+		return err
+	}
+
+	if workloadToSchedule > 0 {
+		err := c.calendarRepository.DeleteEvent(&w.ScheduledAt)
+		if err != nil {
+			return err
+		}
+
+		// TODO: maybe call schedule here so the workunit can stay in a reduced form
 	}
 
 	return nil
@@ -558,13 +587,6 @@ func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event 
 				c.logger.Error(fmt.Sprintf(
 					"Could not reschedule work unit %d for task %s",
 					intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
-				continue
-			}
-
-			err = c.taskRepository.Update(c.ctx, (*TaskUpdate)(&intersection.Task))
-			if err != nil {
-				c.logger.Error(fmt.Sprintf(
-					"Could not persist rescheduled task %s", intersection.Task.ID.Hex()), err)
 				continue
 			}
 		}
