@@ -522,7 +522,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		return
 	}
 
-	_ = c.checkForIntersectingWorkUnits(userID, event, workunit.ScheduledAt.CalendarEventID)
+	_ = c.checkForIntersectingWorkUnits(userID, event, workunit.ID.Hex())
 }
 
 func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event, workUnitID string) int {
