@@ -440,6 +440,9 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string, taskMutexMap *sync.Map) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
+		if event.Deleted {
+			return
+		}
 		_ = c.checkForIntersectingWorkUnits(userID, event, "")
 
 		return
@@ -518,6 +521,8 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		c.logger.Error("problem with updating task", err)
 		return
 	}
+
+	_ = c.checkForIntersectingWorkUnits(userID, event, workunit.ScheduledAt.CalendarEventID)
 }
 
 func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event, workUnitID string) int {
