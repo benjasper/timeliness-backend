@@ -23,6 +23,7 @@ type TaskRepositoryInterface interface {
 	FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error)
 	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string) ([]Task, error)
 	Delete(ctx context.Context, taskID string, userID string) error
+	DeleteTag(ctx context.Context, tagID string, userID string) error
 }
 
 // TaskObserver is an Observer
@@ -331,6 +332,39 @@ func (s *MongoDBTaskRepository) Delete(ctx context.Context, taskID string, userI
 	}
 
 	s.Publish(&Task{ID: taskObjectID, Deleted: true})
+
+	return nil
+}
+
+// DeleteTag deletes a tag from tasks
+func (s *MongoDBTaskRepository) DeleteTag(ctx context.Context, tagID string, userID string) error {
+	tagObjectID, err := primitive.ObjectIDFromHex(tagID)
+	if err != nil {
+		return err
+	}
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.DB.UpdateMany(ctx,
+		bson.M{
+			"userId": userObjectID,
+			"tags":   tagObjectID,
+		}, bson.M{
+			"$set": bson.M{
+				"lastModifiedAt": time.Now(),
+			},
+			"$pull": bson.M{
+				"tags": tagObjectID,
+			},
+		})
+
+	if err != nil {
+		return err
+	}
+
+	// TODO: Publish event for all changed tasks
 
 	return nil
 }
