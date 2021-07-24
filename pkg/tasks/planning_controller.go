@@ -116,14 +116,6 @@ func (c *PlanningController) ScheduleTask(t *Task) (*Task, error) {
 
 		mutex.Lock()
 		defer mutex.Unlock()
-
-		// Refresh task, after potential change
-		taskUpdatable, err := c.taskRepository.FindUpdatableByID(c.ctx, t.ID.Hex(), t.UserID.Hex())
-		if err != nil {
-			return nil, err
-		}
-
-		t = (*Task)(taskUpdatable)
 	}
 
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
