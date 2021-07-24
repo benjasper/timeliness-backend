@@ -13,6 +13,7 @@ type Event struct {
 	Date        Timespan `json:"date" bson:"date" validate:"required"`
 	Title       string   `json:"-" bson:"-"`
 	Description string   `json:"-" bson:"-"`
+	IsOriginal  bool     `json:"-" bson:"-"`
 	Blocking    bool     `json:"-" bson:"blocking"`
 	Deleted     bool     `json:"-" bson:"deleted"`
 

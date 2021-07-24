@@ -206,20 +206,24 @@ func findSyncByID(connection users.GoogleCalendarConnection, ID string) int {
 }
 
 func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
-	blocking := false
+	newEvent := &Event{
+		CalendarEventID: event.Id,
+		Title:           event.Summary,
+		Description:     event.Description,
+		CalendarType:    CalendarTypeGoogleCalendar,
+	}
+
+	if event.Source.Title == "Timeliness" {
+		newEvent.IsOriginal = true
+	}
+
 	if event.Transparency == "opaque" {
-		blocking = true
+		newEvent.Blocking = true
 	}
 
 	if event.Start.DateTime == "" || event.End.DateTime == "" {
-		return &Event{
-			CalendarEventID: event.Id,
-			Title:           event.Summary,
-			Description:     event.Description,
-			Blocking:        blocking,
-			CalendarType:    CalendarTypeGoogleCalendar,
-			Deleted:         true,
-		}, nil
+		newEvent.Deleted = true
+		return newEvent, nil
 	}
 
 	start, err := time.Parse(time.RFC3339, event.Start.DateTime)
@@ -232,17 +236,12 @@ func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 		return nil, err
 	}
 
-	return &Event{
-		CalendarEventID: event.Id,
-		Title:           event.Summary,
-		Description:     event.Description,
-		Blocking:        blocking,
-		CalendarType:    CalendarTypeGoogleCalendar,
-		Date: Timespan{
-			Start: start,
-			End:   end,
-		},
-	}, nil
+	newEvent.Date = Timespan{
+		Start: start,
+		End:   end,
+	}
+
+	return newEvent, nil
 }
 
 // SyncEvents syncs the calendar events of a single calendar

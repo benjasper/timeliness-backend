@@ -254,7 +254,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 }
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, index int) error {
+func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
 	loaded, _ := c.taskMutexMap.LoadOrStore(t.ID.Hex(), &sync.Mutex{})
 	mutex := loaded.(*sync.Mutex)
 
@@ -264,26 +264,31 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 	// Refresh task, after potential change
 	t, err := c.taskRepository.FindUpdatableByID(c.ctx, t.ID.Hex(), t.UserID.Hex())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 
+	index, _ := t.WorkUnits.FindByID(w.ID.Hex())
+	if index < 0 {
+		return nil, fmt.Errorf("could not find workunit %s in task %s", w.ID.Hex(), t.ID.Hex())
+	}
+
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
 	err = c.taskRepository.Update(c.ctx, t)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = c.calendarRepository.DeleteEvent(&w.ScheduledAt)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	windowTotal.ComputeFree(c.constraint)
@@ -297,7 +302,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 
 		workEvent, err := c.calendarRepository.NewEvent(&workUnit.ScheduledAt)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		workUnit.ScheduledAt = *workEvent
@@ -312,10 +317,10 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit, inde
 
 	err = c.taskRepository.Update(c.ctx, t)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) WorkUnits {
@@ -468,7 +473,7 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
-		if event.Deleted {
+		if event.Deleted || event.IsOriginal {
 			return
 		}
 		_ = c.checkForIntersectingWorkUnits(userID, event, "")
@@ -571,15 +576,14 @@ func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event 
 	var intersections []Intersection
 
 	for _, intersectingTask := range intersectingTasks {
-		indices, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event)
+		_, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event)
 		if len(workUnits) == 0 {
 			continue
 		}
 
 		intersection := Intersection{
-			IntersectingWorkUnits:       workUnits,
-			IntersectingWorkUnitIndices: indices,
-			Task:                        intersectingTask,
+			IntersectingWorkUnits: workUnits,
+			Task:                  intersectingTask,
 		}
 
 		intersections = append(intersections, intersection)
@@ -587,13 +591,15 @@ func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event 
 
 	for _, intersection := range intersections {
 		for i, unit := range intersection.IntersectingWorkUnits {
-			err := c.RescheduleWorkUnit((*TaskUpdate)(&intersection.Task), &unit, intersection.IntersectingWorkUnitIndices[i])
+			updatedTask, err := c.RescheduleWorkUnit((*TaskUpdate)(&intersection.Task), &unit)
 			if err != nil {
 				c.logger.Error(fmt.Sprintf(
 					"Could not reschedule work unit %d for task %s",
 					intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
 				continue
 			}
+
+			intersection.Task = Task(*updatedTask)
 		}
 	}
 

@@ -106,7 +106,7 @@ func TestPlanningController_RescheduleWorkUnit(t *testing.T) {
 				ctx:                tt.fields.ctx,
 				logger:             tt.fields.logger,
 			}
-			if err := c.RescheduleWorkUnit(tt.args.t, tt.args.w, tt.args.index); (err != nil) != tt.wantErr {
+			if _, err := c.RescheduleWorkUnit(tt.args.t, tt.args.w); (err != nil) != tt.wantErr {
 				t.Errorf("RescheduleWorkUnit() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
