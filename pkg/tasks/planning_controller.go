@@ -468,11 +468,14 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
+		c.logger.Debug(fmt.Sprintf("checking event before deleted %s %t", event.CalendarEventID, event.Deleted))
 		if event.Deleted {
 			return
 		}
-		_ = c.checkForIntersectingWorkUnits(userID, event, "")
+		c.logger.Debug(fmt.Sprintf("checking event after deleted check %s", event.CalendarEventID))
+		count := c.checkForIntersectingWorkUnits(userID, event, "")
 
+		c.logger.Debug(fmt.Sprintf("event after intersect check %s found %d", event.CalendarEventID, count))
 		return
 	}
 
@@ -550,7 +553,11 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		return
 	}
 
-	_ = c.checkForIntersectingWorkUnits(userID, event, workunit.ID.Hex())
+	c.logger.Debug(fmt.Sprintf("checking %s", workunit.ID))
+
+	count := c.checkForIntersectingWorkUnits(userID, event, workunit.ID.Hex())
+
+	c.logger.Debug(fmt.Sprintf("%d", count))
 }
 
 func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event, workUnitID string) int {
@@ -559,6 +566,8 @@ func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event 
 		c.logger.Error("problem while trying to find tasks intersecting with an event", err)
 		return 0
 	}
+
+	c.logger.Debug(fmt.Sprintf("%v", intersectingTasks))
 
 	if len(intersectingTasks) == 0 {
 		return 0
