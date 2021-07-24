@@ -141,7 +141,7 @@ func TestPlanningController_ScheduleTask(t *testing.T) {
 				ctx:                tt.fields.ctx,
 				logger:             tt.fields.logger,
 			}
-			if err := c.ScheduleTask(tt.args.t); (err != nil) != tt.wantErr {
+			if _, err := c.ScheduleTask(tt.args.t); (err != nil) != tt.wantErr {
 				t.Errorf("ScheduleTask() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

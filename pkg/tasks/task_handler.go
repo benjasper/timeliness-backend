@@ -66,12 +66,14 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	err = planning.ScheduleTask(&task)
+	scheduledTask, err := planning.ScheduleTask(&task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with creating calendar events", err)
 		return
 	}
+
+	task = *scheduledTask
 
 	err = handler.TaskRepository.Add(request.Context(), &task)
 	if err != nil {
@@ -125,12 +127,14 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.WorkloadOverall != task.WorkloadOverall {
-		err := planning.ScheduleTask((*Task)(task))
+		scheduledTask, err := planning.ScheduleTask((*Task)(task))
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem scheduling task", err)
 			return
 		}
+
+		task = (*TaskUpdate)(scheduledTask)
 	}
 
 	if original.DueAt != task.DueAt {
@@ -521,7 +525,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	_, err = planning.RescheduleWorkUnit(task, &workUnit)
+	task, err = planning.RescheduleWorkUnit(task, &workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
 		return
