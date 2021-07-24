@@ -521,7 +521,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	err = planning.RescheduleWorkUnit(task, &workUnit, index)
+	_, err = planning.RescheduleWorkUnit(task, &workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
 		return

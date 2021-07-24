@@ -104,6 +104,17 @@ func (w WorkUnits) FindByCalendarID(calendarID string) (int, *WorkUnit) {
 	return -1, nil
 }
 
+// FindByID finds a single work unit by its ID
+func (w WorkUnits) FindByID(ID string) (int, *WorkUnit) {
+	for i, unit := range w {
+		if unit.ID.Hex() == ID {
+			return i, &unit
+		}
+	}
+
+	return -1, nil
+}
+
 // FindByEventIntersection finds a single work unit by it
 func (w WorkUnits) FindByEventIntersection(event *calendar.Event) ([]int, []WorkUnit) {
 	var workUnits []WorkUnit
