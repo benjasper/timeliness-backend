@@ -109,7 +109,7 @@ func (c *PlanningController) SuggestTimeslot(window *calendar.TimeWindow) (*[]ca
 
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
 // and pushes or removes events to and from the calendar
-func (c *PlanningController) ScheduleTask(t *Task) error {
+func (c *PlanningController) ScheduleTask(t *Task) (*Task, error) {
 	if !t.ID.IsZero() {
 		loaded, _ := c.taskMutexMap.LoadOrStore(t.ID.Hex(), &sync.Mutex{})
 		mutex := loaded.(*sync.Mutex)
@@ -120,7 +120,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		// Refresh task, after potential change
 		taskUpdatable, err := c.taskRepository.FindUpdatableByID(c.ctx, t.ID.Hex(), t.UserID.Hex())
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		t = (*Task)(taskUpdatable)
@@ -130,7 +130,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
 	err := c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	windowTotal.ComputeFree(c.constraint)
@@ -153,7 +153,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 
 			workEvent, err := c.calendarRepository.NewEvent(&workUnit.ScheduledAt)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			workUnit.ScheduledAt = *workEvent
@@ -174,7 +174,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 		var workUnits = WorkUnits{}
 		for index := len(t.WorkUnits) - 1; index >= 0; index-- {
 			if index < 0 {
-				return errors.New("workload can't be less than all not done workunits combined")
+				return nil, errors.New("workload can't be less than all not done workunits combined")
 			}
 
 			unit := t.WorkUnits[index]
@@ -211,20 +211,20 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 
 		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		for _, unit := range shouldDelete {
 			err := c.calendarRepository.DeleteEvent(&unit.ScheduledAt)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 
 		for _, unit := range shouldUpdate {
 			err = c.calendarRepository.UpdateEvent(&unit.ScheduledAt)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
@@ -237,7 +237,7 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 
 		dueEvent, err := c.calendarRepository.NewEvent(&t.DueAt)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		t.DueAt = *dueEvent
@@ -246,11 +246,11 @@ func (c *PlanningController) ScheduleTask(t *Task) error {
 	if !t.ID.IsZero() {
 		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t))
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return t, nil
 }
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
