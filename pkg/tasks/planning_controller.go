@@ -466,6 +466,7 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
+	var err error
 	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
 	if err != nil {
 		c.logger.Debug(fmt.Sprintf("checking event before deleted %s %t", event.CalendarEventID, event.Deleted))
@@ -483,7 +484,11 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	mutex := loaded.(*sync.Mutex)
 
 	mutex.Lock()
-	defer mutex.Unlock()
+	defer func() {
+		if err != nil {
+			mutex.Unlock()
+		}
+	}()
 
 	// Refresh task, after potential change
 	task, err = c.taskRepository.FindUpdatableByID(c.ctx, task.ID.Hex(), userID)
@@ -494,6 +499,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	if task.DueAt.CalendarEventID == event.CalendarEventID {
 		if task.DueAt == *event {
+			mutex.Unlock()
 			return
 		}
 
@@ -512,6 +518,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			c.logger.Error("problem with updating task", err)
 			return
 		}
+		mutex.Unlock()
 		return
 	}
 
@@ -534,6 +541,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			c.logger.Error("problem with updating task", err)
 			return
 		}
+		mutex.Unlock()
 		return
 	}
 
@@ -553,6 +561,8 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		return
 	}
 
+	mutex.Unlock()
+
 	c.logger.Debug(fmt.Sprintf("checking %s", workunit.ID))
 
 	count := c.checkForIntersectingWorkUnits(userID, event, workunit.ID.Hex())
@@ -567,7 +577,7 @@ func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event 
 		return 0
 	}
 
-	c.logger.Debug(fmt.Sprintf("%v", intersectingTasks))
+	c.logger.Debug(fmt.Sprintf("found intersecting: %v", intersectingTasks))
 
 	if len(intersectingTasks) == 0 {
 		return 0
