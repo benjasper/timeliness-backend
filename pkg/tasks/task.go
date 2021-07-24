@@ -10,15 +10,15 @@ import (
 // Task is the model for a task
 type Task struct {
 	// TODO: More validation
-	ID             primitive.ObjectID `bson:"_id" json:"id"`
-	UserID         primitive.ObjectID `json:"userId" bson:"userId" validate:"required"`
-	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
-	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt"`
-	Deleted        bool               `json:"deleted" bson:"deleted"`
-	Name           string             `json:"name" bson:"name" validate:"required"`
-	Description    string             `json:"description" bson:"description"`
-	IsDone         bool               `json:"isDone" bson:"isDone"`
-	Tags           []string           `json:"tags" bson:"tags"`
+	ID             primitive.ObjectID   `bson:"_id" json:"id"`
+	UserID         primitive.ObjectID   `json:"userId" bson:"userId" validate:"required"`
+	CreatedAt      time.Time            `json:"createdAt" bson:"createdAt"`
+	LastModifiedAt time.Time            `json:"lastModifiedAt" bson:"lastModifiedAt"`
+	Deleted        bool                 `json:"deleted" bson:"deleted"`
+	Name           string               `json:"name" bson:"name" validate:"required"`
+	Description    string               `json:"description" bson:"description"`
+	IsDone         bool                 `json:"isDone" bson:"isDone"`
+	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -29,15 +29,15 @@ type Task struct {
 
 // TaskUnwound is the model for a task that only has a single work unit extracted
 type TaskUnwound struct {
-	ID             primitive.ObjectID `bson:"_id" json:"id"`
-	UserID         primitive.ObjectID `json:"userId" bson:"userId" validate:"required"`
-	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
-	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt"`
-	Deleted        bool               `json:"deleted" bson:"deleted"`
-	Name           string             `json:"name" bson:"name" validate:"required"`
-	Description    string             `json:"description" bson:"description"`
-	IsDone         bool               `json:"isDone" bson:"isDone"`
-	Tags           []string           `json:"tags" bson:"tags"`
+	ID             primitive.ObjectID   `bson:"_id" json:"id"`
+	UserID         primitive.ObjectID   `json:"userId" bson:"userId" validate:"required"`
+	CreatedAt      time.Time            `json:"createdAt" bson:"createdAt"`
+	LastModifiedAt time.Time            `json:"lastModifiedAt" bson:"lastModifiedAt"`
+	Deleted        bool                 `json:"deleted" bson:"deleted"`
+	Name           string               `json:"name" bson:"name" validate:"required"`
+	Description    string               `json:"description" bson:"description"`
+	IsDone         bool                 `json:"isDone" bson:"isDone"`
+	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -51,15 +51,15 @@ type TaskUnwound struct {
 
 // TaskUpdate is the view of a task for an update
 type TaskUpdate struct {
-	ID             primitive.ObjectID `bson:"_id" json:"-"`
-	UserID         primitive.ObjectID `bson:"userId" json:"-"`
-	CreatedAt      time.Time          `bson:"createdAt" json:"-"`
-	LastModifiedAt time.Time          `bson:"lastModifiedAt" json:"-"`
-	Deleted        bool               `json:"deleted" bson:"deleted"`
-	Name           string             `json:"name" bson:"name" validate:"required"`
-	Description    string             `json:"description" bson:"description"`
-	IsDone         bool               `json:"isDone" bson:"isDone"`
-	Tags           []string           `json:"tags" bson:"tags"`
+	ID             primitive.ObjectID   `bson:"_id" json:"-"`
+	UserID         primitive.ObjectID   `bson:"userId" json:"-"`
+	CreatedAt      time.Time            `bson:"createdAt" json:"-"`
+	LastModifiedAt time.Time            `bson:"lastModifiedAt" json:"-"`
+	Deleted        bool                 `json:"deleted" bson:"deleted"`
+	Name           string               `json:"name" bson:"name" validate:"required"`
+	Description    string               `json:"description" bson:"description"`
+	IsDone         bool                 `json:"isDone" bson:"isDone"`
+	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -128,4 +128,28 @@ func (w WorkUnits) FindByEventIntersection(event *calendar.Event) ([]int, []Work
 	}
 
 	return indices, workUnits
+}
+
+// Tags is an array of ObjectIDs
+type Tags []primitive.ObjectID
+
+// Add adds a WorkUnit to the slice
+func (tags Tags) Add(tag primitive.ObjectID) Tags {
+	return append(tags, tag)
+}
+
+// FindByID finds a ObjectID
+func (tags Tags) FindByID(ID primitive.ObjectID) (int, *primitive.ObjectID) {
+	for i, tag := range tags {
+		if tag == ID {
+			return i, &tag
+		}
+	}
+
+	return -1, nil
+}
+
+// RemoveByIndex removes an entry by index
+func (tags Tags) RemoveByIndex(index int) Tags {
+	return append(tags[:index], tags[index+1:]...)
 }

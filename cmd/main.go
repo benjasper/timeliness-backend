@@ -78,6 +78,7 @@ func main() {
 
 	userCollection := db.Collection("Users")
 	taskCollection := db.Collection("Tasks")
+	tagsCollection := db.Collection("Tags")
 
 	secret := os.Getenv("SECRET")
 	if secret == "" {
@@ -101,6 +102,12 @@ func main() {
 		Logger:          logging,
 		ResponseManager: &responseManager,
 		UserRepository:  &userRepository}
+
+	tagRepository := tasks.TagRepository{Logger: logging, DB: tagsCollection}
+	tagHandler := tasks.TagHandler{
+		Logger: logging, TagRepository: tagRepository, ResponseManager: &responseManager, UserRepository: userRepository,
+		TaskRepository: &taskRepository,
+	}
 
 	r := mux.NewRouter()
 
@@ -143,6 +150,11 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskDelete).Methods(http.MethodDelete)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}").HandlerFunc(taskHandler.WorkUnitUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnit).Methods(http.MethodPost)
+
+	authenticatedAPI.Path("/tags").HandlerFunc(tagHandler.TagAdd).Methods(http.MethodPost)
+	authenticatedAPI.Path("/tags").HandlerFunc(tagHandler.GetAllTags).Methods(http.MethodGet)
+	authenticatedAPI.Path("/tags/{tagID}").HandlerFunc(tagHandler.TagUpdate).Methods(http.MethodPatch)
+	authenticatedAPI.Path("/tags/{tagID}").HandlerFunc(tagHandler.TagDelete).Methods(http.MethodDelete)
 
 	authenticatedAPI.Path("/calendar/google/connect").
 		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
