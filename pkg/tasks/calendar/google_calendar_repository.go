@@ -213,7 +213,7 @@ func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 		CalendarType:    CalendarTypeGoogleCalendar,
 	}
 
-	if event.Source.Title == "Timeliness" {
+	if event.Source != nil && event.Source.Title == "Timeliness" {
 		newEvent.IsOriginal = true
 	}
 
