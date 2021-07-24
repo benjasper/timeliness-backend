@@ -549,8 +549,6 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 		c.logger.Error("problem with updating task", err)
 		return
 	}
-
-	_ = c.checkForIntersectingWorkUnits(userID, event, workunit.ID.Hex())
 }
 
 func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event, workUnitID string) int {
