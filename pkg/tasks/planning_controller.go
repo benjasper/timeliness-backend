@@ -320,7 +320,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit) (*Ta
 		return nil, err
 	}
 
-	return nil, nil
+	return t, nil
 }
 
 func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) WorkUnits {
