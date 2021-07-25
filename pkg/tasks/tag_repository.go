@@ -67,7 +67,7 @@ func (s *TagRepository) Update(ctx context.Context, tag *Tag) error {
 	return nil
 }
 
-// FindByID finds a specific task by ID
+// FindByID finds a specific tag by ID
 func (s *TagRepository) FindByID(ctx context.Context, tagID string, userID string) (*Tag, error) {
 	t := Tag{}
 
@@ -82,6 +82,29 @@ func (s *TagRepository) FindByID(ctx context.Context, tagID string, userID strin
 	}
 
 	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": tagObjectID})
+
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	err = result.Decode(&t)
+	if err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
+// FindByValue finds a specific tag by value
+func (s *TagRepository) FindByValue(ctx context.Context, value string, userID string) (*Tag, error) {
+	t := Tag{}
+
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "value": value})
 
 	if result.Err() != nil {
 		return nil, result.Err()
