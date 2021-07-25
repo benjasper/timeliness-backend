@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
@@ -50,6 +51,13 @@ func (handler *TagHandler) TagAdd(writer http.ResponseWriter, request *http.Requ
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
 			return
 		}
+	}
+
+	existingTag, err := handler.TagRepository.FindByValue(request.Context(), tag.Value, userID.Hex())
+	if err == nil && existingTag != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusConflict,
+			"This tag already exists", fmt.Errorf("tag already exists"))
+		return
 	}
 
 	err = handler.TagRepository.Add(request.Context(), &tag)
