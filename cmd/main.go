@@ -6,7 +6,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
-	"github.com/timeliness-app/timeliness-backend/pkg/notifications"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -88,10 +87,10 @@ func main() {
 	responseManager := communication.ResponseManager{Logger: logging}
 	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
 
-	notificationController := notifications.NewNotificationController(logging, userRepository)
+	// notificationController := notifications.NewNotificationController(logging, userRepository)
 
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
-	taskRepository.Subscribe(&notificationController)
+	// taskRepository.Subscribe(&notificationController)
 
 	userHandler := users.Handler{UserRepository: userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
