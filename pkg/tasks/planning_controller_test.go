@@ -270,8 +270,9 @@ func TestPlanningController_processTaskEventChange(t *testing.T) {
 		logger             logger.Interface
 	}
 	type args struct {
-		event  *calendar.Event
-		userID string
+		event     *calendar.Event
+		userID    string
+		isDeleted bool
 	}
 	tests := []struct {
 		name   string
@@ -290,7 +291,7 @@ func TestPlanningController_processTaskEventChange(t *testing.T) {
 				logger:             tt.fields.logger,
 			}
 
-			task, err := c.taskRepository.FindByCalendarEventID(context.Background(), tt.args.event.CalendarEventID, tt.args.userID)
+			task, err := c.taskRepository.FindByCalendarEventID(context.Background(), tt.args.event.CalendarEventID, tt.args.userID, tt.args.isDeleted)
 			if err != nil {
 				return
 			}
