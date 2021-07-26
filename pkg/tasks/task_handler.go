@@ -90,7 +90,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
-	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
@@ -194,7 +194,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
@@ -285,7 +285,7 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
@@ -320,6 +320,17 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryDueAt := request.URL.Query().Get("dueAt.date.start")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
+	deletedQuery := request.URL.Query().Get("deleted")
+
+	deleted := false
+	if deletedQuery != "" {
+		deleted, err = strconv.ParseBool(deletedQuery)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad value for deleted", err)
+			return
+		}
+	}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -365,7 +376,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters)
+	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, deleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
@@ -391,7 +402,7 @@ func (handler *Handler) TaskGet(writer http.ResponseWriter, request *http.Reques
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
-	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find task", err)
 	}
@@ -411,6 +422,17 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryWorkUnitIsDone := request.URL.Query().Get("workUnit.isDone")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
+	deletedQuery := request.URL.Query().Get("deleted")
+
+	deleted := false
+	if deletedQuery != "" {
+		deleted, err = strconv.ParseBool(deletedQuery)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad value for deleted", err)
+			return
+		}
+	}
 
 	var filters []Filter
 
@@ -456,7 +478,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters)
+	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, deleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
@@ -499,7 +521,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID)
+	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
