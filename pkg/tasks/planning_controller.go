@@ -254,7 +254,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit) (*Ta
 	defer mutex.Unlock()
 
 	// Refresh task, after potential change
-	t, err := c.taskRepository.FindUpdatableByID(c.ctx, t.ID.Hex(), t.UserID.Hex())
+	t, err := c.taskRepository.FindUpdatableByID(c.ctx, t.ID.Hex(), t.UserID.Hex(), false)
 	if err != nil {
 		return nil, err
 	}
@@ -463,7 +463,7 @@ func (c *PlanningController) SyncCalendar(user *users.User, calendarID string) (
 }
 
 func (c *PlanningController) processTaskEventChange(event *calendar.Event, userID string) {
-	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID)
+	task, err := c.taskRepository.FindByCalendarEventID(c.ctx, event.CalendarEventID, userID, false)
 	if err != nil {
 		if event.Deleted || event.IsOriginal {
 			return
@@ -480,7 +480,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	defer mutex.Unlock()
 
 	// Refresh task, after potential change
-	task, err = c.taskRepository.FindUpdatableByID(c.ctx, task.ID.Hex(), userID)
+	task, err = c.taskRepository.FindUpdatableByID(c.ctx, task.ID.Hex(), userID, false)
 	if err != nil {
 		c.logger.Error("could not refresh already loaded task", err)
 		return
@@ -549,7 +549,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 }
 
 func (c *PlanningController) checkForIntersectingWorkUnits(userID string, event *calendar.Event, workUnitID string) int {
-	intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event, workUnitID)
+	intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(c.ctx, userID, event, workUnitID, false)
 	if err != nil {
 		c.logger.Error("problem while trying to find tasks intersecting with an event", err)
 		return 0

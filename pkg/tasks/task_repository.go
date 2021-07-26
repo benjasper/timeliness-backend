@@ -16,13 +16,14 @@ import (
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
 	Update(ctx context.Context, task *TaskUpdate) error
-	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error)
-	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error)
-	FindByID(ctx context.Context, taskID string, userID string) (Task, error)
-	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error)
-	FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error)
-	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string) ([]Task, error)
+	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]Task, int, error)
+	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]TaskUnwound, int, error)
+	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
+	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
+	FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error)
+	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string, isDeleted bool) ([]Task, error)
 	Delete(ctx context.Context, taskID string, userID string) error
+	DeleteFinally(ctx context.Context, taskID string, userID string) error
 	DeleteTag(ctx context.Context, tagID string, userID string) error
 }
 
@@ -92,7 +93,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate) er
 }
 
 // FindAll finds all task paginated
-func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Task, int, error) {
+func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -107,7 +108,7 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	queryFilter := bson.D{{Key: "userId", Value: userObjectID}}
+	queryFilter := bson.D{{Key: "userId", Value: userObjectID}, {Key: "deleted", Value: isDeleted}}
 	for _, filter := range filters {
 		if filter.Operator != "" {
 			queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
@@ -135,7 +136,7 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]TaskUnwound, int, error) {
+func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound
@@ -152,7 +153,7 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 
 	offset := page * pageSize
 
-	queryFilters := bson.D{{Key: "userId", Value: userObjectID}}
+	queryFilters := bson.D{{Key: "userId", Value: userObjectID}, {Key: "deleted", Value: isDeleted}}
 
 	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
 	addFieldsStage := bson.D{{Key: "$addFields", Value: bson.M{"workUnitsCount": bson.M{"$size": "$workUnits"}}}}
@@ -200,7 +201,7 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 }
 
 // FindByID finds a specific task by ID
-func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string) (Task, error) {
+func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error) {
 	t := Task{}
 
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
@@ -212,7 +213,7 @@ func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, use
 		return t, err
 	}
 
-	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID})
+	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID, "deleted": isDeleted})
 
 	if result.Err() != nil {
 		return t, result.Err()
@@ -227,7 +228,7 @@ func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, use
 }
 
 // FindByCalendarEventID finds a specific task by a calendar event ID in workUnits or dueAt
-func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string) (*TaskUpdate, error) {
+func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error) {
 	t := TaskUpdate{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -237,6 +238,7 @@ func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calen
 
 	result := s.DB.FindOne(ctx, bson.D{
 		{Key: "userId", Value: userObjectID},
+		{Key: "deleted", Value: isDeleted},
 		{Key: "$or", Value: bson.A{
 			bson.M{"workUnits.scheduledAt.calendarEventID": calendarEventID},
 			bson.M{"dueAt.calendarEventID": calendarEventID},
@@ -256,8 +258,8 @@ func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calen
 }
 
 // FindUpdatableByID Finds a task and returns the TaskUpdate view of the model
-func (s *MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string) (*TaskUpdate, error) {
-	task, err := s.FindByID(ctx, taskID, userID)
+func (s *MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error) {
+	task, err := s.FindByID(ctx, taskID, userID, isDeleted)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +269,7 @@ func (s *MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID st
 
 // FindIntersectingWithEvent finds tasks whose WorkUnits are scheduled so that they intersect with a given Event
 // The ignoreWorkUnitByID Parameter is optional so it can be empty
-func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string) ([]Task, error) {
+func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string, isDeleted bool) ([]Task, error) {
 	var t []Task
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -296,6 +298,7 @@ func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, u
 
 	queryFilter := bson.D{
 		{Key: "userId", Value: userObjectID},
+		{Key: "deleted", Value: isDeleted},
 		{Key: "workUnits", Value: bson.M{
 			"$elemMatch": arrayMatch,
 		},
@@ -326,12 +329,43 @@ func (s *MongoDBTaskRepository) Delete(ctx context.Context, taskID string, userI
 		return err
 	}
 
-	_, err = s.DB.DeleteOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID})
+	findOptions := options.FindOneAndUpdate()
+	findOptions.SetReturnDocument(options.After)
+
+	result := s.DB.FindOneAndUpdate(ctx, bson.M{
+		"_id":    taskObjectID,
+		"userId": userObjectID,
+	},
+		bson.M{
+			"$set": bson.M{
+				"deleted":        true,
+				"lastModifiedAt": time.Now(),
+			},
+		}, findOptions)
+	if result.Err() != nil {
+		return result.Err()
+	}
+
+	s.Publish(&Task{ID: taskObjectID, Deleted: true})
+
+	return nil
+}
+
+// DeleteFinally deletes a task unrecoverable from the database
+func (s *MongoDBTaskRepository) DeleteFinally(ctx context.Context, taskID string, userID string) error {
+	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return err
+	}
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return err
 	}
 
-	s.Publish(&Task{ID: taskObjectID, Deleted: true})
+	_, err = s.DB.DeleteOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

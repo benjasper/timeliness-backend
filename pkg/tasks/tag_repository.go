@@ -19,6 +19,7 @@ type Tag struct {
 	Color          string             `json:"color" bson:"color" validate:"required"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt"`
+	Deleted        bool               `json:"deleted" bson:"deleted"`
 }
 
 // TagUpdate is an update view for a tag
@@ -29,6 +30,7 @@ type TagUpdate struct {
 	Color          string             `json:"color" bson:"color" validate:"required"`
 	CreatedAt      time.Time          `json:"-" bson:"createdAt"`
 	LastModifiedAt time.Time          `json:"-" bson:"lastModifiedAt"`
+	Deleted        bool               `json:"deleted" bson:"deleted"`
 }
 
 // TagRepository manages the tags of tasks
@@ -68,7 +70,7 @@ func (s *TagRepository) Update(ctx context.Context, tag *Tag) error {
 }
 
 // FindByID finds a specific tag by ID
-func (s *TagRepository) FindByID(ctx context.Context, tagID string, userID string) (*Tag, error) {
+func (s *TagRepository) FindByID(ctx context.Context, tagID string, userID string, isDeleted bool) (*Tag, error) {
 	t := Tag{}
 
 	tagObjectID, err := primitive.ObjectIDFromHex(tagID)
@@ -81,7 +83,7 @@ func (s *TagRepository) FindByID(ctx context.Context, tagID string, userID strin
 		return nil, err
 	}
 
-	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": tagObjectID})
+	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": tagObjectID, "deleted": isDeleted})
 
 	if result.Err() != nil {
 		return nil, result.Err()
@@ -96,7 +98,7 @@ func (s *TagRepository) FindByID(ctx context.Context, tagID string, userID strin
 }
 
 // FindByValue finds a specific tag by value
-func (s *TagRepository) FindByValue(ctx context.Context, value string, userID string) (*Tag, error) {
+func (s *TagRepository) FindByValue(ctx context.Context, value string, userID string, isDeleted bool) (*Tag, error) {
 	t := Tag{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -104,7 +106,7 @@ func (s *TagRepository) FindByValue(ctx context.Context, value string, userID st
 		return nil, err
 	}
 
-	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "value": value})
+	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "value": value, "deleted": isDeleted})
 
 	if result.Err() != nil {
 		return nil, result.Err()
@@ -119,7 +121,7 @@ func (s *TagRepository) FindByValue(ctx context.Context, value string, userID st
 }
 
 // FindAll finds all tags paginated
-func (s *TagRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter) ([]Tag, int, error) {
+func (s *TagRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]Tag, int, error) {
 	t := []Tag{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -134,7 +136,7 @@ func (s *TagRepository) FindAll(ctx context.Context, userID string, page int, pa
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	queryFilter := bson.D{{Key: "userId", Value: userObjectID}}
+	queryFilter := bson.D{{Key: "userId", Value: userObjectID}, {Key: "deleted", Value: isDeleted}}
 	for _, filter := range filters {
 		if filter.Operator != "" {
 			queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
@@ -161,8 +163,40 @@ func (s *TagRepository) FindAll(ctx context.Context, userID string, page int, pa
 	return t, int(count), nil
 }
 
-// Delete deletes a task
+// Delete deletes a tag
 func (s *TagRepository) Delete(ctx context.Context, tagID string, userID string) error {
+	tagObjectID, err := primitive.ObjectIDFromHex(tagID)
+	if err != nil {
+		return err
+	}
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return err
+	}
+
+	findOptions := options.FindOneAndUpdate()
+	findOptions.SetReturnDocument(options.After)
+
+	result := s.DB.FindOneAndUpdate(ctx, bson.M{
+		"_id":    tagObjectID,
+		"userId": userObjectID,
+	},
+		bson.M{
+			"$set": bson.M{
+				"deleted":        true,
+				"lastModifiedAt": time.Now(),
+			},
+		}, findOptions)
+
+	if result.Err() != nil {
+		return result.Err()
+	}
+
+	return nil
+}
+
+// DeleteFinally deletes a tag unrecoverable from the database
+func (s *TagRepository) DeleteFinally(ctx context.Context, tagID string, userID string) error {
 	tagObjectID, err := primitive.ObjectIDFromHex(tagID)
 	if err != nil {
 		return err

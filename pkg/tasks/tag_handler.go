@@ -53,7 +53,7 @@ func (handler *TagHandler) TagAdd(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
-	existingTag, err := handler.TagRepository.FindByValue(request.Context(), tag.Value, userID.Hex())
+	existingTag, err := handler.TagRepository.FindByValue(request.Context(), tag.Value, userID.Hex(), false)
 	if err == nil && existingTag != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusConflict,
 			"This tag already exists", fmt.Errorf("tag already exists"))
@@ -75,7 +75,7 @@ func (handler *TagHandler) TagUpdate(writer http.ResponseWriter, request *http.R
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	tagID := mux.Vars(request)["tagID"]
 
-	tag, err := handler.TagRepository.FindByID(request.Context(), tagID, userID)
+	tag, err := handler.TagRepository.FindByID(request.Context(), tagID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find tag", err)
 		return
@@ -131,6 +131,17 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
+	deletedQuery := request.URL.Query().Get("deleted")
+
+	deleted := false
+	if deletedQuery != "" {
+		deleted, err = strconv.ParseBool(deletedQuery)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad value for deleted", err)
+			return
+		}
+	}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -167,7 +178,7 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tags, count, err := handler.TagRepository.FindAll(request.Context(), userID, page, pageSize, filters)
+	tags, count, err := handler.TagRepository.FindAll(request.Context(), userID, page, pageSize, filters, deleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
