@@ -131,14 +131,14 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 	queryPage := request.URL.Query().Get("page")
 	queryPageSize := request.URL.Query().Get("pageSize")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
-	deletedQuery := request.URL.Query().Get("deleted")
+	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
 
-	deleted := false
-	if deletedQuery != "" {
-		deleted, err = strconv.ParseBool(deletedQuery)
+	includeDeleted := false
+	if includeDeletedQuery != "" {
+		includeDeleted, err = strconv.ParseBool(includeDeletedQuery)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad value for deleted", err)
+				"Bad value for includeDeleted", err)
 			return
 		}
 	}
@@ -178,7 +178,7 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tags, count, err := handler.TagRepository.FindAll(request.Context(), userID, page, pageSize, filters, deleted)
+	tags, count, err := handler.TagRepository.FindAll(request.Context(), userID, page, pageSize, filters, includeDeleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return

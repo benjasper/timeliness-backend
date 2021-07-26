@@ -16,8 +16,8 @@ import (
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
 	Update(ctx context.Context, task *TaskUpdate) error
-	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]Task, int, error)
-	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]TaskUnwound, int, error)
+	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]Task, int, error)
+	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]TaskUnwound, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error)
@@ -93,7 +93,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate) er
 }
 
 // FindAll finds all task paginated
-func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]Task, int, error) {
+func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -108,7 +108,12 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	queryFilter := bson.D{{Key: "userId", Value: userObjectID}, {Key: "deleted", Value: isDeleted}}
+	queryFilter := bson.D{{Key: "userId", Value: userObjectID}}
+
+	if !includeDeleted {
+		queryFilter = append(queryFilter, bson.E{Key: "deleted", Value: false})
+	}
+
 	for _, filter := range filters {
 		if filter.Operator != "" {
 			queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
@@ -136,7 +141,7 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]TaskUnwound, int, error) {
+func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound
@@ -153,7 +158,11 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 
 	offset := page * pageSize
 
-	queryFilters := bson.D{{Key: "userId", Value: userObjectID}, {Key: "deleted", Value: isDeleted}}
+	queryFilters := bson.D{{Key: "userId", Value: userObjectID}}
+
+	if !includeDeleted {
+		queryFilters = append(queryFilters, bson.E{Key: "deleted", Value: false})
+	}
 
 	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
 	addFieldsStage := bson.D{{Key: "$addFields", Value: bson.M{"workUnitsCount": bson.M{"$size": "$workUnits"}}}}

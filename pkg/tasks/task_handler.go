@@ -320,14 +320,14 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryDueAt := request.URL.Query().Get("dueAt.date.start")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
-	deletedQuery := request.URL.Query().Get("deleted")
+	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
 
-	deleted := false
-	if deletedQuery != "" {
-		deleted, err = strconv.ParseBool(deletedQuery)
+	includeDeleted := false
+	if includeDeletedQuery != "" {
+		includeDeleted, err = strconv.ParseBool(includeDeletedQuery)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad value for deleted", err)
+				"Bad value for includeDeleted", err)
 			return
 		}
 	}
@@ -376,7 +376,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, deleted)
+	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, includeDeleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
@@ -422,14 +422,14 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryWorkUnitIsDone := request.URL.Query().Get("workUnit.isDone")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
-	deletedQuery := request.URL.Query().Get("deleted")
+	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
 
-	deleted := false
-	if deletedQuery != "" {
-		deleted, err = strconv.ParseBool(deletedQuery)
+	includeDeleted := false
+	if includeDeletedQuery != "" {
+		includeDeleted, err = strconv.ParseBool(includeDeletedQuery)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad value for deleted", err)
+				"Bad value for includeDeleted", err)
 			return
 		}
 	}
@@ -478,7 +478,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, deleted)
+	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, includeDeleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return

@@ -121,7 +121,7 @@ func (s *TagRepository) FindByValue(ctx context.Context, value string, userID st
 }
 
 // FindAll finds all tags paginated
-func (s *TagRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDeleted bool) ([]Tag, int, error) {
+func (s *TagRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]Tag, int, error) {
 	t := []Tag{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -136,7 +136,12 @@ func (s *TagRepository) FindAll(ctx context.Context, userID string, page int, pa
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	queryFilter := bson.D{{Key: "userId", Value: userObjectID}, {Key: "deleted", Value: isDeleted}}
+	queryFilter := bson.D{{Key: "userId", Value: userObjectID}, {Key: "deleted", Value: includeDeleted}}
+
+	if !includeDeleted {
+		queryFilter = append(queryFilter, bson.E{Key: "deleted", Value: false})
+	}
+
 	for _, filter := range filters {
 		if filter.Operator != "" {
 			queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
