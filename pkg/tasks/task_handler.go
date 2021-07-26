@@ -462,8 +462,11 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 
 	if queryWorkUnitIsDone != "" {
 		value := false
-		if queryWorkUnitIsDone == "true" || queryWorkUnitIsDone == "1" {
-			value = true
+		value, err = strconv.ParseBool(queryWorkUnitIsDone)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter workUnit.isDone value", nil)
+			return
 		}
 
 		filters = append(filters, Filter{Field: "workUnit.isDone", Value: value})
