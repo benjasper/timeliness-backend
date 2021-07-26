@@ -15,7 +15,7 @@ import (
 // TaskRepositoryInterface is an interface for a *MongoDBTaskRepository
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
-	Update(ctx context.Context, task *TaskUpdate) error
+	Update(ctx context.Context, task *TaskUpdate, deleted bool) error
 	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]Task, int, error)
 	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]TaskUnwound, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
@@ -69,7 +69,7 @@ func (s *MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 }
 
 // Update updates a task
-func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate) error {
+func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate, deleted bool) error {
 	task.LastModifiedAt = time.Now()
 
 	for index, unit := range task.WorkUnits {
@@ -78,7 +78,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate) er
 		}
 	}
 
-	result, err := s.DB.UpdateOne(ctx, bson.M{"userId": task.UserID, "_id": task.ID}, bson.M{"$set": task})
+	result, err := s.DB.UpdateOne(ctx, bson.M{"userId": task.UserID, "_id": task.ID, "deleted": deleted}, bson.M{"$set": task})
 	if err != nil {
 		return err
 	}

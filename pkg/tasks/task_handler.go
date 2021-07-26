@@ -165,7 +165,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), task)
+	err = handler.TaskRepository.Update(request.Context(), task, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
@@ -264,7 +264,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	err = handler.TaskRepository.Update(request.Context(), task)
+	err = handler.TaskRepository.Update(request.Context(), task, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
 		return
