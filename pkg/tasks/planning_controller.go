@@ -201,7 +201,7 @@ func (c *PlanningController) ScheduleTask(t *Task) (*Task, error) {
 
 		t.WorkUnits = workUnits
 
-		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t))
+		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t), false)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +236,7 @@ func (c *PlanningController) ScheduleTask(t *Task) (*Task, error) {
 	}
 
 	if !t.ID.IsZero() {
-		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t))
+		err := c.taskRepository.Update(c.ctx, (*TaskUpdate)(t), false)
 		if err != nil {
 			return nil, err
 		}
@@ -268,7 +268,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit) (*Ta
 	}
 
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
-	err = c.taskRepository.Update(c.ctx, t)
+	err = c.taskRepository.Update(c.ctx, t, false)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit) (*Ta
 		t.NotScheduled += workloadToSchedule
 	}
 
-	err = c.taskRepository.Update(c.ctx, t)
+	err = c.taskRepository.Update(c.ctx, t, false)
 	if err != nil {
 		return nil, err
 	}
@@ -501,7 +501,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 			}
 		}
 
-		err = c.taskRepository.Update(c.ctx, task)
+		err = c.taskRepository.Update(c.ctx, task, false)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -523,7 +523,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 
 	if event.Deleted {
 		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
-		err = c.taskRepository.Update(c.ctx, task)
+		err = c.taskRepository.Update(c.ctx, task, false)
 		if err != nil {
 			c.logger.Error("problem with updating task", err)
 			return
@@ -541,7 +541,7 @@ func (c *PlanningController) processTaskEventChange(event *calendar.Event, userI
 	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
 	task.WorkUnits = task.WorkUnits.Add(workunit)
 
-	err = c.taskRepository.Update(c.ctx, task)
+	err = c.taskRepository.Update(c.ctx, task, false)
 	if err != nil {
 		c.logger.Error("problem with updating task", err)
 		return
