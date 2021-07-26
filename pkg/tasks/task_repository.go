@@ -355,7 +355,7 @@ func (s *MongoDBTaskRepository) Delete(ctx context.Context, taskID string, userI
 		return result.Err()
 	}
 
-	s.Publish(&Task{ID: taskObjectID, Deleted: true})
+	s.Publish(&Task{ID: taskObjectID, UserID: userObjectID, Deleted: true})
 
 	return nil
 }
