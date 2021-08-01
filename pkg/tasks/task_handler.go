@@ -423,6 +423,8 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	queryWorkUnitIsDone := request.URL.Query().Get("workUnit.isDone")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
 	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
+	queryIsDoneAndScheduledAt := request.URL.Query().Get("isDoneAndScheduledAt")
+	isDoneAndScheduledAt := time.Time{}
 
 	includeDeleted := false
 	if includeDeletedQuery != "" {
@@ -460,7 +462,15 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		}
 	}
 
-	if queryWorkUnitIsDone != "" {
+	if queryIsDoneAndScheduledAt != "" {
+		isDoneAndScheduledAt, err = time.Parse(time.RFC3339, queryIsDoneAndScheduledAt)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			return
+		}
+	}
+
+	if queryWorkUnitIsDone != "" && queryIsDoneAndScheduledAt == "" {
 		value := false
 		value, err = strconv.ParseBool(queryWorkUnitIsDone)
 		if err != nil {
@@ -481,7 +491,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, includeDeleted)
+	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, includeDeleted, isDoneAndScheduledAt)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
