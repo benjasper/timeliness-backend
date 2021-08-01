@@ -17,7 +17,7 @@ type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
 	Update(ctx context.Context, task *TaskUpdate, deleted bool) error
 	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]Task, int, error)
-	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]TaskUnwound, int, error)
+	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error)
@@ -141,7 +141,7 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]TaskUnwound, int, error) {
+func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound
@@ -177,6 +177,14 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 		}
 		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: filter.Value})
 	}
+
+	if (isDoneAndScheduledAt != time.Time{}) {
+		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: "$or", Value: bson.A{
+			bson.M{"workUnit.isDone": false},
+			bson.M{"workUnit.isDone": true, "workUnit.scheduledAt.date.start": bson.M{"$gte": isDoneAndScheduledAt}},
+		}})
+	}
+
 	matchStage2 := bson.D{{Key: "$match", Value: queryWorkUnitFilters}}
 
 	facetStage := bson.D{
