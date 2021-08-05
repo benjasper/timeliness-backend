@@ -119,7 +119,7 @@ func (c *PlanningController) ScheduleTask(t *Task) (*Task, error) {
 	}
 
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
+	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 	err := c.calendarRepository.AddBusyToWindow(&windowTotal)
 	if err != nil {
 		return nil, err
@@ -260,7 +260,7 @@ func (c *PlanningController) RescheduleWorkUnit(t *TaskUpdate, w *WorkUnit) (*Ta
 	}
 
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC()}
+	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 
 	index, _ := t.WorkUnits.FindByID(w.ID.Hex())
 	if index < 0 {
