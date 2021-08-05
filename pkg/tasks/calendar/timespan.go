@@ -165,6 +165,7 @@ type TimeWindow struct {
 	FreeDuration time.Duration
 	Busy         []Timespan
 	Free         []Timespan
+	BusyPadding  time.Duration
 }
 
 // Duration simply get the duration of a Timespan
@@ -174,6 +175,9 @@ func (w *TimeWindow) Duration() time.Duration {
 
 // AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
+	timespan.Start = timespan.Start.Add(w.BusyPadding * -1)
+	timespan.End = timespan.End.Add(w.BusyPadding)
+
 	if len(w.Busy) == 0 {
 		w.Busy = append(w.Busy, timespan)
 		return
