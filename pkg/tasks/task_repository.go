@@ -124,7 +124,11 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 	}
 
 	if includeIsNotDone {
-		filter = append(filter, bson.E{Key: "$or", Value: bson.A{bson.D{{Key: "isDone", Value: false}}, queryFilter}})
+		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
+			bson.D{
+				{Key: "isDone", Value: false},
+				{Key: "deleted", Value: false}}, queryFilter,
+		}})
 	} else {
 		filter = append(filter, queryFilter...)
 	}
