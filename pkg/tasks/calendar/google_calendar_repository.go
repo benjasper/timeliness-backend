@@ -217,7 +217,7 @@ func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 		newEvent.IsOriginal = true
 	}
 
-	if event.Transparency == "opaque" {
+	if event.Transparency == "" || event.Transparency == "opaque" {
 		newEvent.Blocking = true
 	}
 
