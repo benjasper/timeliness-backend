@@ -416,6 +416,7 @@ func (handler *Handler) TaskGet(writer http.ResponseWriter, request *http.Reques
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find task", err)
+		return
 	}
 
 	handler.ResponseManager.Respond(writer, task)
