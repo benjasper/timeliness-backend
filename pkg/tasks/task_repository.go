@@ -16,7 +16,7 @@ import (
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
 	Update(ctx context.Context, task *TaskUpdate, deleted bool) error
-	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]Task, int, error)
+	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeIsNotDone bool, includeDeleted bool) ([]Task, int, error)
 	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
@@ -93,7 +93,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate, de
 }
 
 // FindAll finds all task paginated
-func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool) ([]Task, int, error) {
+func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeIsNotDone bool, includeDeleted bool) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -108,7 +108,8 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	queryFilter := bson.D{{Key: "userId", Value: userObjectID}}
+	filter := bson.D{{Key: "userId", Value: userObjectID}}
+	var queryFilter bson.D
 
 	if !includeDeleted {
 		queryFilter = append(queryFilter, bson.E{Key: "deleted", Value: false})
@@ -122,12 +123,18 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 		queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: filter.Value})
 	}
 
-	cursor, err := s.DB.Find(ctx, queryFilter, findOptions)
+	if includeIsNotDone {
+		filter = append(filter, bson.E{Key: "$or", Value: bson.A{bson.D{{Key: "isDone", Value: false}}, queryFilter}})
+	} else {
+		filter = append(filter, queryFilter...)
+	}
+
+	cursor, err := s.DB.Find(ctx, filter, findOptions)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err := s.DB.CountDocuments(ctx, queryFilter)
+	count, err := s.DB.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, err
 	}
