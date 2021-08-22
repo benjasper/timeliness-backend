@@ -134,8 +134,12 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 		return nil, checkForInvalidTokenError(err)
 	}
 
-	event.CalendarEventID = createdEvent.Id
-	event.CalendarType = CalendarTypeGoogleCalendar
+	calEvent := CalendarEvent{
+		CalendarEventID: createdEvent.Id,
+		CalendarType:    CalendarTypeGoogleCalendar,
+	}
+
+	event.CalendarEvents = append(event.CalendarEvents, calEvent)
 
 	return event, nil
 }

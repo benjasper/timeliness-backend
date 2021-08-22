@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
@@ -22,6 +23,23 @@ type Handler struct {
 	UserRepository  users.UserRepositoryInterface
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
+}
+
+func (handler *Handler) getAllRelevantUsers(ctx context.Context, owner *users.User, task *Task) ([]*users.User, error) {
+	relevantUsers := []*users.User{owner}
+	for _, collaborator := range task.Collaborators {
+
+		// TODO make parallel
+		// TODO Check if it actually is a contact
+		collaboratorUser, err := handler.UserRepository.FindByID(ctx, collaborator.UserID.Hex())
+		if err != nil {
+			return nil, err
+		}
+
+		relevantUsers = append(relevantUsers, collaboratorUser)
+	}
+
+	return relevantUsers, nil
 }
 
 // TaskAdd is the route for adding a task
@@ -59,7 +77,14 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		}
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
+	relevantUsers, err := handler.getAllRelevantUsers(request.Context(), user, &task)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), relevantUsers, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -110,7 +135,14 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
+	relevantUsers, err := handler.getAllRelevantUsers(request.Context(), user, (*Task)(task))
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), relevantUsers, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -213,13 +245,13 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	if workUnit.ScheduledAt != original.ScheduledAt {
+	if workUnit.ScheduledAt.Date != original.ScheduledAt.Date {
 		// TODO Update the event of the work unit
 
 		workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
 	}
 
-	if workUnit.ScheduledAt == original.ScheduledAt && workUnit.Workload != original.Workload {
+	if workUnit.ScheduledAt.Date == original.ScheduledAt.Date && workUnit.Workload != original.Workload {
 		// TODO Reschedule this work unit
 	}
 
@@ -250,7 +282,14 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	task.WorkUnits[index] = workUnit
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
+	relevantUsers, err := handler.getAllRelevantUsers(request.Context(), user, (*Task)(task))
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), relevantUsers, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -291,7 +330,14 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
+	relevantUsers, err := handler.getAllRelevantUsers(request.Context(), user, &task)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), relevantUsers, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -565,7 +611,14 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
+	relevantUsers, err := handler.getAllRelevantUsers(request.Context(), user, (*Task)(task))
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not find user", err)
+		return
+	}
+
+	planning, err := NewPlanningController(request.Context(), relevantUsers, handler.UserRepository, handler.TaskRepository, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)

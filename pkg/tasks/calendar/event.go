@@ -1,5 +1,7 @@
 package calendar
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
 // Type declares in which calendar implementation an event is persisted
 type Type string
 
@@ -17,8 +19,13 @@ type Event struct {
 	Blocking    bool     `json:"-" bson:"blocking"`
 	Deleted     bool     `json:"-" bson:"deleted"`
 
-	CalendarType    Type   `json:"-" bson:"calendarType"`
-	CalendarEventID string `json:"-" bson:"calendarEventID"`
+	CalendarEvents []CalendarEvent `json:"-" bson:"calendarEvents"`
+}
+
+type CalendarEvent struct {
+	CalendarType    Type               `json:"-" bson:"calendarType"`
+	CalendarEventID string             `json:"-" bson:"calendarEventID"`
+	UserID          primitive.ObjectID `json:"-" bson:"userID"`
 }
 
 // Calendar represents a calendar of any source
