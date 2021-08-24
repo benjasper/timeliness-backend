@@ -2,11 +2,12 @@ package tasks
 
 import (
 	"context"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"reflect"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -14,7 +15,7 @@ import (
 func TestNewPlanningController(t *testing.T) {
 	type args struct {
 		ctx            context.Context
-		u              *users.User
+		owner          *users.User
 		userService    users.UserRepositoryInterface
 		taskRepository TaskRepositoryInterface
 		logger         logger.Interface
@@ -29,7 +30,7 @@ func TestNewPlanningController(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewPlanningController(tt.args.ctx, tt.args.u, tt.args.userService, tt.args.taskRepository, tt.args.logger)
+			got, err := NewPlanningController(tt.args.ctx, tt.args.owner, tt.args.userService, tt.args.taskRepository, tt.args.logger)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewPlanningController() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -43,11 +44,15 @@ func TestNewPlanningController(t *testing.T) {
 
 func TestPlanningController_DeleteTask(t *testing.T) {
 	type fields struct {
-		calendarRepository calendar.RepositoryInterface
-		userRepository     users.UserRepositoryInterface
-		taskRepository     TaskRepositoryInterface
-		ctx                context.Context
-		logger             logger.Interface
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
 	}
 	type args struct {
 		task *Task
@@ -63,11 +68,15 @@ func TestPlanningController_DeleteTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &PlanningController{
-				calendarRepository: tt.fields.calendarRepository,
-				userRepository:     tt.fields.userRepository,
-				taskRepository:     tt.fields.taskRepository,
-				ctx:                tt.fields.ctx,
-				logger:             tt.fields.logger,
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
 			}
 			if err := c.DeleteTask(tt.args.task); (err != nil) != tt.wantErr {
 				t.Errorf("DeleteTask() error = %v, wantErr %v", err, tt.wantErr)
@@ -78,21 +87,25 @@ func TestPlanningController_DeleteTask(t *testing.T) {
 
 func TestPlanningController_RescheduleWorkUnit(t *testing.T) {
 	type fields struct {
-		calendarRepository calendar.RepositoryInterface
-		userRepository     users.UserRepositoryInterface
-		taskRepository     TaskRepositoryInterface
-		ctx                context.Context
-		logger             logger.Interface
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
 	}
 	type args struct {
-		t     *TaskUpdate
-		w     *WorkUnit
-		index int
+		t *TaskUpdate
+		w *WorkUnit
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		args    args
+		want    *TaskUpdate
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -100,14 +113,23 @@ func TestPlanningController_RescheduleWorkUnit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &PlanningController{
-				calendarRepository: tt.fields.calendarRepository,
-				userRepository:     tt.fields.userRepository,
-				taskRepository:     tt.fields.taskRepository,
-				ctx:                tt.fields.ctx,
-				logger:             tt.fields.logger,
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
 			}
-			if _, err := c.RescheduleWorkUnit(tt.args.t, tt.args.w); (err != nil) != tt.wantErr {
+			got, err := c.RescheduleWorkUnit(tt.args.t, tt.args.w)
+			if (err != nil) != tt.wantErr {
 				t.Errorf("RescheduleWorkUnit() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("RescheduleWorkUnit() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -115,11 +137,15 @@ func TestPlanningController_RescheduleWorkUnit(t *testing.T) {
 
 func TestPlanningController_ScheduleTask(t *testing.T) {
 	type fields struct {
-		calendarRepository calendar.RepositoryInterface
-		userRepository     users.UserRepositoryInterface
-		taskRepository     TaskRepositoryInterface
-		ctx                context.Context
-		logger             logger.Interface
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
 	}
 	type args struct {
 		t *Task
@@ -128,6 +154,7 @@ func TestPlanningController_ScheduleTask(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
+		want    *Task
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -135,55 +162,23 @@ func TestPlanningController_ScheduleTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &PlanningController{
-				calendarRepository: tt.fields.calendarRepository,
-				userRepository:     tt.fields.userRepository,
-				taskRepository:     tt.fields.taskRepository,
-				ctx:                tt.fields.ctx,
-				logger:             tt.fields.logger,
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
 			}
-			if _, err := c.ScheduleTask(tt.args.t); (err != nil) != tt.wantErr {
-				t.Errorf("ScheduleTask() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestPlanningController_SuggestTimeslot(t *testing.T) {
-	type fields struct {
-		calendarRepository calendar.RepositoryInterface
-		userRepository     users.UserRepositoryInterface
-		taskRepository     TaskRepositoryInterface
-		ctx                context.Context
-		logger             logger.Interface
-	}
-	type args struct {
-		window *calendar.TimeWindow
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *[]calendar.Timespan
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &PlanningController{
-				calendarRepository: tt.fields.calendarRepository,
-				userRepository:     tt.fields.userRepository,
-				taskRepository:     tt.fields.taskRepository,
-				ctx:                tt.fields.ctx,
-				logger:             tt.fields.logger,
-			}
-			got, err := c.SuggestTimeslot(tt.args.window)
+			got, err := c.ScheduleTask(tt.args.t)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("SuggestTimeslot() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ScheduleTask() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("SuggestTimeslot() got = %v, want %v", got, tt.want)
+				t.Errorf("ScheduleTask() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -191,11 +186,15 @@ func TestPlanningController_SuggestTimeslot(t *testing.T) {
 
 func TestPlanningController_SyncCalendar(t *testing.T) {
 	type fields struct {
-		calendarRepository calendar.RepositoryInterface
-		userRepository     users.UserRepositoryInterface
-		taskRepository     TaskRepositoryInterface
-		ctx                context.Context
-		logger             logger.Interface
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
 	}
 	type args struct {
 		user       *users.User
@@ -205,6 +204,7 @@ func TestPlanningController_SyncCalendar(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
+		want    *users.User
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -212,14 +212,67 @@ func TestPlanningController_SyncCalendar(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &PlanningController{
-				calendarRepository: tt.fields.calendarRepository,
-				userRepository:     tt.fields.userRepository,
-				taskRepository:     tt.fields.taskRepository,
-				ctx:                tt.fields.ctx,
-				logger:             tt.fields.logger,
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
 			}
-			if _, err := c.SyncCalendar(tt.args.user, tt.args.calendarID); (err != nil) != tt.wantErr {
+			got, err := c.SyncCalendar(tt.args.user, tt.args.calendarID)
+			if (err != nil) != tt.wantErr {
 				t.Errorf("SyncCalendar() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("SyncCalendar() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlanningController_UpdateEvent(t *testing.T) {
+	type fields struct {
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
+	}
+	type args struct {
+		task  *Task
+		event *calendar.Event
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &PlanningController{
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
+			}
+			if err := c.UpdateEvent(tt.args.task, tt.args.event); (err != nil) != tt.wantErr {
+				t.Errorf("UpdateEvent() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -227,11 +280,15 @@ func TestPlanningController_SyncCalendar(t *testing.T) {
 
 func TestPlanningController_UpdateTaskTitle(t *testing.T) {
 	type fields struct {
-		calendarRepository calendar.RepositoryInterface
-		userRepository     users.UserRepositoryInterface
-		taskRepository     TaskRepositoryInterface
-		ctx                context.Context
-		logger             logger.Interface
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
 	}
 	type args struct {
 		task            *Task
@@ -248,11 +305,15 @@ func TestPlanningController_UpdateTaskTitle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &PlanningController{
-				calendarRepository: tt.fields.calendarRepository,
-				userRepository:     tt.fields.userRepository,
-				taskRepository:     tt.fields.taskRepository,
-				ctx:                tt.fields.ctx,
-				logger:             tt.fields.logger,
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
 			}
 			if err := c.UpdateTaskTitle(tt.args.task, tt.args.updateWorkUnits); (err != nil) != tt.wantErr {
 				t.Errorf("UpdateTaskTitle() error = %v, wantErr %v", err, tt.wantErr)
@@ -261,18 +322,164 @@ func TestPlanningController_UpdateTaskTitle(t *testing.T) {
 	}
 }
 
-func TestPlanningController_processTaskEventChange(t *testing.T) {
+func TestPlanningController_checkForIntersectingWorkUnits(t *testing.T) {
 	type fields struct {
-		calendarRepository calendar.RepositoryInterface
-		userRepository     users.UserRepositoryInterface
-		taskRepository     TaskRepositoryInterface
-		ctx                context.Context
-		logger             logger.Interface
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
 	}
 	type args struct {
-		event     *calendar.Event
-		userID    string
-		isDeleted bool
+		userID     string
+		event      *calendar.Event
+		workUnitID string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   int
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &PlanningController{
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
+			}
+			if got := c.checkForIntersectingWorkUnits(tt.args.userID, tt.args.event, tt.args.workUnitID); got != tt.want {
+				t.Errorf("checkForIntersectingWorkUnits() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlanningController_getAllRelevantUsers(t *testing.T) {
+	type fields struct {
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
+	}
+	type args struct {
+		task *Task
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    []*users.User
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &PlanningController{
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
+			}
+			got, err := c.getAllRelevantUsers(tt.args.task)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getAllRelevantUsers() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getAllRelevantUsers() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlanningController_getRepositoryForUser(t *testing.T) {
+	type fields struct {
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
+	}
+	type args struct {
+		u *users.User
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    calendar.RepositoryInterface
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &PlanningController{
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
+			}
+			got, err := c.getRepositoryForUser(tt.args.u)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getRepositoryForUser() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getRepositoryForUser() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlanningController_processTaskEventChange(t *testing.T) {
+	type fields struct {
+		calendarRepositories map[string]calendar.RepositoryInterface
+		userRepository       users.UserRepositoryInterface
+		taskRepository       TaskRepositoryInterface
+		ctx                  context.Context
+		logger               logger.Interface
+		constraint           *calendar.FreeConstraint
+		taskMutexMap         sync.Map
+		owner                *users.User
+		userCache            *lru.Cache
+	}
+	type args struct {
+		event  *calendar.Event
+		userID string
 	}
 	tests := []struct {
 		name   string
@@ -283,21 +490,16 @@ func TestPlanningController_processTaskEventChange(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &PlanningController{
-				calendarRepository: tt.fields.calendarRepository,
-				userRepository:     tt.fields.userRepository,
-				taskRepository:     tt.fields.taskRepository,
-				ctx:                tt.fields.ctx,
-				logger:             tt.fields.logger,
-			}
-
-			task, err := c.taskRepository.FindByCalendarEventID(context.Background(), tt.args.event.CalendarEventID, tt.args.userID, tt.args.isDeleted)
-			if err != nil {
-				return
-			}
-
-			if !reflect.DeepEqual(task.DueAt, tt.args.event) {
-				t.Errorf("dueAt event %s doesn't equal input event %s", task.DueAt.Date, tt.args.event.Date)
+			_ = &PlanningController{
+				calendarRepositories: tt.fields.calendarRepositories,
+				userRepository:       tt.fields.userRepository,
+				taskRepository:       tt.fields.taskRepository,
+				ctx:                  tt.fields.ctx,
+				logger:               tt.fields.logger,
+				constraint:           tt.fields.constraint,
+				taskMutexMap:         tt.fields.taskMutexMap,
+				owner:                tt.fields.owner,
+				userCache:            tt.fields.userCache,
 			}
 		})
 	}
@@ -333,13 +535,11 @@ func Test_renderDueEventTitle(t *testing.T) {
 		args args
 		want string
 	}{
-		{
-			"Should include name", args{&Task{Name: "Testtask 1"}}, "Testtask 1",
-		},
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := renderDueEventTitle(tt.args.task); !strings.Contains(got, tt.want) {
+			if got := renderDueEventTitle(tt.args.task); got != tt.want {
 				t.Errorf("renderDueEventTitle() = %v, want %v", got, tt.want)
 			}
 		})
@@ -355,14 +555,12 @@ func Test_renderWorkUnitEventTitle(t *testing.T) {
 		args args
 		want string
 	}{
-		{
-			"Should include name", args{&Task{Name: "Testtask 1"}}, "Testtask 1",
-		},
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := renderWorkUnitEventTitle(tt.args.task); !strings.Contains(got, tt.want) {
-				t.Errorf("renderWorkUnitEventTitle() = %v, should include %v", got, tt.want)
+			if got := renderWorkUnitEventTitle(tt.args.task); got != tt.want {
+				t.Errorf("renderWorkUnitEventTitle() = %v, want %v", got, tt.want)
 			}
 		})
 	}

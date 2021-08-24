@@ -125,7 +125,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), u, handler.UserService, handler.TaskService, handler.Logger)
+	googleCalendarRepository, err := calendar.NewGoogleCalendarRepository(request.Context(), u, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -137,7 +137,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		if env != "prod" {
 			continue
 		}
-		u, err = planning.calendarRepository.WatchCalendar(sync.CalendarID, u)
+		u, err = googleCalendarRepository.WatchCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with calendar notification registration", err)
@@ -238,7 +238,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 }
 
 func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time time.Time) {
-	planning, err := NewPlanningController(context.Background(), user, handler.UserService, handler.TaskService, handler.Logger)
+	calendarRepository, err := calendar.NewGoogleCalendarRepository(context.Background(), user, handler.Logger)
 	if err != nil {
 		handler.Logger.Error("Problem while processing user for sync renewal", err)
 		return
@@ -249,7 +249,7 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			continue
 		}
 
-		user, err := planning.calendarRepository.WatchCalendar(sync.CalendarID, user)
+		user, err := calendarRepository.WatchCalendar(sync.CalendarID, user)
 		if err != nil {
 			handler.Logger.Error("Problem while trying to renew sync", err)
 			return

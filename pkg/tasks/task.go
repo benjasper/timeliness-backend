@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// RoleGuest guest role can only view the task and not edit it
+const RoleGuest = "guest"
+
+// RoleEditor can edit the description and title
+const RoleEditor = "editor"
+
+// RoleMaintainer can edit everything
+const RoleMaintainer = "maintainer"
+
+// Role is the constants starting with role
+type Role string
+
 // Task is the model for a task
 type Task struct {
 	// TODO: More validation
@@ -71,8 +83,10 @@ type TaskUpdate struct {
 	WorkUnits       WorkUnits      `json:"-" bson:"workUnits"`
 }
 
+// Collaborator is a contact that is part of a task
 type Collaborator struct {
-	UserID primitive.ObjectID
+	UserID primitive.ObjectID `json:"userId" bson:"userId"`
+	Role   Role               `json:"role" bson:"role"`
 }
 
 // WorkUnits represents an array of WorkUnit
@@ -103,8 +117,10 @@ func (w WorkUnits) RemoveByIndex(index int) WorkUnits {
 // FindByCalendarID finds a single work unit by its calendar event ID
 func (w WorkUnits) FindByCalendarID(calendarID string) (int, *WorkUnit) {
 	for i, unit := range w {
-		if unit.ScheduledAt.CalendarEventID == calendarID {
-			return i, &unit
+		for _, cEvent := range unit.ScheduledAt.CalendarEvents {
+			if cEvent.CalendarEventID == calendarID {
+				return i, &unit
+			}
 		}
 	}
 

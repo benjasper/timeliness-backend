@@ -38,7 +38,11 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User, logger logg
 
 	newRepo.ctx = ctx
 
-	config, _ := google.ReadGoogleConfig()
+	config, err := google.ReadGoogleConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	newRepo.Config = config
 
 	if u.GoogleCalendarConnection.Token.AccessToken == "" {
@@ -148,8 +152,10 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
 	googleEvent := createGoogleEvent(event)
 
+	calendarEvent := event.CalendarEvents.FindByUserID(c.user.ID.Hex())
+
 	_, err := c.Service.Events.
-		Update(c.user.GoogleCalendarConnection.TaskCalendarID, event.CalendarEventID, googleEvent).Do()
+		Update(c.user.GoogleCalendarConnection.TaskCalendarID, calendarEvent.CalendarEventID, googleEvent).Do()
 	if err != nil {
 		return checkForInvalidTokenError(err)
 	}
@@ -211,10 +217,14 @@ func findSyncByID(connection users.GoogleCalendarConnection, ID string) int {
 
 func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 	newEvent := &Event{
-		CalendarEventID: event.Id,
-		Title:           event.Summary,
-		Description:     event.Description,
-		CalendarType:    CalendarTypeGoogleCalendar,
+		Title:       event.Summary,
+		Description: event.Description,
+		CalendarEvents: []CalendarEvent{
+			{
+				CalendarEventID: event.Id,
+				CalendarType:    CalendarTypeGoogleCalendar,
+			},
+		},
 	}
 
 	if event.Source != nil && event.Source.Title == "Timeliness" {
@@ -289,9 +299,13 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 			if item.Status == "cancelled" {
 				// TODO: Figure out what to do with deleted events
 				*eventChannel <- &Event{
-					CalendarEventID: item.Id,
-					CalendarType:    CalendarTypeGoogleCalendar,
-					Deleted:         true,
+					CalendarEvents: []CalendarEvent{
+						{
+							CalendarEventID: item.Id,
+							CalendarType:    CalendarTypeGoogleCalendar,
+						},
+					},
+					Deleted: true,
 				}
 				continue
 			}
@@ -390,7 +404,8 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 
 // DeleteEvent deletes a single Event
 func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
-	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendarID, event.CalendarEventID).Do()
+	calendarEvent := event.CalendarEvents.FindByCalendarID(c.user.ID.Hex())
+	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendarID, calendarEvent.CalendarEventID).Do()
 	if err != nil {
 		if checkForIsGone(err) == nil {
 			return nil

@@ -19,13 +19,40 @@ type Event struct {
 	Blocking    bool     `json:"-" bson:"blocking"`
 	Deleted     bool     `json:"-" bson:"deleted"`
 
-	CalendarEvents []CalendarEvent `json:"-" bson:"calendarEvents"`
+	CalendarEvents CalendarEvents `json:"-" bson:"calendarEvents"`
 }
 
 type CalendarEvent struct {
 	CalendarType    Type               `json:"-" bson:"calendarType"`
 	CalendarEventID string             `json:"-" bson:"calendarEventID"`
 	UserID          primitive.ObjectID `json:"-" bson:"userID"`
+}
+
+// CalendarEvents is a slice of CalendarEvents
+type CalendarEvents []CalendarEvent
+
+// FindByCalendarID finds a CalendarEvent by its CalendarEventID
+func (c CalendarEvents) FindByCalendarID(ID string) *CalendarEvent {
+	for _, event := range c {
+		if event.CalendarEventID == ID {
+			return &event
+		}
+	}
+
+	return nil
+}
+
+// FindByUserID finds a CalendarEvent by its UserID
+func (c CalendarEvents) FindByUserID(ID string) *CalendarEvent {
+	userID, _ := primitive.ObjectIDFromHex(ID)
+
+	for _, event := range c {
+		if event.UserID == userID {
+			return &event
+		}
+	}
+
+	return nil
 }
 
 // Calendar represents a calendar of any source

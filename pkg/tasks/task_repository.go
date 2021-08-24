@@ -269,8 +269,8 @@ func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calen
 		{Key: "userId", Value: userObjectID},
 		{Key: "deleted", Value: isDeleted},
 		{Key: "$or", Value: bson.A{
-			bson.M{"workUnits.scheduledAt.calendarEventID": calendarEventID},
-			bson.M{"dueAt.calendarEventID": calendarEventID},
+			bson.M{"workUnits.scheduledAt.calendarEvents.calendarEventID": calendarEventID},
+			bson.M{"dueAt.calendarEvents.calendarEventID": calendarEventID},
 		}},
 	})
 
