@@ -27,7 +27,8 @@ type PlanningController struct {
 }
 
 // NewPlanningController constructs a PlanningController that is specific for a user
-func NewPlanningController(ctx context.Context, owner *users.User, userService users.UserRepositoryInterface, taskRepository TaskRepositoryInterface,
+func NewPlanningController(ctx context.Context, owner *users.User, userService users.UserRepositoryInterface,
+	taskRepository TaskRepositoryInterface,
 	logger logger.Interface) (*PlanningController, error) {
 	controller := PlanningController{}
 
@@ -129,7 +130,6 @@ func (c *PlanningController) getAllRelevantUsers(task *Task) ([]*users.User, err
 		wg, ctx := errgroup.WithContext(c.ctx)
 
 		wg.Go(func() error {
-			// TODO Check if it actually is a contact
 			var collaboratorUser *users.User
 			var err error
 
@@ -140,6 +140,20 @@ func (c *PlanningController) getAllRelevantUsers(task *Task) ([]*users.User, err
 				if err != nil {
 					return err
 				}
+
+				found := false
+				for _, contact := range c.owner.Contacts {
+					if contact.UserID == collaboratorUser.ID {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					return fmt.Errorf("user %s is not part of %s's contacts",
+						collaboratorUser.ID.Hex(), c.owner.ID.Hex())
+				}
+
 				c.userCache.Add(collaboratorUser.ID.Hex(), collaboratorUser)
 			}
 
