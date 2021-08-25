@@ -27,7 +27,6 @@ type GoogleCalendarRepository struct {
 	Config     *oauth2.Config
 	Logger     logger.Interface
 	Service    *gcalendar.Service
-	ctx        context.Context
 	user       *users.User
 	apiBaseURL string
 }
@@ -35,8 +34,6 @@ type GoogleCalendarRepository struct {
 // NewGoogleCalendarRepository constructs a GoogleCalendarRepository
 func NewGoogleCalendarRepository(ctx context.Context, u *users.User, logger logger.Interface) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
-
-	newRepo.ctx = ctx
 
 	config, err := google.ReadGoogleConfig()
 	if err != nil {
@@ -100,7 +97,6 @@ func checkForIsGone(err error) error {
 
 // CreateCalendar creates a calendar and returns its id
 func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
-	// calendarId := "refm50ua0bukpdmp52a84cgshk@group.gcalendar.google.com"
 	newCalendar := gcalendar.Calendar{
 		Summary: "Timeliness tasks",
 	}

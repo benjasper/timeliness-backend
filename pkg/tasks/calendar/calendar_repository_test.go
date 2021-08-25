@@ -2,16 +2,30 @@ package calendar
 
 import (
 	"crypto/md5"
+	"errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 )
 
 type MockCalendarRepository struct {
-	Events []*Event
+	Events       []*Event
+	EventsToSync []*Event
+	user         *users.User
+}
+
+func NewMockCalendarRepository(user *users.User) MockCalendarRepository {
+	return MockCalendarRepository{
+		user: user,
+	}
 }
 
 func (r *MockCalendarRepository) findEventByID(ID string) (*Event, int, error) {
 	for i, event := range r.Events {
-		if event.CalendarEventID != ID {
+		calendarEvent := event.CalendarEvents.FindByCalendarID(ID)
+		if calendarEvent == nil {
+			continue
+		}
+
+		if calendarEvent.CalendarEventID != ID {
 			continue
 		}
 		return event, i, nil
@@ -30,15 +44,26 @@ func (r *MockCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Calend
 
 func (r *MockCalendarRepository) NewEvent(event *Event) (*Event, error) {
 	id := ([]byte)(event.Date.Start.String() + event.Title)
-	event.CalendarEventID = string(md5.New().Sum(id))
-	event.CalendarType = "mock-calendar"
+
+	calendarEvent := CalendarEvent{
+		CalendarEventID: string(md5.New().Sum(id)),
+		CalendarType:    "mock-calendar",
+	}
+
+	event.CalendarEvents = append(event.CalendarEvents, calendarEvent)
 
 	r.Events = append(r.Events, event)
 	return event, nil
 }
 
 func (r *MockCalendarRepository) UpdateEvent(event *Event) error {
-	event, i, err := r.findEventByID(event.CalendarEventID)
+	calendarEvent := event.CalendarEvents.FindByUserID(r.user.ID.Hex())
+
+	if calendarEvent == nil {
+		return errors.New("calendar event not found")
+	}
+
+	event, i, err := r.findEventByID(calendarEvent.CalendarEventID)
 	if err != nil {
 		return err
 	}
@@ -49,7 +74,13 @@ func (r *MockCalendarRepository) UpdateEvent(event *Event) error {
 }
 
 func (r *MockCalendarRepository) DeleteEvent(event *Event) error {
-	_, i, err := r.findEventByID(event.CalendarEventID)
+	calendarEvent := event.CalendarEvents.FindByUserID(r.user.ID.Hex())
+
+	if calendarEvent == nil {
+		return errors.New("calendar event not found")
+	}
+
+	_, i, err := r.findEventByID(calendarEvent.CalendarEventID)
 	if err != nil {
 		return err
 	}
@@ -71,5 +102,13 @@ func (r *MockCalendarRepository) WatchCalendar(calendarID string, user *users.Us
 }
 
 func (r *MockCalendarRepository) SyncEvents(calendarID string, eventChannel *chan *Event, errorChannel *chan error, userChannel *chan *users.User) {
-	return
+	defer close(*eventChannel)
+	defer close(*errorChannel)
+	defer close(*userChannel)
+
+	for _, event := range r.EventsToSync {
+		*eventChannel <- event
+	}
+
+	*userChannel <- r.user
 }
