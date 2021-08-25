@@ -84,6 +84,11 @@ func main() {
 		secret = "local-secret"
 	}
 
+	userCache, err := tasks.NewUserCache()
+	if err != nil {
+		logging.Fatal(err)
+	}
+
 	responseManager := communication.ResponseManager{Logger: logging}
 	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
 
@@ -92,15 +97,18 @@ func main() {
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
 	// taskRepository.Subscribe(&notificationController)
 
+	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, userCache)
+
 	userHandler := users.Handler{UserRepository: userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
-		TaskService: &taskRepository}
+		TaskService: &taskRepository, PlanningService: planningService}
 
 	taskHandler := tasks.Handler{
 		TaskRepository:  &taskRepository,
 		Logger:          logging,
 		ResponseManager: &responseManager,
-		UserRepository:  &userRepository}
+		UserRepository:  &userRepository,
+		PlanningService: planningService}
 
 	tagRepository := tasks.TagRepository{Logger: logging, DB: tagsCollection}
 	tagHandler := tasks.TagHandler{

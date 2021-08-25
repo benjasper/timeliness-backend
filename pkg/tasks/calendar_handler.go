@@ -22,6 +22,7 @@ type CalendarHandler struct {
 	TaskService     *MongoDBTaskRepository
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
+	PlanningService *PlanningService
 }
 
 type calendarsPost struct {
@@ -288,13 +289,6 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 		return
 	}
 
-	planning, err := NewPlanningController(context.Background(), user, handler.UserService, handler.TaskService, handler.Logger)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
-	}
-
 	calendarID := ""
 	calendarIndex := -1
 	for i, sync := range user.GoogleCalendarConnection.CalendarsOfInterest {
@@ -311,10 +305,11 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 		return
 	}
 
-	go func(user *users.User, calendarIndex int, planning *PlanningController) {
+	go func(user *users.User, calendarIndex int) {
 		tries := 0
+		ctx := context.Background()
 		for tries < 3 {
-			result, err := handler.UserService.StartGoogleSync(context.Background(), user, calendarIndex)
+			result, err := handler.UserService.StartGoogleSync(ctx, user, calendarIndex)
 			if err != nil {
 				tries++
 				time.Sleep(5 * time.Second)
@@ -330,7 +325,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			return
 		}
 
-		user, err := planning.SyncCalendar(user, calendarID)
+		user, err := handler.PlanningService.SyncCalendar(ctx, user, calendarID)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
 			// Continue to end sync anyway
@@ -341,5 +336,5 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			handler.Logger.Error(fmt.Sprintf("Could not update user %s to end sync for calendar ID %s", userID, calendarID), err)
 			return
 		}
-	}(user, calendarIndex, planning)
+	}(user, calendarIndex)
 }
