@@ -18,8 +18,9 @@ type PlanningService struct {
 	taskRepository TaskRepositoryInterface
 	logger         logger.Interface
 	constraint     *calendar.FreeConstraint
-	taskMutexMap   sync.Map
-	userCache      *UserDataCache
+	// TODO Replace with Redis... does not scale right now
+	taskMutexMap sync.Map
+	userCache    *UserDataCache
 }
 
 // NewPlanningController constructs a PlanningService that is specific for a user
@@ -690,6 +691,8 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 			go c.processTaskEventChange(ctx, event, user.ID.Hex())
 		case err := <-errorChannel:
 			return nil, err
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }

@@ -307,7 +307,9 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 
 	go func(user *users.User, calendarIndex int) {
 		tries := 0
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+		defer cancel()
+
 		for tries < 3 {
 			result, err := handler.UserService.StartGoogleSync(ctx, user, calendarIndex)
 			if err != nil {
@@ -331,7 +333,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			// Continue to end sync anyway
 		}
 
-		user, err = handler.UserService.EndGoogleSync(context.Background(), user, calendarIndex)
+		user, err = handler.UserService.EndGoogleSync(ctx, user, calendarIndex)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("Could not update user %s to end sync for calendar ID %s", userID, calendarID), err)
 			return
