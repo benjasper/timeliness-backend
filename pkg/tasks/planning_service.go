@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
@@ -18,15 +19,14 @@ type PlanningService struct {
 	taskRepository TaskRepositoryInterface
 	logger         logger.Interface
 	constraint     *calendar.FreeConstraint
-	// TODO Replace with Redis... does not scale right now
-	taskMutexMap sync.Map
-	userCache    *UserDataCache
+	locker         locking.LockerInterface
+	userCache      UserDataCacheInterface
 }
 
 // NewPlanningController constructs a PlanningService that is specific for a user
 func NewPlanningController(userService users.UserRepositoryInterface,
 	taskRepository TaskRepositoryInterface,
-	logger logger.Interface, cache *UserDataCache) *PlanningService {
+	logger logger.Interface, cache UserDataCacheInterface, locker locking.LockerInterface) *PlanningService {
 	controller := PlanningService{}
 
 	location, err := time.LoadLocation("Europe/Berlin")
@@ -39,7 +39,7 @@ func NewPlanningController(userService users.UserRepositoryInterface,
 	controller.taskRepository = taskRepository
 	controller.logger = logger
 	controller.userCache = cache
-	controller.taskMutexMap = sync.Map{}
+	controller.locker = locker
 
 	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
 	controller.constraint = &calendar.FreeConstraint{
@@ -103,7 +103,7 @@ func (c *PlanningService) getRepositoryForUser(ctx context.Context, u *users.Use
 }
 
 func (c *PlanningService) getUserData(ctx context.Context, userID string) (*UserDataCacheEntry, error) {
-	cacheResult, err := c.userCache.Get(userID)
+	cacheResult, err := c.userCache.Get(ctx, userID)
 	if err != nil {
 		user, err := c.userRepository.FindByID(ctx, userID)
 		if err != nil {
@@ -135,7 +135,7 @@ func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task
 			var collaboratorUser *users.User
 			var err error
 
-			cacheResult, err := c.userCache.Get(collaborator.UserID.Hex())
+			cacheResult, err := c.userCache.Get(ctx, collaborator.UserID.Hex())
 			collaboratorUser = cacheResult.User
 			if err != nil {
 				collaboratorUser, err = c.userRepository.FindByID(ctx, collaborator.UserID.Hex())
@@ -161,10 +161,13 @@ func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task
 					return err
 				}
 
-				c.userCache.Add(collaboratorUser.ID.Hex(), &UserDataCacheEntry{
+				err = c.userCache.Add(ctx, collaboratorUser.ID.Hex(), &UserDataCacheEntry{
 					User:               collaboratorUser,
 					CalendarRepository: repository,
 				})
+				if err != nil {
+					return err
+				}
 			}
 
 			mutex.Lock()
@@ -193,19 +196,22 @@ func (c *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) (
 }
 
 // InvalidateUserData should be called in case user data changes that might influence the calendar connection
-func (c *PlanningService) InvalidateUserData(u *users.User) {
-	c.userCache.Remove(u.ID.Hex())
+func (c *PlanningService) InvalidateUserData(ctx context.Context, u *users.User) {
+	_ = c.userCache.Invalidate(ctx, u.ID.Hex())
 }
 
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
 // and pushes or removes events to and from the calendar
 func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, error) {
 	if !t.ID.IsZero() {
-		loaded, _ := c.taskMutexMap.LoadOrStore(t.ID.Hex(), &sync.Mutex{})
-		mutex := loaded.(*sync.Mutex)
+		lock, _ := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
 
-		mutex.Lock()
-		defer mutex.Unlock()
+		defer func(lock locking.LockInterface, ctx context.Context) {
+			err := lock.Release(ctx)
+			if err != nil {
+				c.logger.Error("problem releasing lock", err)
+			}
+		}(lock, ctx)
 	}
 
 	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
@@ -218,7 +224,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 	}
 
 	for _, user := range relevantUsers {
-		userData, err := c.userCache.Get(user.ID.Hex())
+		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
 			return nil, err
 		}
@@ -249,7 +255,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 			var workEvent *calendar.Event
 			for _, user := range relevantUsers {
-				userData, err := c.userCache.Get(user.ID.Hex())
+				userData, err := c.userCache.Get(ctx, user.ID.Hex())
 				if err != nil {
 					return nil, err
 				}
@@ -319,7 +325,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		}
 
 		for _, user := range relevantUsers {
-			userData, err := c.userCache.Get(user.ID.Hex())
+			userData, err := c.userCache.Get(ctx, user.ID.Hex())
 			if err != nil {
 				return nil, err
 			}
@@ -333,7 +339,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		}
 
 		for _, user := range relevantUsers {
-			userData, err := c.userCache.Get(user.ID.Hex())
+			userData, err := c.userCache.Get(ctx, user.ID.Hex())
 			if err != nil {
 				return nil, err
 			}
@@ -355,7 +361,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		var dueEvent *calendar.Event
 		for _, user := range relevantUsers {
-			userData, err := c.userCache.Get(user.ID.Hex())
+			userData, err := c.userCache.Get(ctx, user.ID.Hex())
 			if err != nil {
 				return nil, err
 			}
@@ -381,11 +387,14 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
 func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
-	loaded, _ := c.taskMutexMap.LoadOrStore(t.ID.Hex(), &sync.Mutex{})
-	mutex := loaded.(*sync.Mutex)
+	lock, _ := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
 
-	mutex.Lock()
-	defer mutex.Unlock()
+	defer func(lock locking.LockInterface, ctx context.Context) {
+		err := lock.Release(ctx)
+		if err != nil {
+			c.logger.Error("problem releasing lock", err)
+		}
+	}(lock, ctx)
 
 	// Refresh task, after potential change
 	t, err := c.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
@@ -414,7 +423,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 
 	// TODO Make parallel
 	for _, user := range relevantUsers {
-		userData, err := c.userCache.Get(user.ID.Hex())
+		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
 			return nil, err
 		}
@@ -427,7 +436,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 
 	// TODO Make parallel
 	for _, user := range relevantUsers {
-		userData, err := c.userCache.Get(user.ID.Hex())
+		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
 			return nil, err
 		}
@@ -449,7 +458,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 
 		var workEvent *calendar.Event
 		for _, user := range relevantUsers {
-			userData, err := c.userCache.Get(user.ID.Hex())
+			userData, err := c.userCache.Get(ctx, user.ID.Hex())
 			if err != nil {
 				return nil, err
 			}
@@ -569,7 +578,7 @@ func (c *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 	}
 
 	for _, user := range relevantUsers {
-		userData, err := c.userCache.Get(user.ID.Hex())
+		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
 			return err
 		}
@@ -593,7 +602,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	}
 
 	for _, user := range relevantUsers {
-		userData, err := c.userCache.Get(user.ID.Hex())
+		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
 			return err
 		}
@@ -612,7 +621,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 		unit.ScheduledAt.Title = renderWorkUnitEventTitle(task)
 
 		for _, user := range relevantUsers {
-			userData, err := c.userCache.Get(user.ID.Hex())
+			userData, err := c.userCache.Get(ctx, user.ID.Hex())
 			if err != nil {
 				return err
 			}
@@ -641,7 +650,7 @@ func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 
 	// TODO make these parallel
 	for _, user := range relevantUsers {
-		userData, err := c.userCache.Get(user.ID.Hex())
+		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
 			return err
 		}
@@ -656,7 +665,7 @@ func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 	}
 
 	for _, user := range relevantUsers {
-		userData, err := c.userCache.Get(user.ID.Hex())
+		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
 			return err
 		}
@@ -676,7 +685,7 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
 
-	userData, err := c.userCache.Get(user.ID.Hex())
+	userData, err := c.userCache.Get(ctx, user.ID.Hex())
 	if err != nil {
 		return nil, err
 	}
@@ -709,11 +718,14 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	loaded, _ := c.taskMutexMap.LoadOrStore(task.ID.Hex(), &sync.Mutex{})
-	mutex := loaded.(*sync.Mutex)
+	lock, _ := c.locker.Acquire(ctx, task.ID.Hex(), time.Second*10)
 
-	mutex.Lock()
-	defer mutex.Unlock()
+	defer func(lock locking.LockInterface, ctx context.Context) {
+		err := lock.Release(ctx)
+		if err != nil {
+			c.logger.Error("problem releasing lock", err)
+		}
+	}(lock, ctx)
 
 	// Refresh task, after potential change
 	task, err = c.taskRepository.FindUpdatableByID(ctx, task.ID.Hex(), userID, false)

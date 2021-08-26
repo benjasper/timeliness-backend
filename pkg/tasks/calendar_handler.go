@@ -323,7 +323,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 		}
 
 		if tries >= 3 {
-			handler.Logger.Warning(fmt.Sprintf("Ultimately could not aquire lock for google calendar ID %s after %d tries", calendarID, tries), err)
+			handler.Logger.Warning(fmt.Sprintf("Ultimately could not aquire locking for google calendar ID %s after %d tries", calendarID, tries), err)
 			return
 		}
 

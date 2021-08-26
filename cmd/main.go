@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
@@ -50,7 +52,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	var ctx, cancel = context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	err = client.Connect(ctx)
 	if err != nil {
@@ -73,6 +75,25 @@ func main() {
 
 	logging.Info("Database connected")
 
+	// TODO Change to env var
+	redisClient := redis.NewClient(&redis.Options{
+		Network: "tcp",
+		Addr:    "127.0.0.1:6379",
+	})
+	defer func(redisClient *redis.Client) {
+		err := redisClient.Close()
+		if err != nil {
+			logging.Fatal(err)
+		}
+	}(redisClient)
+
+	pong := redisClient.Ping(ctx)
+	if pong.Err() != nil {
+		logging.Fatal(pong.Err())
+	}
+
+	logging.Info("Redis connected")
+
 	db := client.Database("test")
 
 	userCollection := db.Collection("Users")
@@ -84,10 +105,12 @@ func main() {
 		secret = "local-secret"
 	}
 
-	userCache, err := tasks.NewUserCache()
+	userCache, err := tasks.NewUserCacheRedis(redisClient)
 	if err != nil {
 		logging.Fatal(err)
 	}
+
+	locker := locking.NewLockerRedis(redisClient)
 
 	responseManager := communication.ResponseManager{Logger: logging}
 	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
@@ -97,7 +120,7 @@ func main() {
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
 	// taskRepository.Subscribe(&notificationController)
 
-	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, userCache)
+	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, userCache, locker)
 
 	userHandler := users.Handler{UserRepository: userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
