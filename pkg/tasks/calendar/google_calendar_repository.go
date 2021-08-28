@@ -403,7 +403,11 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 
 // DeleteEvent deletes a single Event
 func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
-	calendarEvent := event.CalendarEvents.FindByCalendarID(c.user.ID.Hex())
+	calendarEvent := event.CalendarEvents.FindByUserID(c.user.ID.Hex())
+	if calendarEvent == nil {
+		return fmt.Errorf("persisted calendar event for user %s could not be found while deleting event", c.user.ID.Hex())
+	}
+
 	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendarID, calendarEvent.CalendarEventID).Do()
 	if err != nil {
 		if checkForIsGone(err) == nil {
