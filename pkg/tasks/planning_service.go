@@ -184,7 +184,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		return nil, err
 	}
 
-	var repositories map[string]calendar.RepositoryInterface
+	repositories := make(map[string]calendar.RepositoryInterface)
 
 	// TODO make TimeWindow thread safe and make this parallel
 	for _, user := range relevantUsers {
@@ -370,7 +370,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 		return nil, err
 	}
 
-	var repositories map[string]calendar.RepositoryInterface
+	repositories := make(map[string]calendar.RepositoryInterface)
 
 	// TODO Make parallel
 	for _, user := range relevantUsers {
@@ -544,7 +544,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 		return err
 	}
 
-	var repositories map[string]calendar.RepositoryInterface
+	repositories := make(map[string]calendar.RepositoryInterface)
 
 	for _, user := range relevantUsers {
 		repository, err := c.getRepositoryForUser(ctx, user)
@@ -590,7 +590,7 @@ func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 		return err
 	}
 
-	var repositories map[string]calendar.RepositoryInterface
+	repositories := make(map[string]calendar.RepositoryInterface)
 
 	// TODO make these parallel
 	for _, user := range relevantUsers {
