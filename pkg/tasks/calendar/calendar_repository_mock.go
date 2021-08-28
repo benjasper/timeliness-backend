@@ -6,12 +6,14 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 )
 
+// MockCalendarRepository is a calendar repository for testing
 type MockCalendarRepository struct {
 	Events       []*Event
 	EventsToSync []*Event
 	User         *users.User
 }
 
+// NewMockCalendarRepository builds a new MockCalendarRepository
 func NewMockCalendarRepository(user *users.User) MockCalendarRepository {
 	return MockCalendarRepository{
 		User: user,
@@ -34,18 +36,21 @@ func (r *MockCalendarRepository) findEventByID(ID string) (*Event, int, error) {
 	return nil, -1, nil
 }
 
+// CreateCalendar creates a test calendar
 func (r *MockCalendarRepository) CreateCalendar() (string, error) {
 	return "test", nil
 }
 
+// GetAllCalendarsOfInterest is not implemented yet
 func (r *MockCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Calendar, error) {
 	panic("implement me")
 }
 
+// NewEvent adds a new event
 func (r *MockCalendarRepository) NewEvent(event *Event) (*Event, error) {
 	id := ([]byte)(event.Date.Start.String() + event.Title)
 
-	calendarEvent := CalendarEvent{
+	calendarEvent := PersistedEvent{
 		CalendarEventID: string(md5.New().Sum(id)),
 		CalendarType:    "mock-calendar",
 		UserID:          r.User.ID,
@@ -57,6 +62,7 @@ func (r *MockCalendarRepository) NewEvent(event *Event) (*Event, error) {
 	return event, nil
 }
 
+// UpdateEvent updates an existing event
 func (r *MockCalendarRepository) UpdateEvent(event *Event) error {
 	calendarEvent := event.CalendarEvents.FindByUserID(r.User.ID.Hex())
 
@@ -74,6 +80,7 @@ func (r *MockCalendarRepository) UpdateEvent(event *Event) error {
 	return nil
 }
 
+// DeleteEvent deletes an Event
 func (r *MockCalendarRepository) DeleteEvent(event *Event) error {
 	calendarEvent := event.CalendarEvents.FindByUserID(r.User.ID.Hex())
 
@@ -90,6 +97,7 @@ func (r *MockCalendarRepository) DeleteEvent(event *Event) error {
 	return nil
 }
 
+// AddBusyToWindow adds busy times
 func (r *MockCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 	for _, event := range r.Events {
 		window.AddToBusy(event.Date)
@@ -98,10 +106,12 @@ func (r *MockCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 	return nil
 }
 
+// WatchCalendar is not implemented yet
 func (r *MockCalendarRepository) WatchCalendar(calendarID string, user *users.User) (*users.User, error) {
 	return nil, nil
 }
 
+// SyncEvents returns the events in EventsToSync
 func (r *MockCalendarRepository) SyncEvents(calendarID string, user *users.User, eventChannel *chan *Event, errorChannel *chan error, userChannel *chan *users.User) {
 	defer close(*eventChannel)
 	defer close(*errorChannel)

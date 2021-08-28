@@ -6,8 +6,8 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 type Type string
 
 const (
-	// CalendarTypeGoogleCalendar is different calendar implementation enum
-	CalendarTypeGoogleCalendar Type = "google_calendar"
+	// PersistedCalendarTypeGoogleCalendar is different calendar implementation enum
+	PersistedCalendarTypeGoogleCalendar Type = "google_calendar"
 )
 
 // Event represents a simple calendar event
@@ -19,20 +19,21 @@ type Event struct {
 	Blocking    bool     `json:"-" bson:"blocking"`
 	Deleted     bool     `json:"-" bson:"deleted"`
 
-	CalendarEvents CalendarEvents `json:"-" bson:"calendarEvents"`
+	CalendarEvents PersistedEvents `json:"-" bson:"calendarEvents"`
 }
 
-type CalendarEvent struct {
+// PersistedEvent represents an event persistent in a users calendar
+type PersistedEvent struct {
 	CalendarType    Type               `json:"-" bson:"calendarType"`
 	CalendarEventID string             `json:"-" bson:"calendarEventID"`
 	UserID          primitive.ObjectID `json:"-" bson:"userID"`
 }
 
-// CalendarEvents is a slice of CalendarEvents
-type CalendarEvents []CalendarEvent
+// PersistedEvents is a slice of PersistedEvents
+type PersistedEvents []PersistedEvent
 
-// FindByCalendarID finds a CalendarEvent by its CalendarEventID
-func (c CalendarEvents) FindByCalendarID(ID string) *CalendarEvent {
+// FindByCalendarID finds a PersistedEvent by its CalendarEventID
+func (c PersistedEvents) FindByCalendarID(ID string) *PersistedEvent {
 	for _, event := range c {
 		if event.CalendarEventID == ID {
 			return &event
@@ -42,8 +43,8 @@ func (c CalendarEvents) FindByCalendarID(ID string) *CalendarEvent {
 	return nil
 }
 
-// FindByUserID finds a CalendarEvent by its UserID
-func (c CalendarEvents) FindByUserID(ID string) *CalendarEvent {
+// FindByUserID finds a PersistedEvent by its UserID
+func (c PersistedEvents) FindByUserID(ID string) *PersistedEvent {
 	userID, _ := primitive.ObjectIDFromHex(ID)
 
 	for _, event := range c {

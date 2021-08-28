@@ -18,17 +18,19 @@ var now = time.Now
 
 // The PlanningService combines the calendar and task implementations
 type PlanningService struct {
-	userRepository users.UserRepositoryInterface
-	taskRepository TaskRepositoryInterface
-	logger         logger.Interface
-	constraint     *calendar.FreeConstraint
-	locker         locking.LockerInterface
+	userRepository            users.UserRepositoryInterface
+	taskRepository            TaskRepositoryInterface
+	logger                    logger.Interface
+	constraint                *calendar.FreeConstraint
+	locker                    locking.LockerInterface
+	calendarRepositoryManager *CalendarRepositoryManager
 }
 
 // NewPlanningController constructs a PlanningService that is specific for a user
 func NewPlanningController(userService users.UserRepositoryInterface,
 	taskRepository TaskRepositoryInterface,
-	logger logger.Interface, locker locking.LockerInterface) *PlanningService {
+	logger logger.Interface, locker locking.LockerInterface,
+	calendarRepositoryManager *CalendarRepositoryManager) *PlanningService {
 	controller := PlanningService{}
 
 	location, err := time.LoadLocation("Europe/Berlin")
@@ -41,6 +43,7 @@ func NewPlanningController(userService users.UserRepositoryInterface,
 	controller.taskRepository = taskRepository
 	controller.logger = logger
 	controller.locker = locker
+	controller.calendarRepositoryManager = calendarRepositoryManager
 
 	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
 	controller.constraint = &calendar.FreeConstraint{
@@ -58,49 +61,6 @@ func NewPlanningController(userService users.UserRepositoryInterface,
 	}
 
 	return &controller
-}
-
-// setupGoogleRepository manages token refreshing and calendar creation
-func setupGoogleRepository(ctx context.Context, u *users.User, userService users.UserRepositoryInterface, logger logger.Interface) (*calendar.GoogleCalendarRepository, error) {
-	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
-	calendarRepository, err := calendar.NewGoogleCalendarRepository(context.Background(), u, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	if oldAccessToken != u.GoogleCalendarConnection.Token.AccessToken {
-		err := userService.Update(ctx, u)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if u.GoogleCalendarConnection.TaskCalendarID == "" {
-		calendarID, err := calendarRepository.CreateCalendar()
-		if err != nil {
-			return nil, err
-		}
-
-		u.GoogleCalendarConnection.TaskCalendarID = calendarID
-		u.GoogleCalendarConnection.CalendarsOfInterest = append(u.GoogleCalendarConnection.CalendarsOfInterest,
-			users.GoogleCalendarSync{CalendarID: calendarID})
-		err = userService.Update(ctx, u)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return calendarRepository, nil
-}
-
-func (c *PlanningService) getRepositoryForUser(ctx context.Context, u *users.User) (calendar.RepositoryInterface, error) {
-	// TODO: Figure out which calendarRepository to use
-	repository, err := setupGoogleRepository(ctx, u, c.userRepository, c.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	return repository, nil
 }
 
 func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task *Task, initializeWithOwner *users.User) ([]*users.User, error) {
@@ -188,7 +148,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 	// TODO make TimeWindow thread safe and make this parallel
 	for _, user := range relevantUsers {
-		repository, err := c.getRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -374,7 +334,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 
 	// TODO Make parallel
 	for _, user := range relevantUsers {
-		repository, err := c.getRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -521,7 +481,7 @@ func (c *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 	}
 
 	for _, user := range relevantUsers {
-		repository, err := c.getRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -547,7 +507,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	repositories := make(map[string]calendar.RepositoryInterface)
 
 	for _, user := range relevantUsers {
-		repository, err := c.getRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -594,7 +554,7 @@ func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 
 	// TODO make these parallel
 	for _, user := range relevantUsers {
-		repository, err := c.getRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -626,7 +586,7 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
 
-	calendarRepository, err := c.getRepositoryForUser(ctx, user)
+	calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}

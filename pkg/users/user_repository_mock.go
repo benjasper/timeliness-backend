@@ -6,15 +6,18 @@ import (
 	"time"
 )
 
+// MockUserRepository is a user repository for testing
 type MockUserRepository struct {
 	Users []*User
 }
 
+// Add adds a user
 func (r *MockUserRepository) Add(ctx context.Context, user *User) error {
 	r.Users = append(r.Users, user)
 	return nil
 }
 
+// FindByID finds a user
 func (r *MockUserRepository) FindByID(ctx context.Context, id string) (*User, error) {
 	for _, user := range r.Users {
 		if user.ID.Hex() == id {
@@ -25,6 +28,7 @@ func (r *MockUserRepository) FindByID(ctx context.Context, id string) (*User, er
 	return nil, errors.New("user not found")
 }
 
+// FindByEmail finds a user by email
 func (r *MockUserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	for _, user := range r.Users {
 		if user.Email == email {
@@ -35,6 +39,7 @@ func (r *MockUserRepository) FindByEmail(ctx context.Context, email string) (*Us
 	return nil, errors.New("user not found")
 }
 
+// FindByGoogleStateToken finds a user by a GoogleStateToken
 func (r *MockUserRepository) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
 	for _, user := range r.Users {
 		if user.GoogleCalendarConnection.StateToken == stateToken {
@@ -45,10 +50,12 @@ func (r *MockUserRepository) FindByGoogleStateToken(ctx context.Context, stateTo
 	return nil, errors.New("user not found")
 }
 
+// FindBySyncExpiration is not implemented yet
 func (r *MockUserRepository) FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error) {
 	panic("implement me")
 }
 
+// Update updates a user
 func (r *MockUserRepository) Update(ctx context.Context, user *User) error {
 	for i, user := range r.Users {
 		if user.ID == user.ID {
@@ -60,6 +67,7 @@ func (r *MockUserRepository) Update(ctx context.Context, user *User) error {
 	return errors.New("user not found")
 }
 
+// Remove removes a user
 func (r *MockUserRepository) Remove(ctx context.Context, id string) error {
 	var found = false
 

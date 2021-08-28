@@ -120,12 +120,18 @@ func main() {
 	responseManager := communication.ResponseManager{Logger: logging}
 	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
 
+	calendarRepositoryManager, err := tasks.NewCalendarRepositoryManager(10, &userRepository, logging)
+	if err != nil {
+		logging.Fatal(err)
+		return
+	}
+
 	// notificationController := notifications.NewNotificationController(logging, userRepository)
 
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
 	// taskRepository.Subscribe(&notificationController)
 
-	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, locker)
+	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, locker, calendarRepositoryManager)
 
 	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,

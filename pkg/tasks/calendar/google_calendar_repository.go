@@ -134,9 +134,9 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 		return nil, checkForInvalidTokenError(err)
 	}
 
-	calEvent := CalendarEvent{
+	calEvent := PersistedEvent{
 		CalendarEventID: createdEvent.Id,
-		CalendarType:    CalendarTypeGoogleCalendar,
+		CalendarType:    PersistedCalendarTypeGoogleCalendar,
 		UserID:          c.user.ID,
 	}
 
@@ -216,10 +216,10 @@ func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event) (*
 	newEvent := &Event{
 		Title:       event.Summary,
 		Description: event.Description,
-		CalendarEvents: []CalendarEvent{
+		CalendarEvents: []PersistedEvent{
 			{
 				CalendarEventID: event.Id,
-				CalendarType:    CalendarTypeGoogleCalendar,
+				CalendarType:    PersistedCalendarTypeGoogleCalendar,
 				UserID:          c.user.ID,
 			},
 		},
@@ -297,10 +297,10 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 			if item.Status == "cancelled" {
 				// TODO: Figure out what to do with deleted events
 				*eventChannel <- &Event{
-					CalendarEvents: []CalendarEvent{
+					CalendarEvents: []PersistedEvent{
 						{
 							CalendarEventID: item.Id,
-							CalendarType:    CalendarTypeGoogleCalendar,
+							CalendarType:    PersistedCalendarTypeGoogleCalendar,
 						},
 					},
 					Deleted: true,

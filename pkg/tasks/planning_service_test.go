@@ -20,20 +20,10 @@ var primaryUser = users.User{
 
 var log = logger.Logger{}
 
-var userDataCache, _ = NewUserDataCacheMemory(10)
-
 var locker = locking.NewLockerMemory()
 
 func TestPlanningService_ScheduleTask(t *testing.T) {
 	now = func() time.Time { return time.Date(2021, 1, 1, 12, 0, 0, 0, location) }
-
-	err := userDataCache.Add(context.TODO(), primaryUser.ID.Hex(), &UserDataCacheEntry{
-		User:               &primaryUser,
-		CalendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser},
-	})
-	if err != nil {
-		t.Error(err)
-	}
 
 	taskID := primitive.NewObjectID()
 	taskRepo := &MockTaskRepository{Tasks: []*Task{
@@ -61,15 +51,24 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 		},
 	}
 
+	calendarRepository := calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
+
+	var calendarRepositoryManager = CalendarRepositoryManager{
+		userRepository: &userRepo,
+		logger:         log,
+		overridenRepo:  &calendarRepository,
+	}
+
 	task, err := taskRepo.FindByID(context.TODO(), taskID.Hex(), primaryUser.ID.Hex(), false)
 	if err != nil {
 		t.Error(err)
 	}
 
 	service := PlanningService{
-		userRepository: &userRepo,
-		taskRepository: taskRepo,
-		logger:         log, userCache: userDataCache, locker: locker, constraint: &calendar.FreeConstraint{
+		userRepository:            &userRepo,
+		taskRepository:            taskRepo,
+		calendarRepositoryManager: &calendarRepositoryManager,
+		logger:                    log, locker: locker, constraint: &calendar.FreeConstraint{
 			Location: location,
 			AllowedTimeSpans: []calendar.Timespan{
 				{
