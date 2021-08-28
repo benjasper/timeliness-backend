@@ -50,12 +50,9 @@ type GoogleCalendarConnection struct {
 
 // GoogleCalendarSync holds information about a calendar that will be used to determine busy times
 type GoogleCalendarSync struct {
-	CalendarID      string    `json:"-" bson:"calendarId,omitempty"`
-	SyncResourceID  string    `json:"-" bson:"syncResourceId,omitempty"`
-	ChannelID       string    `json:"-" bson:"channelId,omitempty"`
-	SyncToken       string    `json:"-" bson:"syncToken,omitempty"`
-	Expiration      time.Time `json:"-" bson:"expiration,omitempty"`
-	LastSyncStarted time.Time `json:"-" bson:"lastSyncStarted,omitempty"`
-	LastSyncEnded   time.Time `json:"-" bson:"lastSyncEnded,omitempty"`
-	SyncInProgress  bool      `json:"-" bson:"syncInProgress"`
+	CalendarID     string    `json:"-" bson:"calendarId,omitempty"`
+	SyncResourceID string    `json:"-" bson:"syncResourceId,omitempty"`
+	ChannelID      string    `json:"-" bson:"channelId,omitempty"`
+	SyncToken      string    `json:"-" bson:"syncToken,omitempty"`
+	Expiration     time.Time `json:"-" bson:"expiration,omitempty"`
 }

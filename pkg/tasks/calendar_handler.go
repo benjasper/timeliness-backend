@@ -7,6 +7,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
@@ -18,11 +19,12 @@ import (
 
 // CalendarHandler handles all calendar related API calls
 type CalendarHandler struct {
-	UserService     *users.UserRepository
+	UserService     users.UserRepositoryInterface
 	TaskService     *MongoDBTaskRepository
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
 	PlanningService *PlanningService
+	Locker          locking.LockerInterface
 }
 
 type calendarsPost struct {
@@ -306,36 +308,32 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 	}
 
 	go func(user *users.User, calendarIndex int) {
-		tries := 0
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 		defer cancel()
 
-		for tries < 3 {
-			result, err := handler.UserService.StartGoogleSync(ctx, user, calendarIndex)
-			if err != nil {
-				tries++
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			user = result
-			break
-		}
-
-		if tries >= 3 {
-			handler.Logger.Warning(fmt.Sprintf("Ultimately could not aquire locking for google calendar ID %s after %d tries", calendarID, tries), err)
+		lock, err := handler.Locker.Acquire(ctx, user.ID.Hex(), time.Minute*1)
+		if err != nil {
+			handler.Logger.Error(fmt.Sprintf("problem while acquiring lock for user %s", userID), err)
 			return
 		}
 
-		user, err := handler.PlanningService.SyncCalendar(ctx, user, calendarID)
+		defer func(lock locking.LockInterface, ctx context.Context) {
+			err := lock.Release(ctx)
+			if err != nil {
+				handler.Logger.Error(fmt.Sprintf("problem while releasing lock for user %s", userID), err)
+				return
+			}
+		}(lock, ctx)
+
+		user, err = handler.PlanningService.SyncCalendar(ctx, user, calendarID)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
-			// Continue to end sync anyway
+			return
 		}
 
-		user, err = handler.UserService.EndGoogleSync(ctx, user, calendarIndex)
+		err = handler.UserService.Update(ctx, user)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("Could not update user %s to end sync for calendar ID %s", userID, calendarID), err)
+			handler.Logger.Error(fmt.Sprintf("problem updating user %s", userID), err)
 			return
 		}
 	}(user, calendarIndex)

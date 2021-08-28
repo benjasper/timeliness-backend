@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -120,62 +119,6 @@ func (s *UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan t
 		return nil, 0, err
 	}
 	return users, int(count), nil
-}
-
-// StartGoogleSync marks a GoogleCalendarSync as started by writing the syncInProgress flag atomically
-func (s *UserRepository) StartGoogleSync(ctx context.Context, user *User, calendarIndex int) (*User, error) {
-	var u = User{}
-
-	findOptions := options.FindOneAndUpdate()
-	findOptions.SetReturnDocument(options.After)
-
-	result := s.DB.FindOneAndUpdate(ctx, bson.M{
-		"_id": user.ID,
-		fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex): false,
-	},
-		bson.M{
-			"$set": bson.M{
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex):  true,
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.lastSyncStarted", calendarIndex): time.Now()},
-		}, findOptions)
-	if result.Err() != nil {
-		return nil, result.Err()
-	}
-
-	err := result.Decode(&u)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
-}
-
-// EndGoogleSync marks a GoogleCalendarSync as ended by writing the syncInProgress flag atomically
-func (s *UserRepository) EndGoogleSync(ctx context.Context, user *User, calendarIndex int) (*User, error) {
-	var u = User{}
-
-	user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex].SyncInProgress = false
-	user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex].LastSyncEnded = time.Now()
-
-	findOptions := options.FindOneAndUpdate()
-	findOptions.SetReturnDocument(options.After)
-
-	result := s.DB.FindOneAndUpdate(ctx, bson.M{
-		"_id": user.ID,
-	},
-		bson.M{
-			"$set": bson.M{
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d", calendarIndex): user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex],
-			},
-		}, findOptions)
-	if result.Err() != nil {
-		return nil, result.Err()
-	}
-
-	err := result.Decode(&u)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
 }
 
 // Update updates a user

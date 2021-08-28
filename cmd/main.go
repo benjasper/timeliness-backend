@@ -85,7 +85,6 @@ func main() {
 
 	logging.Info("Database connected")
 
-	// TODO Change to env var
 	redisClient := redis.NewClient(&redis.Options{
 		Network:  "tcp",
 		Addr:     redisURL,
@@ -135,7 +134,7 @@ func main() {
 
 	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
-		TaskService: &taskRepository, PlanningService: planningService}
+		TaskService: &taskRepository, PlanningService: planningService, Locker: locker}
 
 	taskHandler := tasks.Handler{
 		TaskRepository:  &taskRepository,

@@ -175,6 +175,19 @@ func (c *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) (
 		if err != nil {
 			return nil, err
 		}
+
+		repository, err := c.getRepositoryForUser(ctx, initializeWithOwner)
+		if err != nil {
+			return nil, err
+		}
+
+		err = c.userCache.Add(ctx, initializeWithOwner.ID.Hex(), &UserDataCacheEntry{
+			User:               initializeWithOwner,
+			CalendarRepository: repository,
+		})
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		initializeWithOwner = userData.User
 	}
@@ -672,12 +685,12 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
 
-	userData, err := c.userCache.Get(ctx, user.ID.Hex())
+	calendarRepository, err := c.getRepositoryForUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
 
-	go userData.CalendarRepository.SyncEvents(calendarID, user, &eventChannel, &errorChannel, &userChannel)
+	go calendarRepository.SyncEvents(calendarID, user, &eventChannel, &errorChannel, &userChannel)
 
 	for {
 		select {
