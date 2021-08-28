@@ -163,7 +163,10 @@ func (c *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) (
 // and pushes or removes events to and from the calendar
 func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, error) {
 	if !t.ID.IsZero() {
-		lock, _ := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+		lock, err := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+		if err != nil {
+			return nil, err
+		}
 
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
@@ -330,7 +333,10 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
 func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
-	lock, _ := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+	lock, err := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+	if err != nil {
+		return nil, err
+	}
 
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
@@ -340,7 +346,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 	}(lock, ctx)
 
 	// Refresh task, after potential change
-	t, err := c.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
+	t, err = c.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
 	if err != nil {
 		return nil, err
 	}
@@ -653,7 +659,11 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	lock, _ := c.locker.Acquire(ctx, task.ID.Hex(), time.Second*10)
+	lock, err := c.locker.Acquire(ctx, task.ID.Hex(), time.Second*10)
+	if err != nil {
+		c.logger.Error("problem acquiring lock", err)
+		return
+	}
 
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
