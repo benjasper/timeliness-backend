@@ -171,7 +171,9 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 			},
 		}}
 
-	_, err := service.SyncCalendar(context.TODO(), &primaryUser, "test")
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*30)
+	defer cancel()
+	_, err := service.SyncCalendar(ctx, &primaryUser, "test")
 	if err != nil {
 		t.Error(err)
 	}

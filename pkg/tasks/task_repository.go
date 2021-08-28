@@ -79,12 +79,12 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate, de
 	}
 
 	result, err := s.DB.UpdateOne(ctx, bson.M{
-		"$or": bson.D{
-			{
-				Key: "userId", Value: task.UserID,
+		"$or": bson.A{
+			bson.D{
+				{Key: "userId", Value: task.UserID},
 			},
-			{
-				Key: "collaborators.userId", Value: task.UserID,
+			bson.D{
+				{Key: "collaborators.userId", Value: task.UserID},
 			},
 		},
 		"_id": task.ID, "deleted": deleted,
