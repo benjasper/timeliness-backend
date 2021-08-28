@@ -22,12 +22,13 @@ type User struct {
 	GoogleCalendarConnection GoogleCalendarConnection `json:"-" bson:"googleCalendarConnection,omitempty"`
 }
 
-// UserLogin is the view for users logging in
+// UserLogin is the view for users logger in
 type UserLogin struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" bson:"password" validate:"required"`
 }
 
+// Contact is a reference to another User
 type Contact struct {
 	UserID             primitive.ObjectID
 	ContactRequestedAt time.Time

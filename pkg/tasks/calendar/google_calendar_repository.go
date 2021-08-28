@@ -137,6 +137,7 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 	calEvent := CalendarEvent{
 		CalendarEventID: createdEvent.Id,
 		CalendarType:    CalendarTypeGoogleCalendar,
+		UserID:          c.user.ID,
 	}
 
 	event.CalendarEvents = append(event.CalendarEvents, calEvent)
@@ -211,7 +212,7 @@ func findSyncByID(connection users.GoogleCalendarConnection, ID string) int {
 	return -1
 }
 
-func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
+func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 	newEvent := &Event{
 		Title:       event.Summary,
 		Description: event.Description,
@@ -219,6 +220,7 @@ func googleEventToEvent(event *gcalendar.Event) (*Event, error) {
 			{
 				CalendarEventID: event.Id,
 				CalendarType:    CalendarTypeGoogleCalendar,
+				UserID:          c.user.ID,
 			},
 		},
 	}
@@ -305,7 +307,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 				}
 				continue
 			}
-			event, err := googleEventToEvent(item)
+			event, err := c.googleEventToEvent(item)
 			if err != nil {
 				*errorChannel <- err
 				return

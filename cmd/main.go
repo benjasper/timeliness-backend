@@ -122,7 +122,7 @@ func main() {
 
 	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, userCache, locker)
 
-	userHandler := users.Handler{UserRepository: userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
+	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
 		TaskService: &taskRepository, PlanningService: planningService}
 
@@ -135,7 +135,7 @@ func main() {
 
 	tagRepository := tasks.TagRepository{Logger: logging, DB: tagsCollection}
 	tagHandler := tasks.TagHandler{
-		Logger: logging, TagRepository: tagRepository, ResponseManager: &responseManager, UserRepository: userRepository,
+		Logger: logging, TagRepository: tagRepository, ResponseManager: &responseManager, UserRepository: &userRepository,
 		TaskRepository: &taskRepository,
 	}
 

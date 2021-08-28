@@ -13,6 +13,9 @@ import (
 	"time"
 )
 
+// now is the current time and is globally available to override it in tests
+var now = time.Now
+
 // The PlanningService combines the calendar and task implementations
 type PlanningService struct {
 	userRepository users.UserRepositoryInterface
@@ -100,28 +103,6 @@ func (c *PlanningService) getRepositoryForUser(ctx context.Context, u *users.Use
 	}
 
 	return repository, nil
-}
-
-func (c *PlanningService) getUserData(ctx context.Context, userID string) (*UserDataCacheEntry, error) {
-	cacheResult, err := c.userCache.Get(ctx, userID)
-	if err != nil {
-		user, err := c.userRepository.FindByID(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-
-		repository, err := c.getRepositoryForUser(ctx, user)
-		if err != nil {
-			return nil, err
-		}
-
-		cacheResult = &UserDataCacheEntry{
-			User:               user,
-			CalendarRepository: repository,
-		}
-	}
-
-	return cacheResult, nil
 }
 
 func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task *Task, initializeWithOwner *users.User) ([]*users.User, error) {
@@ -214,8 +195,8 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		}(lock, ctx)
 	}
 
-	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
+	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := calendar.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 
 	// TODO make TimeWindow threadsafe and make this parallel
 	relevantUsers, err := c.getAllRelevantUsers(ctx, t)
@@ -402,8 +383,8 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 		return nil, err
 	}
 
-	now := time.Now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: now.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
+	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := calendar.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 
 	index, _ := t.WorkUnits.FindByID(w.ID.Hex())
 	if index < 0 {
