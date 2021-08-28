@@ -40,6 +40,16 @@ func main() {
 		databaseURL = "mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"
 	}
 
+	redisURL := os.Getenv("REDIS")
+	if redisURL == "" {
+		redisURL = "localhost:6379"
+	}
+
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	if redisPassword == "" {
+		redisPassword = ""
+	}
+
 	var logging logger.Interface = logger.Logger{}
 	if appEnv == "prod" {
 		logging = logger.NewGoogleCloudLogger()
@@ -77,8 +87,9 @@ func main() {
 
 	// TODO Change to env var
 	redisClient := redis.NewClient(&redis.Options{
-		Network: "tcp",
-		Addr:    "127.0.0.1:6379",
+		Network:  "tcp",
+		Addr:     redisURL,
+		Password: redisPassword,
 	})
 	defer func(redisClient *redis.Client) {
 		err := redisClient.Close()

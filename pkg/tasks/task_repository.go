@@ -78,7 +78,17 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate, de
 		}
 	}
 
-	result, err := s.DB.UpdateOne(ctx, bson.M{"userId": task.UserID, "_id": task.ID, "deleted": deleted}, bson.M{"$set": task})
+	result, err := s.DB.UpdateOne(ctx, bson.M{
+		"$or": bson.D{
+			{
+				Key: "_id", Value: task.UserID,
+			},
+			{
+				Key: "collaborators.userId", Value: task.UserID,
+			},
+		},
+		"_id": task.ID, "deleted": deleted,
+	}, bson.M{"$set": task})
 	if err != nil {
 		return err
 	}
@@ -108,7 +118,16 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	filter := bson.D{{Key: "userId", Value: userObjectID}}
+	filter := bson.D{bson.E{
+		Key: "$or", Value: bson.A{
+			bson.M{
+				"_id": userObjectID,
+			},
+			bson.M{
+				"collaborators.userId": userObjectID,
+			},
+		},
+	}}
 	var queryFilter bson.D
 
 	if !includeDeleted {
@@ -170,7 +189,16 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 
 	offset := page * pageSize
 
-	queryFilters := bson.D{{Key: "userId", Value: userObjectID}}
+	queryFilters := bson.D{bson.E{
+		Key: "$or", Value: bson.A{
+			bson.M{
+				"_id": userObjectID,
+			},
+			bson.M{
+				"collaborators.userId": userObjectID,
+			},
+		},
+	}}
 
 	if !includeDeleted {
 		queryFilters = append(queryFilters, bson.E{Key: "deleted", Value: false})

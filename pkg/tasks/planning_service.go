@@ -108,10 +108,10 @@ func (c *PlanningService) getRepositoryForUser(ctx context.Context, u *users.Use
 func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task *Task, initializeWithOwner *users.User) ([]*users.User, error) {
 	relevantUsers := []*users.User{initializeWithOwner}
 
-	for _, collaborator := range task.Collaborators {
-		mutex := sync.Mutex{}
-		wg, ctx := errgroup.WithContext(ctx)
+	mutex := sync.Mutex{}
+	wg, ctx := errgroup.WithContext(ctx)
 
+	for _, collaborator := range task.Collaborators {
 		wg.Go(func() error {
 			var collaboratorUser *users.User
 			var err error
@@ -168,9 +168,15 @@ func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task
 }
 
 func (c *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) ([]*users.User, error) {
-	initializeWithOwner, err := c.userRepository.FindByID(ctx, task.UserID.Hex())
+	var initializeWithOwner *users.User
+	userData, err := c.userCache.Get(ctx, task.UserID.Hex())
 	if err != nil {
-		return nil, err
+		initializeWithOwner, err = c.userRepository.FindByID(ctx, task.UserID.Hex())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		initializeWithOwner = userData.User
 	}
 
 	return c.getAllRelevantUsersWithOwner(ctx, task, initializeWithOwner)
@@ -198,12 +204,12 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := calendar.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 
-	// TODO make TimeWindow threadsafe and make this parallel
 	relevantUsers, err := c.getAllRelevantUsers(ctx, t)
 	if err != nil {
 		return nil, err
 	}
 
+	// TODO make TimeWindow thread safe and make this parallel
 	for _, user := range relevantUsers {
 		userData, err := c.userCache.Get(ctx, user.ID.Hex())
 		if err != nil {
