@@ -593,12 +593,18 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 
 	go calendarRepository.SyncEvents(calendarID, user, &eventChannel, &errorChannel, &userChannel)
 
+	wg := sync.WaitGroup{}
 	for {
 		select {
 		case user := <-userChannel:
+			wg.Wait()
 			return user, nil
 		case event := <-eventChannel:
-			go c.processTaskEventChange(ctx, event, user.ID.Hex())
+			wg.Add(1)
+			go func(wg *sync.WaitGroup) {
+				c.processTaskEventChange(ctx, event, user.ID.Hex())
+				wg.Done()
+			}(&wg)
 		case err := <-errorChannel:
 			return nil, err
 		case <-ctx.Done():
@@ -626,7 +632,7 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	lock, err := c.locker.Acquire(ctx, task.ID.Hex(), time.Second*10)
 	if err != nil {
-		c.logger.Error("problem acquiring lock", err)
+		c.logger.Error(fmt.Sprintf("problem acquiring lock for task %s", task.ID.Hex()), err)
 		return
 	}
 
