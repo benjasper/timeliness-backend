@@ -115,11 +115,6 @@ func main() {
 		secret = "local-secret"
 	}
 
-	userCache, err := tasks.NewUserCacheRedis(redisClient)
-	if err != nil {
-		logging.Fatal(err)
-	}
-
 	locker := locking.NewLockerRedis(redisClient)
 
 	responseManager := communication.ResponseManager{Logger: logging}
@@ -130,7 +125,7 @@ func main() {
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
 	// taskRepository.Subscribe(&notificationController)
 
-	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, userCache, locker)
+	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, locker)
 
 	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
