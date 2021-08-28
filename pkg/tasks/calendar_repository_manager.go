@@ -7,18 +7,21 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 )
 
+// CalendarRepositoryManager manages calendar repositories. It decided which user needs which repository.
 type CalendarRepositoryManager struct {
 	userRepository users.UserRepositoryInterface
 	logger         logger.Interface
 	overridenRepo  calendar.RepositoryInterface
 }
 
+// NewCalendarRepositoryManager creates a new CalendarRepositoryManager
 func NewCalendarRepositoryManager(cacheSize int, userRepository users.UserRepositoryInterface, logger logger.Interface) (*CalendarRepositoryManager, error) {
 	manager := CalendarRepositoryManager{userRepository: userRepository, logger: logger}
 
 	return &manager, nil
 }
 
+// GetCalendarRepositoryForUser gets the correct calendar repository for a user
 func (m *CalendarRepositoryManager) GetCalendarRepositoryForUser(ctx context.Context, user *users.User) (calendar.RepositoryInterface, error) {
 	// TODO: Figure out which calendarRepository to use
 	if m.overridenRepo != nil {

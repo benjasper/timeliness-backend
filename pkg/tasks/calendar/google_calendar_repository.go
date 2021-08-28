@@ -127,7 +127,7 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 
 // NewEvent creates a new Event in Google Calendar
 func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
-	googleEvent := createGoogleEvent(event)
+	googleEvent := c.createGoogleEvent(event)
 
 	createdEvent, err := c.Service.Events.Insert(c.user.GoogleCalendarConnection.TaskCalendarID, googleEvent).Do()
 	if err != nil {
@@ -147,7 +147,7 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 
 // UpdateEvent updates an existing Google Calendar event
 func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
-	googleEvent := createGoogleEvent(event)
+	googleEvent := c.createGoogleEvent(event)
 
 	calendarEvent := event.CalendarEvents.FindByUserID(c.user.ID.Hex())
 
@@ -301,6 +301,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 						{
 							CalendarEventID: item.Id,
 							CalendarType:    PersistedCalendarTypeGoogleCalendar,
+							UserID:          c.user.ID,
 						},
 					},
 					Deleted: true,
@@ -336,7 +337,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	*userChannel <- user
 }
 
-func createGoogleEvent(event *Event) *gcalendar.Event {
+func (c *GoogleCalendarRepository) createGoogleEvent(event *Event) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
 		DateTime: event.Date.Start.Format(time.RFC3339),
 	}

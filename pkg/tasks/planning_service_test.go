@@ -93,6 +93,90 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 	}
 }
 
+func TestPlanningService_SyncCalendar(t *testing.T) {
+	now = func() time.Time { return time.Date(2021, 1, 1, 12, 0, 0, 0, location) }
+
+	taskID := primitive.NewObjectID()
+	taskRepo := &MockTaskRepository{Tasks: []*Task{
+		{
+			ID:              taskID,
+			UserID:          primaryUser.ID,
+			CreatedAt:       time.Now(),
+			LastModifiedAt:  time.Now(),
+			Deleted:         false,
+			Name:            "Testtask",
+			Description:     "",
+			WorkloadOverall: time.Hour * 4,
+			DueAt: calendar.Event{
+				Date: calendar.Timespan{
+					Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+					End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+				},
+				CalendarEvents: calendar.PersistedEvents{
+					calendar.PersistedEvent{
+						CalendarEventID: "test-123",
+						UserID:          primaryUser.ID,
+						CalendarType:    "mock_calendar",
+					},
+				},
+			},
+		},
+	}}
+
+	userRepo := users.MockUserRepository{
+		Users: []*users.User{
+			&primaryUser,
+		},
+	}
+
+	calendarRepository := calendar.MockCalendarRepository{Events: []*calendar.Event{
+		{Date: calendar.Timespan{
+			Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+			End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+		},
+			Title:      "Testtask is due",
+			IsOriginal: true,
+			Blocking:   false,
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-123",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+	}, User: &primaryUser}
+
+	var calendarRepositoryManager = CalendarRepositoryManager{
+		userRepository: &userRepo,
+		logger:         log,
+		overridenRepo:  &calendarRepository,
+	}
+
+	service := PlanningService{
+		userRepository:            &userRepo,
+		taskRepository:            taskRepo,
+		calendarRepositoryManager: &calendarRepositoryManager,
+		logger:                    log, locker: locker, constraint: &calendar.FreeConstraint{
+			Location: location,
+			AllowedTimeSpans: []calendar.Timespan{
+				{
+					Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
+					End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
+				},
+				{
+					Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
+					End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
+				},
+			},
+		}}
+
+	_, err := service.SyncCalendar(context.TODO(), &primaryUser, "test")
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func testScheduledTask(task *Task) error {
 	if len(task.WorkUnits) == 0 {
 		return errors.New("no workunits were scheduled")

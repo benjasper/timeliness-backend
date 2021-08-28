@@ -609,6 +609,11 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 
 func (c *PlanningService) processTaskEventChange(ctx context.Context, event *calendar.Event, userID string) {
 	calendarEvent := event.CalendarEvents.FindByUserID(userID)
+	if calendarEvent == nil {
+		c.logger.Error("no persisted event", fmt.Errorf("could not find calendar event for user %s", userID))
+		return
+	}
+
 	task, err := c.taskRepository.FindByCalendarEventID(ctx, calendarEvent.CalendarEventID, userID, false)
 	if err != nil {
 		if event.Deleted || event.IsOriginal {
