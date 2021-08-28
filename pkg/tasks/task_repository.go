@@ -81,7 +81,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate, de
 	result, err := s.DB.UpdateOne(ctx, bson.M{
 		"$or": bson.D{
 			{
-				Key: "_id", Value: task.UserID,
+				Key: "userId", Value: task.UserID,
 			},
 			{
 				Key: "collaborators.userId", Value: task.UserID,
@@ -121,7 +121,7 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 	filter := bson.D{{
 		Key: "$or", Value: bson.A{
 			bson.D{
-				{Key: "_id", Value: userObjectID},
+				{Key: "userId", Value: userObjectID},
 			},
 			bson.D{
 				{Key: "collaborators.userId", Value: userObjectID},
@@ -192,7 +192,7 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 	queryFilters := bson.D{{
 		Key: "$or", Value: bson.A{
 			bson.D{
-				{Key: "_id", Value: userObjectID},
+				{Key: "userId", Value: userObjectID},
 			},
 			bson.D{
 				{Key: "collaborators.userId", Value: userObjectID},
