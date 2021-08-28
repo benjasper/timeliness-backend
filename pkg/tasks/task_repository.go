@@ -118,13 +118,13 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	filter := bson.D{bson.E{
-		Key: "$or", Value: bson.A{
-			bson.M{
-				"_id": userObjectID,
+	filter := bson.D{{
+		Key: "$or", Value: bson.D{
+			{
+				Key: "_id", Value: userObjectID,
 			},
-			bson.M{
-				"collaborators.userId": userObjectID,
+			{
+				Key: "collaborators.userId", Value: userObjectID,
 			},
 		},
 	}}
@@ -189,13 +189,13 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 
 	offset := page * pageSize
 
-	queryFilters := bson.D{bson.E{
-		Key: "$or", Value: bson.A{
-			bson.M{
-				"_id": userObjectID,
+	queryFilters := bson.D{{
+		Key: "$or", Value: bson.D{
+			{
+				Key: "_id", Value: userObjectID,
 			},
-			bson.M{
-				"collaborators.userId": userObjectID,
+			{
+				Key: "collaborators.userId", Value: userObjectID,
 			},
 		},
 	}}
