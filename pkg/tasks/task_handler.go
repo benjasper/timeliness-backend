@@ -22,6 +22,7 @@ type Handler struct {
 	UserRepository  users.UserRepositoryInterface
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
+	PlanningService *PlanningService
 }
 
 // TaskAdd is the route for adding a task
@@ -41,13 +42,6 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	user, err := handler.UserRepository.FindByID(request.Context(), userID.Hex())
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not find user", err)
-		return
-	}
-
 	task.UserID = userID
 
 	v := validator.New()
@@ -59,14 +53,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		}
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
-	}
-
-	scheduledTask, err := planning.ScheduleTask(&task)
+	scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with creating calendar events", err)
@@ -97,28 +84,14 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 	original := *task
 
-	user, err := handler.UserRepository.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not find user", err)
-		return
-	}
-
 	err = json.NewDecoder(request.Body).Decode(&task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
-	}
-
 	if original.Name != task.Name {
-		err = planning.UpdateTaskTitle((*Task)(task), true)
+		err = handler.PlanningService.UpdateTaskTitle(request.Context(), (*Task)(task), true)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating event", err)
@@ -127,7 +100,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.WorkloadOverall != task.WorkloadOverall {
-		scheduledTask, err := planning.ScheduleTask((*Task)(task))
+		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), (*Task)(task))
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem scheduling task", err)
@@ -137,9 +110,10 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		task = (*TaskUpdate)(scheduledTask)
 	}
 
-	if original.DueAt != task.DueAt {
+	if original.DueAt.Date != task.DueAt.Date {
 		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
-		err := planning.calendarRepository.UpdateEvent(&task.DueAt)
+
+		err := handler.PlanningService.UpdateEvent(request.Context(), (*Task)(task), &task.DueAt)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating the task", err)
@@ -187,13 +161,6 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	user, err := handler.UserRepository.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not find user", err)
-		return
-	}
-
 	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
@@ -213,13 +180,13 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	if workUnit.ScheduledAt != original.ScheduledAt {
+	if workUnit.ScheduledAt.Date != original.ScheduledAt.Date {
 		// TODO Update the event of the work unit
 
 		workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
 	}
 
-	if workUnit.ScheduledAt == original.ScheduledAt && workUnit.Workload != original.Workload {
+	if workUnit.ScheduledAt.Date == original.ScheduledAt.Date && workUnit.Workload != original.Workload {
 		// TODO Reschedule this work unit
 	}
 
@@ -250,14 +217,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	task.WorkUnits[index] = workUnit
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
-	}
-
-	err = planning.UpdateTaskTitle((*Task)(task), false)
+	err = handler.PlanningService.UpdateTaskTitle(request.Context(), (*Task)(task), false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -278,27 +238,13 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
-	user, err := handler.UserRepository.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not find user", err)
-		return
-	}
-
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
-	}
-
-	err = planning.DeleteTask(&task)
+	err = handler.PlanningService.DeleteTask(request.Context(), &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not delete task events", err)
@@ -539,13 +485,6 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	user, err := handler.UserRepository.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not find user", err)
-		return
-	}
-
 	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
@@ -565,14 +504,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), user, handler.UserRepository, handler.TaskRepository, handler.Logger)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
-	}
-
-	task, err = planning.RescheduleWorkUnit(task, &workUnit)
+	task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
 		return

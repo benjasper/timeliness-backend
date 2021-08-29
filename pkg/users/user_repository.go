@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -30,7 +29,7 @@ type UserRepository struct {
 }
 
 // Add adds a user
-func (s UserRepository) Add(ctx context.Context, user *User) error {
+func (s *UserRepository) Add(ctx context.Context, user *User) error {
 	user.CreatedAt = time.Now()
 	user.LastModifiedAt = time.Now()
 	user.ID = primitive.NewObjectID()
@@ -39,7 +38,7 @@ func (s UserRepository) Add(ctx context.Context, user *User) error {
 }
 
 // FindByID finds a user by ID
-func (s UserRepository) FindByID(ctx context.Context, id string) (*User, error) {
+func (s *UserRepository) FindByID(ctx context.Context, id string) (*User, error) {
 	var u = User{}
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -59,7 +58,7 @@ func (s UserRepository) FindByID(ctx context.Context, id string) (*User, error) 
 }
 
 // FindByEmail finds a user by Email
-func (s UserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
+func (s *UserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	var u = User{}
 
 	result := s.DB.FindOne(ctx, bson.M{"email": email})
@@ -75,7 +74,7 @@ func (s UserRepository) FindByEmail(ctx context.Context, email string) (*User, e
 }
 
 // FindByGoogleStateToken finds a user by its Google state Token
-func (s UserRepository) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
+func (s *UserRepository) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
 	var u = User{}
 
 	result := s.DB.FindOne(ctx, bson.M{"googleCalendarConnection.stateToken": stateToken})
@@ -91,7 +90,7 @@ func (s UserRepository) FindByGoogleStateToken(ctx context.Context, stateToken s
 }
 
 // FindBySyncExpiration finds user documents where at least one sync is ready for renewal
-func (s UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error) {
+func (s *UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error) {
 	var users []*User
 	offset := page * pageSize
 
@@ -122,64 +121,8 @@ func (s UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan ti
 	return users, int(count), nil
 }
 
-// StartGoogleSync marks a GoogleCalendarSync as started by writing the syncInProgress flag atomically
-func (s UserRepository) StartGoogleSync(ctx context.Context, user *User, calendarIndex int) (*User, error) {
-	var u = User{}
-
-	findOptions := options.FindOneAndUpdate()
-	findOptions.SetReturnDocument(options.After)
-
-	result := s.DB.FindOneAndUpdate(ctx, bson.M{
-		"_id": user.ID,
-		fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex): false,
-	},
-		bson.M{
-			"$set": bson.M{
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.syncInProgress", calendarIndex):  true,
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d.lastSyncStarted", calendarIndex): time.Now()},
-		}, findOptions)
-	if result.Err() != nil {
-		return nil, result.Err()
-	}
-
-	err := result.Decode(&u)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
-}
-
-// EndGoogleSync marks a GoogleCalendarSync as ended by writing the syncInProgress flag atomically
-func (s UserRepository) EndGoogleSync(ctx context.Context, user *User, calendarIndex int) (*User, error) {
-	var u = User{}
-
-	user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex].SyncInProgress = false
-	user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex].LastSyncEnded = time.Now()
-
-	findOptions := options.FindOneAndUpdate()
-	findOptions.SetReturnDocument(options.After)
-
-	result := s.DB.FindOneAndUpdate(ctx, bson.M{
-		"_id": user.ID,
-	},
-		bson.M{
-			"$set": bson.M{
-				fmt.Sprintf("googleCalendarConnection.calendarsOfInterest.%d", calendarIndex): user.GoogleCalendarConnection.CalendarsOfInterest[calendarIndex],
-			},
-		}, findOptions)
-	if result.Err() != nil {
-		return nil, result.Err()
-	}
-
-	err := result.Decode(&u)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
-}
-
 // Update updates a user
-func (s UserRepository) Update(ctx context.Context, user *User) error {
+func (s *UserRepository) Update(ctx context.Context, user *User) error {
 	user.LastModifiedAt = time.Now()
 
 	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": user})
@@ -195,7 +138,7 @@ func (s UserRepository) Update(ctx context.Context, user *User) error {
 }
 
 // Remove Deletes a user
-func (s UserRepository) Remove(ctx context.Context, id string) error {
+func (s *UserRepository) Remove(ctx context.Context, id string) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return err

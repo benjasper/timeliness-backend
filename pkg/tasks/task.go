@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// RoleGuest guest role can only view the task and not edit it
+const RoleGuest = "guest"
+
+// RoleEditor can edit the description and title
+const RoleEditor = "editor"
+
+// RoleMaintainer can edit everything
+const RoleMaintainer = "maintainer"
+
+// Role is the constants starting with role
+type Role string
+
 // Task is the model for a task
 type Task struct {
 	// TODO: More validation
@@ -19,6 +31,7 @@ type Task struct {
 	Description    string               `json:"description" bson:"description"`
 	IsDone         bool                 `json:"isDone" bson:"isDone"`
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
+	Collaborators  Collaborators        `json:"collaborators" bson:"collaborators"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -38,6 +51,7 @@ type TaskUnwound struct {
 	Description    string               `json:"description" bson:"description"`
 	IsDone         bool                 `json:"isDone" bson:"isDone"`
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
+	Collaborators  Collaborators        `json:"collaborators" bson:"collaborators"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -55,17 +69,38 @@ type TaskUpdate struct {
 	UserID         primitive.ObjectID   `bson:"userId" json:"-"`
 	CreatedAt      time.Time            `bson:"createdAt" json:"-"`
 	LastModifiedAt time.Time            `bson:"lastModifiedAt" json:"-"`
-	Deleted        bool                 `json:"deleted" bson:"deleted"`
+	Deleted        bool                 `json:"-" bson:"deleted"`
 	Name           string               `json:"name" bson:"name" validate:"required"`
 	Description    string               `json:"description" bson:"description"`
 	IsDone         bool                 `json:"isDone" bson:"isDone"`
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
+	Collaborators  Collaborators        `json:"-" bson:"collaborators"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       WorkUnits      `json:"-" bson:"workUnits"`
+}
+
+// Collaborator is a contact that is part of a task
+type Collaborator struct {
+	UserID primitive.ObjectID `json:"userId" bson:"userId"`
+	Role   Role               `json:"role" bson:"role"`
+}
+
+// Collaborators is a slice of multiple Collaborator
+type Collaborators []Collaborator
+
+// IncludesUser checks if Collaborators includes a User
+func (c Collaborators) IncludesUser(userID string) bool {
+	for _, collaborator := range c {
+		if collaborator.UserID.Hex() == userID {
+			return true
+		}
+	}
+
+	return false
 }
 
 // WorkUnits represents an array of WorkUnit
@@ -96,8 +131,10 @@ func (w WorkUnits) RemoveByIndex(index int) WorkUnits {
 // FindByCalendarID finds a single work unit by its calendar event ID
 func (w WorkUnits) FindByCalendarID(calendarID string) (int, *WorkUnit) {
 	for i, unit := range w {
-		if unit.ScheduledAt.CalendarEventID == calendarID {
-			return i, &unit
+		for _, cEvent := range unit.ScheduledAt.CalendarEvents {
+			if cEvent.CalendarEventID == calendarID {
+				return i, &unit
+			}
 		}
 	}
 

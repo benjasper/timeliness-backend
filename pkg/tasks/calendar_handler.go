@@ -7,6 +7,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
@@ -18,10 +19,12 @@ import (
 
 // CalendarHandler handles all calendar related API calls
 type CalendarHandler struct {
-	UserService     *users.UserRepository
+	UserService     users.UserRepositoryInterface
 	TaskService     *MongoDBTaskRepository
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
+	PlanningService *PlanningService
+	Locker          locking.LockerInterface
 }
 
 type calendarsPost struct {
@@ -125,7 +128,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		return
 	}
 
-	planning, err := NewPlanningController(request.Context(), u, handler.UserService, handler.TaskService, handler.Logger)
+	googleCalendarRepository, err := calendar.NewGoogleCalendarRepository(request.Context(), u, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -137,7 +140,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		if env != "prod" {
 			continue
 		}
-		u, err = planning.calendarRepository.WatchCalendar(sync.CalendarID, u)
+		u, err = googleCalendarRepository.WatchCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with calendar notification registration", err)
@@ -238,7 +241,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 }
 
 func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time time.Time) {
-	planning, err := NewPlanningController(context.Background(), user, handler.UserService, handler.TaskService, handler.Logger)
+	calendarRepository, err := calendar.NewGoogleCalendarRepository(context.Background(), user, handler.Logger)
 	if err != nil {
 		handler.Logger.Error("Problem while processing user for sync renewal", err)
 		return
@@ -249,7 +252,7 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			continue
 		}
 
-		user, err := planning.calendarRepository.WatchCalendar(sync.CalendarID, user)
+		user, err := calendarRepository.WatchCalendar(sync.CalendarID, user)
 		if err != nil {
 			handler.Logger.Error("Problem while trying to renew sync", err)
 			return
@@ -288,13 +291,6 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 		return
 	}
 
-	planning, err := NewPlanningController(context.Background(), user, handler.UserService, handler.TaskService, handler.Logger)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
-	}
-
 	calendarID := ""
 	calendarIndex := -1
 	for i, sync := range user.GoogleCalendarConnection.CalendarsOfInterest {
@@ -311,35 +307,34 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 		return
 	}
 
-	go func(user *users.User, calendarIndex int, planning *PlanningController) {
-		tries := 0
-		for tries < 3 {
-			result, err := handler.UserService.StartGoogleSync(context.Background(), user, calendarIndex)
-			if err != nil {
-				tries++
-				time.Sleep(5 * time.Second)
-				continue
-			}
+	go func(user *users.User, calendarIndex int) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+		defer cancel()
 
-			user = result
-			break
-		}
-
-		if tries >= 3 {
-			handler.Logger.Warning(fmt.Sprintf("Ultimately could not aquire lock for google calendar ID %s after %d tries", calendarID, tries), err)
+		lock, err := handler.Locker.Acquire(ctx, user.ID.Hex(), time.Minute*1)
+		if err != nil {
+			handler.Logger.Error(fmt.Sprintf("problem while acquiring lock for user %s", userID), err)
 			return
 		}
 
-		user, err := planning.SyncCalendar(user, calendarID)
+		defer func(lock locking.LockInterface, ctx context.Context) {
+			err := lock.Release(ctx)
+			if err != nil {
+				handler.Logger.Error(fmt.Sprintf("problem while releasing lock for user %s", userID), err)
+				return
+			}
+		}(lock, ctx)
+
+		user, err = handler.PlanningService.SyncCalendar(ctx, user, calendarID)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
-			// Continue to end sync anyway
-		}
-
-		user, err = handler.UserService.EndGoogleSync(context.Background(), user, calendarIndex)
-		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("Could not update user %s to end sync for calendar ID %s", userID, calendarID), err)
 			return
 		}
-	}(user, calendarIndex, planning)
+
+		err = handler.UserService.Update(ctx, user)
+		if err != nil {
+			handler.Logger.Error(fmt.Sprintf("problem updating user %s", userID), err)
+			return
+		}
+	}(user, calendarIndex)
 }

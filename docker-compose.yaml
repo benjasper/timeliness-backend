@@ -6,17 +6,21 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=123
     ports:
-      - 27017:27017
+      - "27017:27017"
     volumes:
       - ./scripts/mongo/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
       - mongo-data:/data/db
   swagger:
     image: 'swaggerapi/swagger-ui'
     ports:
-      - 90:8080
+      - "90:8080"
     volumes:
       - ./docs:/docs
     environment:
       - SWAGGER_JSON=/docs/timeliness-api.yaml
+  redis:
+    image: 'redis:alpine'
+    ports:
+      - "6379:6379"
 volumes:
   mongo-data:

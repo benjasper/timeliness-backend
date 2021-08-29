@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
@@ -38,6 +40,16 @@ func main() {
 		databaseURL = "mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"
 	}
 
+	redisURL := os.Getenv("REDIS")
+	if redisURL == "" {
+		redisURL = "localhost:6379"
+	}
+
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	if redisPassword == "" {
+		redisPassword = ""
+	}
+
 	var logging logger.Interface = logger.Logger{}
 	if appEnv == "prod" {
 		logging = logger.NewGoogleCloudLogger()
@@ -50,7 +62,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	var ctx, cancel = context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	err = client.Connect(ctx)
 	if err != nil {
@@ -73,6 +85,25 @@ func main() {
 
 	logging.Info("Database connected")
 
+	redisClient := redis.NewClient(&redis.Options{
+		Network:  "tcp",
+		Addr:     redisURL,
+		Password: redisPassword,
+	})
+	defer func(redisClient *redis.Client) {
+		err := redisClient.Close()
+		if err != nil {
+			logging.Fatal(err)
+		}
+	}(redisClient)
+
+	pong := redisClient.Ping(ctx)
+	if pong.Err() != nil {
+		logging.Fatal(pong.Err())
+	}
+
+	logging.Info("Redis connected")
+
 	db := client.Database("test")
 
 	userCollection := db.Collection("Users")
@@ -84,27 +115,38 @@ func main() {
 		secret = "local-secret"
 	}
 
+	locker := locking.NewLockerRedis(redisClient)
+
 	responseManager := communication.ResponseManager{Logger: logging}
 	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
+
+	calendarRepositoryManager, err := tasks.NewCalendarRepositoryManager(10, &userRepository, logging)
+	if err != nil {
+		logging.Fatal(err)
+		return
+	}
 
 	// notificationController := notifications.NewNotificationController(logging, userRepository)
 
 	var taskRepository = tasks.MongoDBTaskRepository{DB: taskCollection, Logger: logging}
 	// taskRepository.Subscribe(&notificationController)
 
-	userHandler := users.Handler{UserRepository: userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
+	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, locker, calendarRepositoryManager)
+
+	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret}
 	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
-		TaskService: &taskRepository}
+		TaskService: &taskRepository, PlanningService: planningService, Locker: locker}
 
 	taskHandler := tasks.Handler{
 		TaskRepository:  &taskRepository,
 		Logger:          logging,
 		ResponseManager: &responseManager,
-		UserRepository:  &userRepository}
+		UserRepository:  &userRepository,
+		PlanningService: planningService}
 
 	tagRepository := tasks.TagRepository{Logger: logging, DB: tagsCollection}
 	tagHandler := tasks.TagHandler{
-		Logger: logging, TagRepository: tagRepository, ResponseManager: &responseManager, UserRepository: userRepository,
+		Logger: logging, TagRepository: tagRepository, ResponseManager: &responseManager, UserRepository: &userRepository,
 		TaskRepository: &taskRepository,
 	}
 

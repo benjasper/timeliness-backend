@@ -1,11 +1,13 @@
 package calendar
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
 // Type declares in which calendar implementation an event is persisted
 type Type string
 
 const (
-	// CalendarTypeGoogleCalendar is different calendar implementation enum
-	CalendarTypeGoogleCalendar Type = "google_calendar"
+	// PersistedCalendarTypeGoogleCalendar is different calendar implementation enum
+	PersistedCalendarTypeGoogleCalendar Type = "google_calendar"
 )
 
 // Event represents a simple calendar event
@@ -17,8 +19,41 @@ type Event struct {
 	Blocking    bool     `json:"-" bson:"blocking"`
 	Deleted     bool     `json:"-" bson:"deleted"`
 
-	CalendarType    Type   `json:"-" bson:"calendarType"`
-	CalendarEventID string `json:"-" bson:"calendarEventID"`
+	CalendarEvents PersistedEvents `json:"-" bson:"calendarEvents"`
+}
+
+// PersistedEvent represents an event persistent in a users calendar
+type PersistedEvent struct {
+	CalendarType    Type               `json:"-" bson:"calendarType"`
+	CalendarEventID string             `json:"-" bson:"calendarEventID"`
+	UserID          primitive.ObjectID `json:"-" bson:"userID"`
+}
+
+// PersistedEvents is a slice of PersistedEvents
+type PersistedEvents []PersistedEvent
+
+// FindByCalendarID finds a PersistedEvent by its CalendarEventID
+func (c PersistedEvents) FindByCalendarID(ID string) *PersistedEvent {
+	for _, event := range c {
+		if event.CalendarEventID == ID {
+			return &event
+		}
+	}
+
+	return nil
+}
+
+// FindByUserID finds a PersistedEvent by its UserID
+func (c PersistedEvents) FindByUserID(ID string) *PersistedEvent {
+	userID, _ := primitive.ObjectIDFromHex(ID)
+
+	for _, event := range c {
+		if event.UserID == userID {
+			return &event
+		}
+	}
+
+	return nil
 }
 
 // Calendar represents a calendar of any source
