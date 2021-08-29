@@ -264,7 +264,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		}
 	}
 
-	if len(t.DueAt.CalendarEvents) == 0 {
+	if len(t.DueAt.CalendarEvents) != len(relevantUsers) {
 		t.DueAt.Blocking = false
 		t.DueAt.Title = renderDueEventTitle(t)
 		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
@@ -272,6 +272,9 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		var dueEvent *calendar.Event
 		for _, user := range relevantUsers {
+			if persistedEvent := t.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
+				continue
+			}
 			dueEvent, err = repositories[user.ID.Hex()].NewEvent(&t.DueAt)
 			if err != nil {
 				return nil, err

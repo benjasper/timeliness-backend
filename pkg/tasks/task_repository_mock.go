@@ -15,6 +15,16 @@ type MockTaskRepository struct {
 
 // Add adds a task
 func (m *MockTaskRepository) Add(_ context.Context, task *Task) error {
+	task.CreatedAt = time.Now()
+	task.LastModifiedAt = time.Now()
+	task.ID = primitive.NewObjectID()
+
+	for index, unit := range task.WorkUnits {
+		if unit.ID.IsZero() {
+			task.WorkUnits[index].ID = primitive.NewObjectID()
+		}
+	}
+
 	m.Tasks = append(m.Tasks, task)
 	return nil
 }

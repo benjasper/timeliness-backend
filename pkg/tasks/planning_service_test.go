@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	logger "github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
@@ -14,8 +15,25 @@ import (
 
 var location, _ = time.LoadLocation("Europe/Berlin")
 
+var secondaryUser = users.User{
+	ID: primitive.NewObjectIDFromTimestamp(time.Date(2021, 2, 1, 1, 1, 1, 1, location)),
+}
+
 var primaryUser = users.User{
 	ID: primitive.NewObjectIDFromTimestamp(time.Date(2021, 1, 1, 1, 1, 1, 1, location)),
+	Contacts: []users.Contact{
+		{
+			UserID:             secondaryUser.ID,
+			ContactRequestedAt: time.Date(2021, 1, 1, 1, 1, 1, 1, location),
+		},
+	},
+}
+
+var userRepo = users.MockUserRepository{
+	Users: []*users.User{
+		&primaryUser,
+		&secondaryUser,
+	},
 }
 
 var log = logger.Logger{}
@@ -25,44 +43,16 @@ var locker = locking.NewLockerMemory()
 func TestPlanningService_ScheduleTask(t *testing.T) {
 	now = func() time.Time { return time.Date(2021, 1, 1, 12, 0, 0, 0, location) }
 
-	taskID := primitive.NewObjectID()
-	taskRepo := &MockTaskRepository{Tasks: []*Task{
-		{
-			ID:              taskID,
-			UserID:          primaryUser.ID,
-			CreatedAt:       time.Now(),
-			LastModifiedAt:  time.Now(),
-			Deleted:         false,
-			Name:            "Testtask",
-			Description:     "",
-			WorkloadOverall: time.Hour * 4,
-			DueAt: calendar.Event{
-				Date: calendar.Timespan{
-					Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
-					End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
-				},
-			},
-		},
-	}}
-
-	userRepo := users.MockUserRepository{
-		Users: []*users.User{
-			&primaryUser,
-		},
-	}
-
-	calendarRepository := calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
+	taskRepo := &MockTaskRepository{Tasks: []*Task{}}
 
 	var calendarRepositoryManager = CalendarRepositoryManager{
 		userRepository: &userRepo,
 		logger:         log,
-		overridenRepo:  &calendarRepository,
+		overridenRepos: make(map[string]calendar.RepositoryInterface),
 	}
 
-	task, err := taskRepo.FindByID(context.TODO(), taskID.Hex(), primaryUser.ID.Hex(), false)
-	if err != nil {
-		t.Error(err)
-	}
+	calendarRepositoryManager.overridenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
+	calendarRepositoryManager.overridenRepos[secondaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &secondaryUser}
 
 	service := PlanningService{
 		userRepository:            &userRepo,
@@ -82,14 +72,146 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 			},
 		}}
 
-	scheduledTask, err := service.ScheduleTask(context.TODO(), &task)
-	if err != nil {
-		t.Error(err)
+	type repoEntry struct {
+		userID             primitive.ObjectID
+		calendarRepository calendar.RepositoryInterface
 	}
 
-	err = testScheduledTask(scheduledTask)
-	if err != nil {
-		t.Error(err)
+	tests := []struct {
+		name                 string
+		task                 Task
+		calendarRepositories []repoEntry
+	}{
+		{
+			name: "Task: 4h, lots of free time",
+			task: Task{
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Now(),
+				LastModifiedAt:  time.Now(),
+				Deleted:         false,
+				Name:            "Testtask",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: calendar.Timespan{
+						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+				},
+			},
+			calendarRepositories: []repoEntry{
+				{
+					userID:             primaryUser.ID,
+					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser},
+				},
+			},
+		},
+		{
+			name: "Task: 4h, lots of free time one collaborator",
+			task: Task{
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Now(),
+				LastModifiedAt:  time.Now(),
+				Deleted:         false,
+				Name:            "Testtask 2",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: calendar.Timespan{
+						Start: time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+				},
+				Collaborators: []Collaborator{
+					{
+						UserID: secondaryUser.ID,
+						Role:   RoleEditor,
+					},
+				},
+			},
+			calendarRepositories: []repoEntry{
+				{
+					userID:             primaryUser.ID,
+					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser},
+				},
+				{
+					userID:             secondaryUser.ID,
+					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &secondaryUser},
+				},
+			},
+		},
+		{
+			name: "Task: 4h, only one fitting timeslot available",
+			task: Task{
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Now(),
+				LastModifiedAt:  time.Now(),
+				Deleted:         false,
+				Name:            "Testtask 2",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: calendar.Timespan{
+						Start: time.Date(2021, 1, 5, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 1, 5, 18, 15, 0, 0, location),
+					},
+				},
+			},
+			calendarRepositories: []repoEntry{
+				{
+					userID: primaryUser.ID,
+					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{
+						{
+							Date: calendar.Timespan{
+								Start: time.Date(2021, 1, 1, 9, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 3, 18, 0, 0, 0, location),
+							},
+							Blocking: true,
+						},
+						{
+							Date: calendar.Timespan{
+								Start: time.Date(2021, 1, 4, 8, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 4, 13, 0, 0, 0, location),
+							},
+							Blocking: true,
+						},
+						{
+							Date: calendar.Timespan{
+								Start: time.Date(2021, 1, 5, 8, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 5, 18, 0, 0, 0, location),
+							},
+							Blocking: true,
+						},
+					}, User: &primaryUser},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			for _, repo := range tt.calendarRepositories {
+				service.calendarRepositoryManager.overridenRepos[repo.userID.Hex()] = repo.calendarRepository
+			}
+
+			err := taskRepo.Add(ctx, &tt.task)
+			if err != nil {
+				t.Error(err)
+			}
+
+			scheduledTask, err := service.ScheduleTask(ctx, &tt.task)
+			if err != nil {
+				t.Error(err)
+			}
+
+			err = testScheduledTask(scheduledTask)
+			if err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 
@@ -123,35 +245,14 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 		},
 	}}
 
-	userRepo := users.MockUserRepository{
-		Users: []*users.User{
-			&primaryUser,
-		},
-	}
-
-	calendarRepository := calendar.MockCalendarRepository{Events: []*calendar.Event{
-		{Date: calendar.Timespan{
-			Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
-			End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
-		},
-			Title:      "Testtask is due",
-			IsOriginal: true,
-			Blocking:   false,
-			CalendarEvents: calendar.PersistedEvents{
-				calendar.PersistedEvent{
-					CalendarEventID: "test-123",
-					UserID:          primaryUser.ID,
-					CalendarType:    "mock_calendar",
-				},
-			},
-		},
-	}, User: &primaryUser}
-
 	var calendarRepositoryManager = CalendarRepositoryManager{
 		userRepository: &userRepo,
 		logger:         log,
-		overridenRepo:  &calendarRepository,
+		overridenRepos: make(map[string]calendar.RepositoryInterface),
 	}
+
+	calendarRepositoryManager.overridenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
+	calendarRepositoryManager.overridenRepos[secondaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &secondaryUser}
 
 	service := PlanningService{
 		userRepository:            &userRepo,
@@ -216,7 +317,7 @@ func testScheduledTask(task *Task) error {
 	}
 
 	if task.WorkloadOverall != workload {
-		return errors.New("not all the workload was scheduled")
+		return fmt.Errorf("only %s of %s of the workload was scheduled", workload.String(), task.WorkloadOverall.String())
 	}
 
 	return nil
