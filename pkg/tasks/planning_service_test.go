@@ -46,13 +46,13 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 	taskRepo := &MockTaskRepository{Tasks: []*Task{}}
 
 	var calendarRepositoryManager = CalendarRepositoryManager{
-		userRepository: &userRepo,
-		logger:         log,
-		overridenRepos: make(map[string]calendar.RepositoryInterface),
+		userRepository:  &userRepo,
+		logger:          log,
+		overriddenRepos: make(map[string]calendar.RepositoryInterface),
 	}
 
-	calendarRepositoryManager.overridenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
-	calendarRepositoryManager.overridenRepos[secondaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &secondaryUser}
+	calendarRepositoryManager.overriddenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
+	calendarRepositoryManager.overriddenRepos[secondaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &secondaryUser}
 
 	service := PlanningService{
 		userRepository:            &userRepo,
@@ -194,7 +194,7 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 			defer cancel()
 
 			for _, repo := range tt.calendarRepositories {
-				service.calendarRepositoryManager.overridenRepos[repo.userID.Hex()] = repo.calendarRepository
+				service.calendarRepositoryManager.overriddenRepos[repo.userID.Hex()] = repo.calendarRepository
 			}
 
 			err := taskRepo.Add(ctx, &tt.task)
@@ -246,13 +246,13 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 	}}
 
 	var calendarRepositoryManager = CalendarRepositoryManager{
-		userRepository: &userRepo,
-		logger:         log,
-		overridenRepos: make(map[string]calendar.RepositoryInterface),
+		userRepository:  &userRepo,
+		logger:          log,
+		overriddenRepos: make(map[string]calendar.RepositoryInterface),
 	}
 
-	calendarRepositoryManager.overridenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
-	calendarRepositoryManager.overridenRepos[secondaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &secondaryUser}
+	calendarRepositoryManager.overriddenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &primaryUser}
+	calendarRepositoryManager.overriddenRepos[secondaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{}, User: &secondaryUser}
 
 	service := PlanningService{
 		userRepository:            &userRepo,
