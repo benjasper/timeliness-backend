@@ -659,7 +659,6 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			return
 		}
 
-		task.DueAt = *event
 		// TODO: do other actions based on due date change
 		if event.Deleted {
 			err := c.DeleteTask(ctx, (*Task)(task))
@@ -667,6 +666,14 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 				c.logger.Error("problem with deleting task", err)
 				return
 			}
+			return
+		}
+
+		task.DueAt.Date = event.Date
+		err = c.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &task.DueAt)
+		if err != nil {
+			c.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
+			return
 		}
 
 		err = c.taskRepository.Update(ctx, task, false)
@@ -690,6 +697,31 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	task.WorkloadOverall -= workunit.Workload
 
 	if event.Deleted {
+		relevantUsers, err := c.getAllRelevantUsers(ctx, (*Task)(task))
+		if err != nil {
+			c.logger.Error(fmt.Sprintf("could not get all relevant users for task %s", task.ID.Hex()), err)
+			return
+		}
+
+		for _, user := range relevantUsers {
+			if user.ID.Hex() == userID {
+				// We don't need to delete the already deleted event
+				continue
+			}
+
+			calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+			if err != nil {
+				c.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
+				continue
+			}
+
+			err = calendarRepository.DeleteEvent(&workunit.ScheduledAt)
+			if err != nil {
+				c.logger.Error(fmt.Sprintf("could not delete event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
+				continue
+			}
+		}
+
 		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
 		err = c.taskRepository.Update(ctx, task, false)
 		if err != nil {
@@ -699,7 +731,12 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	workunit.ScheduledAt = *event
+	workunit.ScheduledAt.Date = event.Date
+	err = c.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &workunit.ScheduledAt)
+	if err != nil {
+		c.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
+	}
+
 	workunit.Workload = workunit.ScheduledAt.Date.Duration()
 
 	task.WorkloadOverall += workunit.Workload
@@ -714,6 +751,34 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		c.logger.Error("problem with updating task", err)
 		return
 	}
+}
+
+func (c *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.Context, task *Task, userID string, event *calendar.Event) error {
+	relevantUsers, err := c.getAllRelevantUsers(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range relevantUsers {
+		if user.ID.Hex() == userID {
+			// We don't need to delete the already deleted event
+			continue
+		}
+
+		calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+		if err != nil {
+			c.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
+			continue
+		}
+
+		err = calendarRepository.UpdateEvent(event)
+		if err != nil {
+			c.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
+			continue
+		}
+	}
+
+	return nil
 }
 
 func (c *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, workUnitID string) int {

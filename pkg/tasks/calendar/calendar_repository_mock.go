@@ -70,7 +70,7 @@ func (r *MockCalendarRepository) UpdateEvent(event *Event) error {
 		return errors.New("calendar event not found")
 	}
 
-	event, i, err := r.findEventByID(calendarEvent.CalendarEventID)
+	_, i, err := r.findEventByID(calendarEvent.CalendarEventID)
 	if err != nil {
 		return err
 	}
