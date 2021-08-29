@@ -9,9 +9,9 @@ import (
 
 // CalendarRepositoryManager manages calendar repositories. It decided which user needs which repository.
 type CalendarRepositoryManager struct {
-	userRepository users.UserRepositoryInterface
-	logger         logger.Interface
-	overridenRepos map[string]calendar.RepositoryInterface
+	userRepository  users.UserRepositoryInterface
+	logger          logger.Interface
+	overriddenRepos map[string]calendar.RepositoryInterface
 }
 
 // NewCalendarRepositoryManager creates a new CalendarRepositoryManager
@@ -24,8 +24,8 @@ func NewCalendarRepositoryManager(_ int, userRepository users.UserRepositoryInte
 // GetCalendarRepositoryForUser gets the correct calendar repository for a user
 func (m *CalendarRepositoryManager) GetCalendarRepositoryForUser(ctx context.Context, user *users.User) (calendar.RepositoryInterface, error) {
 	// TODO: Figure out which calendarRepository to use
-	if len(m.overridenRepos) > 0 && m.overridenRepos[user.ID.Hex()] != nil {
-		return m.overridenRepos[user.ID.Hex()], nil
+	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
+		return m.overriddenRepos[user.ID.Hex()], nil
 	}
 
 	calendarRepository, err := m.setupGoogleRepository(ctx, user)
