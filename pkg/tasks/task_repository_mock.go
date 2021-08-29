@@ -84,7 +84,7 @@ func (m *MockTaskRepository) FindByID(_ context.Context, taskID string, userID s
 	taskObjectID, _ := primitive.ObjectIDFromHex(taskID)
 	userObjectID, _ := primitive.ObjectIDFromHex(userID)
 	for _, t := range m.Tasks {
-		if t.ID == taskObjectID && t.UserID == userObjectID {
+		if t.ID == taskObjectID && (t.UserID == userObjectID || t.Collaborators.IncludesUser(userID)) {
 			return *t, nil
 		}
 	}
@@ -99,7 +99,7 @@ func (m *MockTaskRepository) FindByCalendarEventID(ctx context.Context, calendar
 		calendarEventDue := t.DueAt.CalendarEvents.FindByCalendarID(calendarEventID)
 		_, workUnit := t.WorkUnits.FindByCalendarID(calendarEventID)
 		if (calendarEventDue != nil && calendarEventDue.CalendarEventID == calendarEventID || workUnit != nil) &&
-			t.UserID == userObjectID {
+			(t.UserID == userObjectID || t.Collaborators.IncludesUser(userID)) {
 			return (*TaskUpdate)(t), nil
 		}
 	}

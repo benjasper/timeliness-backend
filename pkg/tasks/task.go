@@ -31,7 +31,7 @@ type Task struct {
 	Description    string               `json:"description" bson:"description"`
 	IsDone         bool                 `json:"isDone" bson:"isDone"`
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
-	Collaborators  []Collaborator       `json:"collaborators" bson:"collaborators"`
+	Collaborators  Collaborators        `json:"collaborators" bson:"collaborators"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -51,7 +51,7 @@ type TaskUnwound struct {
 	Description    string               `json:"description" bson:"description"`
 	IsDone         bool                 `json:"isDone" bson:"isDone"`
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
-	Collaborators  []Collaborator       `json:"collaborators" bson:"collaborators"`
+	Collaborators  Collaborators        `json:"collaborators" bson:"collaborators"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -74,7 +74,7 @@ type TaskUpdate struct {
 	Description    string               `json:"description" bson:"description"`
 	IsDone         bool                 `json:"isDone" bson:"isDone"`
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
-	Collaborators  []Collaborator       `json:"-" bson:"collaborators"`
+	Collaborators  Collaborators        `json:"-" bson:"collaborators"`
 
 	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
@@ -87,6 +87,20 @@ type TaskUpdate struct {
 type Collaborator struct {
 	UserID primitive.ObjectID `json:"userId" bson:"userId"`
 	Role   Role               `json:"role" bson:"role"`
+}
+
+// Collaborators is a slice of multiple Collaborator
+type Collaborators []Collaborator
+
+// IncludesUser checks if Collaborators includes a User
+func (c Collaborators) IncludesUser(userID string) bool {
+	for _, collaborator := range c {
+		if collaborator.UserID.Hex() == userID {
+			return true
+		}
+	}
+
+	return false
 }
 
 // WorkUnits represents an array of WorkUnit

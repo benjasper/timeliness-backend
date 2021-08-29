@@ -247,6 +247,30 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 					},
 				},
 			},
+			WorkUnits: WorkUnits{
+				{
+					ID:       primitive.NewObjectID(),
+					Workload: time.Hour * 4,
+					ScheduledAt: calendar.Event{
+						Date: calendar.Timespan{
+							Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+							End:   time.Date(2021, 1, 15, 18, 15, 0, 0, location),
+						},
+						CalendarEvents: calendar.PersistedEvents{
+							calendar.PersistedEvent{
+								CalendarEventID: "test-234",
+								UserID:          primaryUser.ID,
+								CalendarType:    "mock_calendar",
+							},
+							calendar.PersistedEvent{
+								CalendarEventID: "test-234",
+								UserID:          secondaryUser.ID,
+								CalendarType:    "mock_calendar",
+							},
+						},
+					},
+				},
+			},
 			Collaborators: []Collaborator{
 				{
 					UserID: secondaryUser.ID,
@@ -275,9 +299,17 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 						UserID:          primaryUser.ID,
 						CalendarType:    "mock_calendar",
 					},
+				},
+			},
+			{
+				Date: calendar.Timespan{
+					Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+					End:   time.Date(2021, 1, 15, 18, 15, 0, 0, location),
+				},
+				CalendarEvents: calendar.PersistedEvents{
 					calendar.PersistedEvent{
-						CalendarEventID: "test-123",
-						UserID:          secondaryUser.ID,
+						CalendarEventID: "test-234",
+						UserID:          primaryUser.ID,
 						CalendarType:    "mock_calendar",
 					},
 				},
@@ -320,8 +352,35 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 					},
 				},
 			},
+			{
+				Date: calendar.Timespan{
+					Start: time.Date(2021, 1, 16, 16, 0, 0, 0, location),
+					End:   time.Date(2021, 1, 16, 18, 15, 0, 0, location),
+				},
+				CalendarEvents: calendar.PersistedEvents{
+					calendar.PersistedEvent{
+						CalendarEventID: "test-234",
+						UserID:          secondaryUser.ID,
+						CalendarType:    "mock_calendar",
+					},
+				},
+			},
 		},
-		EventsToSync: []*calendar.Event{}, User: &secondaryUser,
+		EventsToSync: []*calendar.Event{
+			{
+				Date: calendar.Timespan{
+					Start: time.Date(2021, 1, 16, 16, 0, 0, 0, location),
+					End:   time.Date(2021, 1, 16, 18, 15, 0, 0, location),
+				},
+				CalendarEvents: calendar.PersistedEvents{
+					calendar.PersistedEvent{
+						CalendarEventID: "test-234",
+						UserID:          secondaryUser.ID,
+						CalendarType:    "mock_calendar",
+					},
+				},
+			},
+		}, User: &secondaryUser,
 	}
 
 	calendarRepositoryManager.overriddenRepos[primaryUser.ID.Hex()] = mockCalendarRepoPrimary
@@ -347,13 +406,23 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*30)
 	defer cancel()
+
 	_, err := service.SyncCalendar(ctx, &primaryUser, "test")
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = service.SyncCalendar(ctx, &secondaryUser, "test")
 	if err != nil {
 		t.Error(err)
 	}
 
 	if mockCalendarRepoSecondary.Events[0].Date != mockCalendarRepoPrimary.EventsToSync[0].Date {
 		t.Errorf("changed calendar event date for secondary user was not successfully synced")
+	}
+
+	if mockCalendarRepoPrimary.Events[1].Date != mockCalendarRepoSecondary.EventsToSync[0].Date {
+		t.Errorf("changed calendar event date for primary user was not successfully synced")
 	}
 }
 
