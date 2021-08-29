@@ -17,14 +17,21 @@ type User struct {
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
 	DeviceTokens   []DeviceToken      `json:"-" bson:"deviceTokens" validate:"isdefault"`
 	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
+	Contacts       []Contact          `json:"contacts" bson:"contacts"`
 
 	GoogleCalendarConnection GoogleCalendarConnection `json:"-" bson:"googleCalendarConnection,omitempty"`
 }
 
-// UserLogin is the view for users logging in
+// UserLogin is the view for users logger in
 type UserLogin struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" bson:"password" validate:"required"`
+}
+
+// Contact is a reference to another User
+type Contact struct {
+	UserID             primitive.ObjectID
+	ContactRequestedAt time.Time
 }
 
 // DeviceToken is a struct for keeping a Firebase Cloud Messaging registration token
@@ -43,12 +50,9 @@ type GoogleCalendarConnection struct {
 
 // GoogleCalendarSync holds information about a calendar that will be used to determine busy times
 type GoogleCalendarSync struct {
-	CalendarID      string    `json:"-" bson:"calendarId,omitempty"`
-	SyncResourceID  string    `json:"-" bson:"syncResourceId,omitempty"`
-	ChannelID       string    `json:"-" bson:"channelId,omitempty"`
-	SyncToken       string    `json:"-" bson:"syncToken,omitempty"`
-	Expiration      time.Time `json:"-" bson:"expiration,omitempty"`
-	LastSyncStarted time.Time `json:"-" bson:"lastSyncStarted,omitempty"`
-	LastSyncEnded   time.Time `json:"-" bson:"lastSyncEnded,omitempty"`
-	SyncInProgress  bool      `json:"-" bson:"syncInProgress"`
+	CalendarID     string    `json:"-" bson:"calendarId,omitempty"`
+	SyncResourceID string    `json:"-" bson:"syncResourceId,omitempty"`
+	ChannelID      string    `json:"-" bson:"channelId,omitempty"`
+	SyncToken      string    `json:"-" bson:"syncToken,omitempty"`
+	Expiration     time.Time `json:"-" bson:"expiration,omitempty"`
 }
