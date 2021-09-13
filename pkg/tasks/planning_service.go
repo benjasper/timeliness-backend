@@ -198,7 +198,6 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		t.WorkUnits = workUnits
 		t.IsDone = false
-
 	} else {
 		var shouldDelete = WorkUnits{}
 		var shouldUpdate = WorkUnits{}
@@ -314,19 +313,15 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 		return nil, err
 	}
 
-	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
-
 	index, _ := t.WorkUnits.FindByID(w.ID.Hex())
 	if index < 0 {
 		return nil, fmt.Errorf("could not find workunit %s in task %s", w.ID.Hex(), t.ID.Hex())
 	}
 
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
-	err = c.taskRepository.Update(ctx, t, false)
-	if err != nil {
-		return nil, err
-	}
+
+	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := calendar.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 
 	relevantUsers, err := c.getAllRelevantUsers(ctx, (*Task)(t))
 	if err != nil {
