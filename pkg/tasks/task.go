@@ -33,7 +33,6 @@ type Task struct {
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
 	Collaborators  Collaborators        `json:"collaborators" bson:"collaborators"`
 
-	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
@@ -53,7 +52,6 @@ type TaskUnwound struct {
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
 	Collaborators  Collaborators        `json:"collaborators" bson:"collaborators"`
 
-	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
@@ -76,7 +74,6 @@ type TaskUpdate struct {
 	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
 	Collaborators  Collaborators        `json:"-" bson:"collaborators"`
 
-	Priority        int            `json:"priority" bson:"priority" validate:"required"`
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`

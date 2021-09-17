@@ -129,10 +129,6 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		// TODO reschedule toReschschedule work units
 	}
 
-	if original.Priority != task.Priority {
-		// TODO priority algorithm
-	}
-
 	if original.IsDone != task.IsDone {
 		if task.IsDone {
 			// TODO task was switched to done so we should remove all workunits left and remove the time from workload
