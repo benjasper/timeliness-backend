@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cloud.google.com/go/profiler"
 	"context"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
@@ -53,6 +54,12 @@ func main() {
 	var logging logger.Interface = logger.Logger{}
 	if appEnv == "prod" {
 		logging = logger.NewGoogleCloudLogger()
+	}
+
+	if appEnv == "prod" {
+		if err := profiler.Start(profiler.Config{}); err != nil {
+			logging.Error("Could not start profiler", err)
+		}
 	}
 
 	logging.Info("Server is starting up...")
