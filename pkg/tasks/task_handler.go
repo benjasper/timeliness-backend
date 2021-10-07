@@ -90,15 +90,6 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	if original.Name != task.Name {
-		err = handler.PlanningService.UpdateTaskTitle(request.Context(), (*Task)(task), true)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem updating event", err)
-			return
-		}
-	}
-
 	if original.WorkloadOverall != task.WorkloadOverall {
 		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), (*Task)(task))
 		if err != nil {
@@ -132,6 +123,15 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.IsDone != task.IsDone {
 		if task.IsDone {
 			// TODO task was switched to done so we should remove all workunits left and remove the time from workload
+		}
+	}
+
+	if original.Name != task.Name {
+		err = handler.PlanningService.UpdateTaskTitle(request.Context(), (*Task)(task), true)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem updating event", err)
+			return
 		}
 	}
 
