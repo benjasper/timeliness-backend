@@ -441,3 +441,22 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 		return
 	}
 }
+
+// RegisterForNewsletter proxies a request to mailchimp and return mail chimps response
+func (handler *Handler) RegisterForNewsletter(writer http.ResponseWriter, request *http.Request) {
+	post, err := http.Post("https://app.us5.list-manage.com/subscribe/post-json?u=bec104d5be09114f39fb57f93&amp;id=cf885e3667",
+		"multipart/form-data", request.Body)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, 500, "Problem with MailChimp request", err)
+		return
+	}
+
+	var body []byte
+	_, err = post.Body.Read(body)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, 500, "Could not unmarshal MailChimp response", err)
+		return
+	}
+
+	handler.ResponseManager.RespondWithStatus(writer, body, post.StatusCode)
+}

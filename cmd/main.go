@@ -184,6 +184,9 @@ func main() {
 	unauthenticatedAPI.Path("/calendar/google/notifications/renew").
 		HandlerFunc(calendarHandler.GoogleCalendarSyncRenewal).Methods(http.MethodPost)
 
+	unauthenticatedAPI.Path("/newsletter").
+		HandlerFunc(userHandler.RegisterForNewsletter).Methods(http.MethodPost)
+
 	authenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)
 	authenticatedAPI.Path("/user").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)

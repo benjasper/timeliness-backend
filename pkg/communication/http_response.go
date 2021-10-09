@@ -66,6 +66,25 @@ func (r ResponseManager) Respond(writer http.ResponseWriter, i interface{}) {
 	}
 }
 
+// RespondWithStatus responds with a specific status code
+func (r ResponseManager) RespondWithStatus(writer http.ResponseWriter, i interface{}, status int) {
+	binary, err := json.Marshal(i)
+	if err != nil {
+		r.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem while marshalling tasks into json", err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		r.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem writing response", err)
+		return
+	}
+
+	writer.WriteHeader(status)
+}
+
 // RespondWithNoContent sends a no content status code
 func (r ResponseManager) RespondWithNoContent(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusNoContent)
