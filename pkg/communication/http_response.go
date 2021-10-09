@@ -49,6 +49,18 @@ func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status in
 	}
 }
 
+// RespondWithBinary simply returns binary data
+func (r ResponseManager) RespondWithBinary(writer http.ResponseWriter, i []byte, contentType string) {
+	_, err := writer.Write(i)
+	if err != nil {
+		r.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem writing response", err)
+		return
+	}
+
+	writer.Header().Add("Content-Type", contentType)
+}
+
 // Respond takes an object and turns it into json and responds with it and a 200 HTTP status
 func (r ResponseManager) Respond(writer http.ResponseWriter, i interface{}) {
 	binary, err := json.Marshal(i)
@@ -75,14 +87,13 @@ func (r ResponseManager) RespondWithStatus(writer http.ResponseWriter, i interfa
 		return
 	}
 
+	writer.WriteHeader(status)
 	_, err = writer.Write(binary)
 	if err != nil {
 		r.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem writing response", err)
 		return
 	}
-
-	writer.WriteHeader(status)
 }
 
 // RespondWithNoContent sends a no content status code
