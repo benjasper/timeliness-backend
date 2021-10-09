@@ -445,7 +445,7 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 
 // RegisterForNewsletter proxies a request to mailchimp and return mail chimps response
 func (handler *Handler) RegisterForNewsletter(writer http.ResponseWriter, request *http.Request) {
-	err := request.ParseForm()
+	err := request.ParseMultipartForm(1024)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, 400, "Problem with request formatting", err)
 		return
