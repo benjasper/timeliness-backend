@@ -16,3 +16,4 @@ env_variables:
   GCP_PROJECT_ID: project-tasks-294214
   REDIS: redis-11447.c78.eu-west-1-2.ec2.cloud.redislabs.com:11447
   REDIS_PASSWORD: IbZhlgDm5kYsvYrcBvWXiXjqbTv1CBYs
+  CORS: timeliness.app
