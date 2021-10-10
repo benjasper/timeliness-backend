@@ -215,10 +215,13 @@ func main() {
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
 			if accessControl == "*" {
 				w.Header().Set("Access-Control-Allow-Origin", "*")
-			} else if strings.HasSuffix(r.Header.Get("Origin"), accessControl) {
-				w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+			} else if strings.HasSuffix(origin, accessControl) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			} else if strings.Contains(origin, "http://localhost") {
+				w.Header().Set("Access-Control-Allow-Origin", "http://localhost")
 			}
 
 			w.Header().Add("Content-Type", "application/json")
