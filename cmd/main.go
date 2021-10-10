@@ -218,10 +218,8 @@ func main() {
 			origin := r.Header.Get("Origin")
 			if accessControl == "*" {
 				w.Header().Set("Access-Control-Allow-Origin", "*")
-			} else if strings.HasSuffix(origin, accessControl) {
+			} else if strings.HasSuffix(origin, accessControl) || strings.Contains(origin, "http://localhost:") {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
-			} else if strings.Contains(origin, "http://localhost") {
-				w.Header().Set("Access-Control-Allow-Origin", "http://localhost")
 			}
 
 			w.Header().Add("Content-Type", "application/json")
