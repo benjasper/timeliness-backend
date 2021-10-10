@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -214,7 +215,12 @@ func main() {
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", accessControl)
+			if accessControl == "*" {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if strings.HasSuffix(r.Host, accessControl) {
+				w.Header().Set("Access-Control-Allow-Origin", "https://"+r.Host)
+			}
+
 			w.Header().Add("Content-Type", "application/json")
 			next.ServeHTTP(w, r)
 		})
