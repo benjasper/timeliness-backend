@@ -217,8 +217,8 @@ func main() {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if accessControl == "*" {
 				w.Header().Set("Access-Control-Allow-Origin", "*")
-			} else if strings.HasSuffix(r.Host, accessControl) {
-				w.Header().Set("Access-Control-Allow-Origin", "https://"+r.Host)
+			} else if strings.HasSuffix(r.Header.Get("Origin"), accessControl) {
+				w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 			}
 
 			w.Header().Add("Content-Type", "application/json")
