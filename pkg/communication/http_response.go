@@ -3,13 +3,15 @@ package communication
 import (
 	"encoding/json"
 	"errors"
+	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"net/http"
 )
 
 // ResponseManager handles errors that have to be returned to the user
 type ResponseManager struct {
-	Logger logger.Interface
+	Logger      logger.Interface
+	Environment string
 }
 
 // ErrCalendarAuthInvalid is an error thrown if calendar auth is invalid
@@ -24,6 +26,8 @@ func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status in
 
 	if status >= 500 {
 		r.Logger.Error(message, err)
+	} else {
+		r.Logger.Warning(message, err)
 	}
 
 	writer.WriteHeader(status)
@@ -34,7 +38,7 @@ func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status in
 		},
 	}
 
-	if err != nil {
+	if err != nil && r.Environment != environment.Production {
 		response["err"] = err.Error()
 	}
 

@@ -7,6 +7,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
@@ -137,7 +138,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 
 	env := os.Getenv("APP_ENV")
 	for _, sync := range u.GoogleCalendarConnection.CalendarsOfInterest {
-		if env != "prod" {
+		if env != environment.Production {
 			continue
 		}
 		u, err = googleCalendarRepository.WatchCalendar(sync.CalendarID, u)
