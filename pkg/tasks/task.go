@@ -19,7 +19,10 @@ const RoleMaintainer = "maintainer"
 // Role is the constants starting with role
 type Role string
 
+// AgendaWorkUnit is a type to keep apart dates
 const AgendaWorkUnit = "WORK_UNIT"
+
+// AgendaDueAt is a type to keep apart dates
 const AgendaDueAt = "DUE_AT"
 
 // Task is the model for a task
