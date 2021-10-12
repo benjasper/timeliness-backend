@@ -152,3 +152,8 @@ func (m *MockTaskRepository) DeleteFinally(ctx context.Context, taskID string, u
 func (m *MockTaskRepository) DeleteTag(ctx context.Context, tagID string, userID string) error {
 	panic("implement me")
 }
+
+// FindAllByDate finds all task, combining work units and due dates
+func (m *MockTaskRepository) FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error) {
+	panic("not implemented")
+}
