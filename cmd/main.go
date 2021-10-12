@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
@@ -34,7 +35,7 @@ func main() {
 
 	appEnv := os.Getenv("APP_ENV")
 	if appEnv == "" {
-		appEnv = "dev"
+		appEnv = environment.Dev
 	}
 
 	databaseURL := os.Getenv("DATABASE")
@@ -53,11 +54,11 @@ func main() {
 	}
 
 	var logging logger.Interface = logger.Logger{}
-	if appEnv == "prod" {
+	if appEnv == environment.Production {
 		logging = logger.NewGoogleCloudLogger()
 	}
 
-	if appEnv == "prod" {
+	if appEnv == environment.Production {
 		if err := profiler.Start(profiler.Config{}); err != nil {
 			logging.Error("Could not start profiler", err)
 		}
