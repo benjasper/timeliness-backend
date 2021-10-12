@@ -22,6 +22,19 @@ type Event struct {
 	CalendarEvents PersistedEvents `json:"-" bson:"calendarEvents"`
 }
 
+// AgendaEvent represents an agenda view calendar event
+type AgendaEvent struct {
+	Date        Timespan `json:"date" bson:"date" validate:"required"`
+	Title       string   `json:"-" bson:"-"`
+	Description string   `json:"-" bson:"-"`
+	IsOriginal  bool     `json:"-" bson:"-"`
+	Blocking    bool     `json:"-" bson:"blocking"`
+	Deleted     bool     `json:"-" bson:"deleted"`
+	Type        string   `json:"type" bson:"type"`
+
+	CalendarEvents PersistedEvents `json:"-" bson:"calendarEvents"`
+}
+
 // PersistedEvent represents an event persistent in a users calendar
 type PersistedEvent struct {
 	CalendarType    Type               `json:"-" bson:"calendarType"`

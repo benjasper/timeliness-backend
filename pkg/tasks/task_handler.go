@@ -470,6 +470,87 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	handler.ResponseManager.Respond(writer, response)
 }
 
+// GetTasksByAgenda is the route for the agenda view
+func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	var page = 0
+	var pageSize = 10
+	var err error
+
+	queryPage := request.URL.Query().Get("page")
+	queryPageSize := request.URL.Query().Get("pageSize")
+	queryDate := request.URL.Query().Get("date")
+	querySort := request.URL.Query().Get("sort")
+	date := time.Time{}
+	sort := 1
+
+	var filters []Filter
+
+	if queryPage != "" {
+		page, err = strconv.Atoi(queryPage)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter page", err)
+			return
+		}
+	}
+
+	if queryPageSize != "" {
+		pageSize, err = strconv.Atoi(queryPageSize)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter pageSize", err)
+			return
+		}
+
+		if pageSize > 25 {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Page size can't be more than 25", nil)
+			return
+		}
+	}
+
+	if querySort != "" {
+		sort, err = strconv.Atoi(querySort)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"Bad query parameter sort", err)
+			return
+		}
+	}
+
+	date, err = time.Parse(time.RFC3339, queryDate)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+		return
+	}
+
+	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, filters, date, sort)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		return
+	}
+
+	if tasks == nil {
+		tasks = make([]TaskAgenda, 0)
+	}
+
+	pages := float64(count) / float64(pageSize)
+
+	var response = map[string]interface{}{
+		"results": tasks,
+		"pagination": map[string]interface{}{
+			"resultCount": count,
+			"pageSize":    pageSize,
+			"pageIndex":   page,
+			"pages":       int(math.Ceil(pages)),
+		},
+	}
+
+	handler.ResponseManager.Respond(writer, response)
+}
+
 // RescheduleWorkUnit is the endpoint implementation for rescheduling workunits
 func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)

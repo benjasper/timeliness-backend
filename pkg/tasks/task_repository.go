@@ -18,6 +18,7 @@ type TaskRepositoryInterface interface {
 	Update(ctx context.Context, task *TaskUpdate, deleted bool) error
 	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeIsNotDone bool, includeDeleted bool) ([]Task, int, error)
 	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error)
+	FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error)
@@ -231,8 +232,10 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 		{
 			Key: "$facet",
 			Value: bson.M{
-				"allResults": bson.A{bson.D{{Key: "$skip", Value: offset}}, bson.D{{Key: "$limit", Value: pageSize}},
-					bson.D{{Key: "$sort", Value: bson.M{"workUnit.scheduledAt.date": 1}}}},
+				"allResults": bson.A{
+					bson.D{{Key: "$sort", Value: bson.M{"workUnit.scheduledAt.date.start": 1}}},
+					bson.D{{Key: "$skip", Value: offset}}, bson.D{{Key: "$limit", Value: pageSize}},
+				},
 				"totalCount": bson.A{bson.D{{Key: "$count", Value: "count"}}},
 			},
 		},
@@ -256,6 +259,145 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 
 	return results[0].AllResults, results[0].TotalCount.Count, nil
 }
+
+// FindAllByDate finds all task, combining work units and due dates
+func (s *MongoDBTaskRepository) FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error) {
+	var results []struct {
+		AllResults []TaskAgenda
+
+		TotalCount struct {
+			Count int
+		}
+	}
+
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	offset := page * pageSize
+
+	queryFilters := bson.D{{
+		Key: "$or", Value: bson.A{
+			bson.D{
+				{Key: "userId", Value: userObjectID},
+			},
+			bson.D{
+				{Key: "collaborators.userId", Value: userObjectID},
+			},
+		},
+	},
+		{
+			Key: "deleted", Value: false,
+		},
+	}
+
+	queryWorkUnitFilters := bson.D{}
+	for _, filter := range filters {
+		if filter.Operator != "" {
+			queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
+			continue
+		}
+		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: filter.Value})
+	}
+
+	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
+	addFieldsStage := bson.D{{
+		Key: "$addFields", Value: bson.M{
+			"dueAtDate":     bson.A{"$dueAt"},
+			"workUnitDates": "$workUnits.scheduledAt",
+		},
+	}}
+
+	addFieldsStage2 := bson.D{{
+		Key: "$addFields", Value: bson.M{
+			"dueAtDate.type":     AgendaDueAt,
+			"workUnitDates.type": AgendaWorkUnit,
+		},
+	}}
+
+	addFieldsStage3 := bson.D{{
+		Key: "$addFields", Value: bson.M{
+			"date": bson.D{{
+				Key:   "$concatArrays",
+				Value: bson.A{"$dueAtDate", "$workUnitDates"},
+			}},
+		},
+	}}
+
+	unwindStage := bson.D{{
+		Key: "$unwind", Value: bson.M{
+			"path":              "$date",
+			"includeArrayIndex": "workUnitIndex",
+		},
+	}}
+
+	setStage := bson.D{{
+		Key: "$set", Value: bson.M{
+			"workUnitIndex": bson.M{"$subtract": bson.A{
+				"$workUnitIndex",
+				1,
+			}},
+		},
+	}}
+
+	direction := "$gte"
+	if sort == -1 {
+		direction = "$lte"
+	}
+
+	matchStage2 := bson.D{{
+		Key: "$match", Value: bson.D{
+			{Key: "date.date.start", Value: bson.M{direction: date}},
+		},
+	}}
+
+	facetStage := bson.D{
+		{
+			Key: "$facet",
+			Value: bson.M{
+				"allResults": bson.A{
+					bson.D{{Key: "$sort", Value: bson.M{"date.date.start": sort}}},
+					bson.D{{Key: "$skip", Value: offset}}, bson.D{{Key: "$limit", Value: pageSize}},
+				},
+				"totalCount": bson.A{bson.D{{Key: "$count", Value: "count"}}},
+			},
+		},
+	}
+
+	unwindCountStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$totalCount"}}}
+
+	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, addFieldsStage, addFieldsStage2, addFieldsStage3, unwindStage, matchStage2, setStage, facetStage, unwindCountStage})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = cursor.All(ctx, &results)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(results) == 0 {
+		return nil, 0, err
+	}
+
+	return results[0].AllResults, results[0].TotalCount.Count, nil
+}
+
+/*
+[{$addFields: {
+'dueAt': ['$dueAt'],
+'workUnits': '$workUnits.scheduledAt'
+}}, {$addFields: {
+'dueAt.type': 'DUE_AT',
+'workUnits.type': 'WORK_UNIT'
+}}, {$addFields: {
+dates: {$concatArrays: ["$dueAt","$workUnits"]},
+}}, {$unwind: {
+path: '$dates'
+}}]
+
+*/
 
 // FindByID finds a specific task by ID
 func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error) {

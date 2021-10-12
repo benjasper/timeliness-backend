@@ -19,6 +19,9 @@ const RoleMaintainer = "maintainer"
 // Role is the constants starting with role
 type Role string
 
+const AgendaWorkUnit = "WORK_UNIT"
+const AgendaDueAt = "DUE_AT"
+
 // Task is the model for a task
 type Task struct {
 	// TODO: More validation
@@ -37,6 +40,28 @@ type Task struct {
 	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
+}
+
+// TaskAgenda is the model for the agenda task view
+type TaskAgenda struct {
+	ID             primitive.ObjectID   `bson:"_id" json:"id"`
+	UserID         primitive.ObjectID   `json:"userId" bson:"userId" validate:"required"`
+	CreatedAt      time.Time            `json:"createdAt" bson:"createdAt"`
+	LastModifiedAt time.Time            `json:"lastModifiedAt" bson:"lastModifiedAt"`
+	Deleted        bool                 `json:"deleted" bson:"deleted"`
+	Name           string               `json:"name" bson:"name" validate:"required"`
+	Description    string               `json:"description" bson:"description"`
+	IsDone         bool                 `json:"isDone" bson:"isDone"`
+	Tags           []primitive.ObjectID `json:"tags" bson:"tags"`
+	Collaborators  Collaborators        `json:"collaborators" bson:"collaborators"`
+
+	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
+	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
+	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
+	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
+
+	Date          calendar.AgendaEvent `json:"date" bson:"date"`
+	WorkUnitIndex int                  `json:"workUnitIndex" bson:"workUnitIndex"`
 }
 
 // TaskUnwound is the model for a task that only has a single work unit extracted
