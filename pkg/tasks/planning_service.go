@@ -24,6 +24,7 @@ type PlanningService struct {
 	constraint                *calendar.FreeConstraint
 	locker                    locking.LockerInterface
 	calendarRepositoryManager *CalendarRepositoryManager
+	taskTextRenderer          *TaskTextRenderer
 }
 
 // NewPlanningController constructs a PlanningService that is specific for a user
@@ -44,6 +45,7 @@ func NewPlanningController(userService users.UserRepositoryInterface,
 	controller.logger = logger
 	controller.locker = locker
 	controller.calendarRepositoryManager = calendarRepositoryManager
+	controller.taskTextRenderer = &TaskTextRenderer{}
 
 	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
 	controller.constraint = &calendar.FreeConstraint{
@@ -176,7 +178,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		for _, workUnit := range foundWorkUnits {
 			workUnit.ScheduledAt.Blocking = true
-			workUnit.ScheduledAt.Title = renderWorkUnitEventTitle(t)
+			workUnit.ScheduledAt.Title = c.taskTextRenderer.RenderWorkUnitEventTitle(t)
 			workUnit.ScheduledAt.Description = ""
 
 			var workEvent *calendar.Event
@@ -265,7 +267,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 	if len(t.DueAt.CalendarEvents) != len(relevantUsers) {
 		t.DueAt.Blocking = false
-		t.DueAt.Title = renderDueEventTitle(t)
+		t.DueAt.Title = c.taskTextRenderer.RenderDueEventTitle(t)
 		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
 		t.DueAt.Description = ""
 
@@ -359,7 +361,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 
 	for _, workUnit := range findWorkUnitTimes(&windowTotal, workloadToSchedule) {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = renderWorkUnitEventTitle((*Task)(t))
+		workUnit.ScheduledAt.Title = c.taskTextRenderer.RenderWorkUnitEventTitle((*Task)(t))
 		workUnit.ScheduledAt.Description = ""
 
 		var workEvent *calendar.Event
@@ -457,20 +459,6 @@ func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) Wor
 	return workUnits
 }
 
-func renderDueEventTitle(task *Task) string {
-	var icon = "📅"
-
-	if task.IsDone {
-		icon = "✔️"
-	}
-
-	return fmt.Sprintf("%s %s is due", icon, task.Name)
-}
-
-func renderWorkUnitEventTitle(task *Task) string {
-	return fmt.Sprintf("⚙️ Working on %s", task.Name)
-}
-
 // UpdateEvent updates an any calendar event
 func (c *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *calendar.Event) error {
 	relevantUsers, err := c.getAllRelevantUsers(ctx, task)
@@ -495,7 +483,7 @@ func (c *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 
 // UpdateTaskTitle updates the events of the tasks and work units
 func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updateWorkUnits bool) error {
-	task.DueAt.Title = renderDueEventTitle(task)
+	task.DueAt.Title = c.taskTextRenderer.RenderDueEventTitle(task)
 
 	relevantUsers, err := c.getAllRelevantUsers(ctx, task)
 	if err != nil {
@@ -523,7 +511,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	}
 
 	for _, unit := range task.WorkUnits {
-		unit.ScheduledAt.Title = renderWorkUnitEventTitle(task)
+		unit.ScheduledAt.Title = c.taskTextRenderer.RenderWorkUnitEventTitle(task)
 
 		for _, user := range relevantUsers {
 			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt)

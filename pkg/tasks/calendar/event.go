@@ -13,7 +13,7 @@ const (
 // Event represents a simple calendar event
 type Event struct {
 	Date        Timespan `json:"date" bson:"date" validate:"required"`
-	Title       string   `json:"-" bson:"-"`
+	Title       string   `json:"-" bson:"title"`
 	Description string   `json:"-" bson:"-"`
 	IsOriginal  bool     `json:"-" bson:"-"`
 	Blocking    bool     `json:"-" bson:"blocking"`
@@ -25,7 +25,7 @@ type Event struct {
 // AgendaEvent represents an agenda view calendar event
 type AgendaEvent struct {
 	Date        Timespan `json:"date" bson:"date" validate:"required"`
-	Title       string   `json:"-" bson:"-"`
+	Title       string   `json:"-" bson:"title"`
 	Description string   `json:"-" bson:"-"`
 	IsOriginal  bool     `json:"-" bson:"-"`
 	Blocking    bool     `json:"-" bson:"blocking"`
