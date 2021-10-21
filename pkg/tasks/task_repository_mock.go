@@ -44,7 +44,7 @@ func (m *MockTaskRepository) Update(_ context.Context, task *TaskUpdate, deleted
 }
 
 // FindAll finds all tasks. Filters are not yet implemented.
-func (m *MockTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, _ []Filter, _ bool, _ bool) ([]Task, int, error) {
+func (m *MockTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, _ []Filter, _ time.Time, _ bool) ([]Task, int, error) {
 	userObjectID, _ := primitive.ObjectIDFromHex(userID)
 
 	var tasks []Task

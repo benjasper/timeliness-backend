@@ -263,7 +263,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	queryDueAt := request.URL.Query().Get("dueAt.date.start")
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
 	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
-	queryIncludeIsNotDone := request.URL.Query().Get("includeIsNotDone")
+	queryIsDoneAndDueAt := request.URL.Query().Get("isDoneAndDueAt")
 
 	includeDeleted := false
 	if includeDeletedQuery != "" {
@@ -319,9 +319,9 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	includeIsNotDone := false
-	if queryIncludeIsNotDone != "" {
-		includeIsNotDone, err = strconv.ParseBool(queryIncludeIsNotDone)
+	isDoneAndDueAt := time.Time{}
+	if queryIsDoneAndDueAt != "" {
+		isDoneAndDueAt, err = time.Parse(time.RFC3339, queryIsDoneAndDueAt)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 				"Bad query parameter workUnit.isDone value", nil)
@@ -329,7 +329,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, includeIsNotDone, includeDeleted)
+	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, isDoneAndDueAt, includeDeleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
