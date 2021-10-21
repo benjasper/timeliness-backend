@@ -16,7 +16,7 @@ import (
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
 	Update(ctx context.Context, task *TaskUpdate, deleted bool) error
-	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeIsNotDone bool, includeDeleted bool) ([]Task, int, error)
+	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error)
 	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error)
 	FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
@@ -104,7 +104,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate, de
 }
 
 // FindAll finds all task paginated
-func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeIsNotDone bool, includeDeleted bool) ([]Task, int, error) {
+func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -143,12 +143,10 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 		queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: filter.Value})
 	}
 
-	if includeIsNotDone {
+	if (isDoneAndDueAt != time.Time{}) {
 		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
-			bson.D{
-				{Key: "isDone", Value: false}},
-			bson.D{
-				{Key: "isDone", Value: true}},
+			bson.M{"isDone": false},
+			bson.M{"isDone": true, "dueAt.date.start": bson.M{"$gte": isDoneAndDueAt}},
 		}})
 	}
 
@@ -383,21 +381,6 @@ func (s *MongoDBTaskRepository) FindAllByDate(ctx context.Context, userID string
 
 	return results[0].AllResults, results[0].TotalCount.Count, nil
 }
-
-/*
-[{$addFields: {
-'dueAt': ['$dueAt'],
-'workUnits': '$workUnits.scheduledAt'
-}}, {$addFields: {
-'dueAt.type': 'DUE_AT',
-'workUnits.type': 'WORK_UNIT'
-}}, {$addFields: {
-dates: {$concatArrays: ["$dueAt","$workUnits"]},
-}}, {$unwind: {
-path: '$dates'
-}}]
-
-*/
 
 // FindByID finds a specific task by ID
 func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error) {
