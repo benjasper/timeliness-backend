@@ -324,7 +324,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		isDoneAndDueAt, err = time.Parse(time.RFC3339, queryIsDoneAndDueAt)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter workUnit.isDone value", nil)
+				"Bad query parameter isDoneAndDueAt value", err)
 			return
 		}
 	}
