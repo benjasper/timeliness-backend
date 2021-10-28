@@ -262,17 +262,17 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	errorChannel *chan error,
 	userChannel *chan *users.User) {
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now()
 	request := c.Service.Events.List(calendarID).SingleEvents(true)
 
 	c.user = user
 	syncIndex := findSyncByID(user.GoogleCalendarConnection, calendarID)
 
-	if user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken != "" {
+	if user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken != "" && user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].Expiration.After(now) {
 		request = request.SyncToken(user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken)
 	} else {
-		request = request.TimeMin(now)
-		// TODO max time restriction
+		request = request.TimeMin(now.Format(time.RFC3339))
+		request = request.TimeMax(now.Add(time.Hour * 24 * 31 * 6).Format(time.RFC3339)) // 6 months from now
 	}
 
 	defer close(*eventChannel)
