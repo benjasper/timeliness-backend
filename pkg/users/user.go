@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+// CalendarConnectionStatusActive marks an active calendar connection
+const CalendarConnectionStatusActive = "active"
+
+// CalendarConnectionStatusInactive marks an inactive calendar connection
+const CalendarConnectionStatusInactive = ""
+
+// CalendarConnectionStatusExpired marks an active calendar connection
+const CalendarConnectionStatusExpired = "expired"
+
 // User represents the user
 type User struct {
 	ID             primitive.ObjectID `json:"id" bson:"_id"`
@@ -19,7 +28,7 @@ type User struct {
 	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
 	Contacts       []Contact          `json:"contacts" bson:"contacts"`
 
-	GoogleCalendarConnection GoogleCalendarConnection `json:"-" bson:"googleCalendarConnection,omitempty"`
+	GoogleCalendarConnection GoogleCalendarConnection `json:"googleCalendarConnection" bson:"googleCalendarConnection"`
 }
 
 // UserLogin is the view for users logger in
@@ -42,10 +51,11 @@ type DeviceToken struct {
 
 // GoogleCalendarConnection stores everything related to Google Calendar
 type GoogleCalendarConnection struct {
+	Status              string               `json:"status" bson:"status"`
 	Token               oauth2.Token         `json:"-" bson:"token,omitempty"`
 	StateToken          string               `json:"-" bson:"stateToken,omitempty"`
-	TaskCalendarID      string               `json:"taskCalendarID,omitempty" bson:"taskCalendarID,omitempty"`
-	CalendarsOfInterest []GoogleCalendarSync `json:"calendarsOfInterest,omitempty" bson:"calendarsOfInterest,omitempty"`
+	TaskCalendarID      string               `json:"-" bson:"taskCalendarID,omitempty"`
+	CalendarsOfInterest []GoogleCalendarSync `json:"-" bson:"calendarsOfInterest,omitempty"`
 }
 
 // GoogleCalendarSync holds information about a calendar that will be used to determine busy times

@@ -423,6 +423,7 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 
 	usr.GoogleCalendarConnection.Token = *token
 	usr.GoogleCalendarConnection.StateToken = ""
+	usr.GoogleCalendarConnection.Status = CalendarConnectionStatusActive
 
 	_ = handler.UserRepository.Update(request.Context(), usr)
 
