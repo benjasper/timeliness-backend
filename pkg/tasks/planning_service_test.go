@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	logger "github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
@@ -58,9 +59,9 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 		userRepository:            &userRepo,
 		taskRepository:            taskRepo,
 		calendarRepositoryManager: &calendarRepositoryManager,
-		logger:                    log, locker: locker, constraint: &calendar.FreeConstraint{
+		logger:                    log, locker: locker, constraint: &date.FreeConstraint{
 			Location: location,
-			AllowedTimeSpans: []calendar.Timespan{
+			AllowedTimeSpans: []date.Timespan{
 				{
 					Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
 					End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
@@ -93,7 +94,7 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 				Description:     "",
 				WorkloadOverall: time.Hour * 4,
 				DueAt: calendar.Event{
-					Date: calendar.Timespan{
+					Date: date.Timespan{
 						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
 						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
 					},
@@ -117,7 +118,7 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 				Description:     "",
 				WorkloadOverall: time.Hour * 4,
 				DueAt: calendar.Event{
-					Date: calendar.Timespan{
+					Date: date.Timespan{
 						Start: time.Date(2021, 2, 5, 18, 0, 0, 0, location),
 						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
 					},
@@ -151,7 +152,7 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 				Description:     "",
 				WorkloadOverall: time.Hour * 4,
 				DueAt: calendar.Event{
-					Date: calendar.Timespan{
+					Date: date.Timespan{
 						Start: time.Date(2021, 1, 5, 18, 0, 0, 0, location),
 						End:   time.Date(2021, 1, 5, 18, 15, 0, 0, location),
 					},
@@ -162,21 +163,21 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 					userID: primaryUser.ID,
 					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{
 						{
-							Date: calendar.Timespan{
+							Date: date.Timespan{
 								Start: time.Date(2021, 1, 1, 9, 0, 0, 0, location),
 								End:   time.Date(2021, 1, 3, 18, 0, 0, 0, location),
 							},
 							Blocking: true,
 						},
 						{
-							Date: calendar.Timespan{
+							Date: date.Timespan{
 								Start: time.Date(2021, 1, 4, 8, 0, 0, 0, location),
 								End:   time.Date(2021, 1, 4, 13, 0, 0, 0, location),
 							},
 							Blocking: true,
 						},
 						{
-							Date: calendar.Timespan{
+							Date: date.Timespan{
 								Start: time.Date(2021, 1, 5, 8, 0, 0, 0, location),
 								End:   time.Date(2021, 1, 5, 18, 0, 0, 0, location),
 							},
@@ -230,7 +231,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 			Description:     "",
 			WorkloadOverall: time.Hour * 4,
 			DueAt: calendar.Event{
-				Date: calendar.Timespan{
+				Date: date.Timespan{
 					Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
 					End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
 				},
@@ -252,7 +253,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 					ID:       primitive.NewObjectID(),
 					Workload: time.Hour * 4,
 					ScheduledAt: calendar.Event{
-						Date: calendar.Timespan{
+						Date: date.Timespan{
 							Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
 							End:   time.Date(2021, 1, 15, 18, 15, 0, 0, location),
 						},
@@ -289,7 +290,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 	mockCalendarRepoPrimary := &calendar.MockCalendarRepository{
 		Events: []*calendar.Event{
 			{
-				Date: calendar.Timespan{
+				Date: date.Timespan{
 					Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
 					End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
 				},
@@ -302,7 +303,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 				},
 			},
 			{
-				Date: calendar.Timespan{
+				Date: date.Timespan{
 					Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
 					End:   time.Date(2021, 1, 15, 18, 15, 0, 0, location),
 				},
@@ -317,7 +318,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 		},
 		EventsToSync: []*calendar.Event{
 			{
-				Date: calendar.Timespan{
+				Date: date.Timespan{
 					Start: time.Date(2021, 3, 5, 18, 0, 0, 0, location),
 					End:   time.Date(2021, 3, 5, 18, 15, 0, 0, location),
 				},
@@ -335,7 +336,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 	mockCalendarRepoSecondary := &calendar.MockCalendarRepository{
 		Events: []*calendar.Event{
 			{
-				Date: calendar.Timespan{
+				Date: date.Timespan{
 					Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
 					End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
 				},
@@ -353,7 +354,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 				},
 			},
 			{
-				Date: calendar.Timespan{
+				Date: date.Timespan{
 					Start: time.Date(2021, 1, 16, 16, 0, 0, 0, location),
 					End:   time.Date(2021, 1, 16, 18, 15, 0, 0, location),
 				},
@@ -368,7 +369,7 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 		},
 		EventsToSync: []*calendar.Event{
 			{
-				Date: calendar.Timespan{
+				Date: date.Timespan{
 					Start: time.Date(2021, 1, 16, 16, 0, 0, 0, location),
 					End:   time.Date(2021, 1, 16, 18, 15, 0, 0, location),
 				},
@@ -390,9 +391,9 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 		userRepository:            &userRepo,
 		taskRepository:            taskRepo,
 		calendarRepositoryManager: &calendarRepositoryManager,
-		logger:                    log, locker: locker, constraint: &calendar.FreeConstraint{
+		logger:                    log, locker: locker, constraint: &date.FreeConstraint{
 			Location: location,
-			AllowedTimeSpans: []calendar.Timespan{
+			AllowedTimeSpans: []date.Timespan{
 				{
 					Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
 					End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),

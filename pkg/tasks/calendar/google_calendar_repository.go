@@ -8,6 +8,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"google.golang.org/api/googleapi"
@@ -248,7 +249,7 @@ func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event) (*
 		return nil, err
 	}
 
-	newEvent.Date = Timespan{
+	newEvent.Date = date.Timespan{
 		Start: start,
 		End:   end,
 	}
@@ -366,7 +367,7 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event) *gcalendar.Ev
 }
 
 // AddBusyToWindow reads times from a window and fills it with busy timeslots
-func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
+func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow) error {
 	calList := c.user.GoogleCalendarConnection.CalendarsOfInterest
 
 	var items = make([]*gcalendar.FreeBusyRequestItem, len(calList))
@@ -394,7 +395,7 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
 				return err
 			}
 
-			window.AddToBusy(Timespan{Start: start.UTC(), End: end.UTC()})
+			window.AddToBusy(date.Timespan{Start: start.UTC(), End: end.UTC()})
 		}
 	}
 

@@ -67,6 +67,18 @@ func (r *MockUserRepository) Update(ctx context.Context, user *User) error {
 	return errors.New("user not found")
 }
 
+// UpdateSettings updates a users settings
+func (r *MockUserRepository) UpdateSettings(ctx context.Context, user *User) error {
+	for i, user := range r.Users {
+		if user.ID == user.ID {
+			r.Users[i] = user
+			return nil
+		}
+	}
+
+	return errors.New("user not found")
+}
+
 // Remove removes a user
 func (r *MockUserRepository) Remove(ctx context.Context, id string) error {
 	var found = false

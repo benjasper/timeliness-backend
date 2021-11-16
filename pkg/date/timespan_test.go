@@ -1,4 +1,4 @@
-package calendar
+package date
 
 import (
 	"fmt"
@@ -1047,42 +1047,6 @@ func TestTimespan_IntersectsWith(t *testing.T) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
 		})
-	}
-}
-
-func TestTimespan_SplitByDays(t *testing.T) {
-	timespan := Timespan{Start: timeDate(2020, 12, 12, 12, 30, 0),
-		End: timeDate(2020, 12, 13, 15, 30, 0)}
-
-	want1 := []Timespan{
-		{
-			Start: timeDate(2020, 12, 12, 12, 30, 0),
-			End:   timeDate(2020, 12, 12, 23, 59, 59),
-		},
-		{
-			Start: timeDate(2020, 12, 13, 00, 0, 0),
-			End:   timeDate(2020, 12, 13, 15, 30, 0),
-		},
-	}
-
-	result1 := timespan.SplitByDays()
-	if !reflect.DeepEqual(result1, want1) {
-		t.Errorf("1) %v not equal to %v", result1, want1)
-	}
-
-	timespan2 := Timespan{Start: timeDate(2020, 12, 12, 12, 30, 0),
-		End: timeDate(2020, 12, 12, 15, 30, 0)}
-
-	want2 := []Timespan{
-		{
-			Start: timeDate(2020, 12, 12, 12, 30, 0),
-			End:   timeDate(2020, 12, 12, 15, 30, 00),
-		},
-	}
-
-	result2 := timespan2.SplitByDays()
-	if !reflect.DeepEqual(result2, want2) {
-		t.Errorf("1) %v not equal to %v", result1, want1)
 	}
 }
 

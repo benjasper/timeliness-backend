@@ -1,6 +1,8 @@
-package calendar
+package date
 
-import "time"
+import (
+	"time"
+)
 
 // RuleInterface is the interface all rules have to implement
 type RuleInterface interface {

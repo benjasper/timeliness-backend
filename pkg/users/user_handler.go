@@ -2,6 +2,7 @@ package users
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"io"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -268,7 +270,6 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	}
 	refreshToken := jwt.New(jwt.AlgHS256, refreshTokenClaims)
 
-	// TODO change to secret to env var
 	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
@@ -276,7 +277,6 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	// TODO change to secret to env var
 	refreshTokenString, err := refreshToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
@@ -303,7 +303,62 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	}
 }
 
-// UserRefresh TODO: Refreshes a users token with refresh token
+// UserSettingsPatch updates specific values of a user
+func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err)
+		return
+	}
+
+	userSettings := user.Settings
+	originalSettings := userSettings
+
+	err = json.NewDecoder(request.Body).Decode(&userSettings)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		return
+	}
+
+	if userSettings.Scheduling.TimeZone != originalSettings.Scheduling.TimeZone {
+		_, err := time.LoadLocation(userSettings.Scheduling.TimeZone)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, 400, fmt.Sprintf("Timezone %s does not exist", userSettings.Scheduling.TimeZone), err)
+			return
+		}
+	}
+
+	if !reflect.DeepEqual(userSettings.Scheduling.AllowedTimespans, originalSettings.Scheduling.AllowedTimespans) {
+		for _, timespan := range userSettings.Scheduling.AllowedTimespans {
+			if !timespan.IsStartBeforeEnd() || timespan.Duration() == 0 {
+				handler.ResponseManager.RespondWithError(writer, 400, fmt.Sprintf("Allowed Timespan %s is invalid", timespan), nil)
+				return
+			}
+		}
+	}
+
+	v := validator.New()
+	err = v.Struct(userSettings)
+	if err != nil {
+		for _, e := range err.(validator.ValidationErrors) {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			return
+		}
+	}
+
+	user.Settings = userSettings
+	err = handler.UserRepository.UpdateSettings(request.Context(), user)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Couldn't update user settings for %s", userID), err)
+		return
+	}
+
+	handler.ResponseManager.Respond(writer, &userSettings)
+}
+
+// UserRefresh refreshes a users access token with a new one by providing a refresh token
 func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Request) {
 	body := struct {
 		RefreshToken string `json:"refreshToken"`
@@ -323,7 +378,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 	}
 
 	claims := jwt.Claims{}
-	// TODO: change secret to env var
+
 	refreshToken, err := jwt.Verify(body.RefreshToken, jwt.TokenTypeRefresh, handler.Secret, jwt.AlgHS256, claims)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Token invalid", err)
@@ -347,7 +402,6 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 	}
 	accessToken := jwt.New(jwt.AlgHS256, accessClaims)
 
-	// TODO change to secret to env var
 	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
@@ -21,7 +22,7 @@ type PlanningService struct {
 	userRepository            users.UserRepositoryInterface
 	taskRepository            TaskRepositoryInterface
 	logger                    logger.Interface
-	constraint                *calendar.FreeConstraint
+	constraint                *date.FreeConstraint
 	locker                    locking.LockerInterface
 	calendarRepositoryManager *CalendarRepositoryManager
 	taskTextRenderer          *TaskTextRenderer
@@ -48,9 +49,9 @@ func NewPlanningController(userService users.UserRepositoryInterface,
 	controller.taskTextRenderer = &TaskTextRenderer{}
 
 	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
-	controller.constraint = &calendar.FreeConstraint{
+	controller.constraint = &date.FreeConstraint{
 		Location: location,
-		AllowedTimeSpans: []calendar.Timespan{
+		AllowedTimeSpans: []date.Timespan{
 			{
 				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
 				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
@@ -139,7 +140,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 	}
 
 	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
+	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 
 	relevantUsers, err := c.getAllRelevantUsers(ctx, t)
 	if err != nil {
@@ -323,7 +324,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
 
 	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := calendar.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
+	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
 
 	relevantUsers, err := c.getAllRelevantUsers(ctx, (*Task)(t))
 	if err != nil {
@@ -390,7 +391,7 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 	return t, nil
 }
 
-func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) WorkUnits {
+func findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration) WorkUnits {
 	var workUnits WorkUnits
 	if w.FreeDuration == 0 {
 		return workUnits
@@ -411,7 +412,7 @@ func findWorkUnitTimes(w *calendar.TimeWindow, durationToFind time.Duration) Wor
 				maxDuration = durationToFind
 			}
 
-			var rules = []calendar.RuleInterface{&calendar.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
+			var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
 			slot := w.FindTimeSlot(&rules)
 			if slot == nil {
 				break

@@ -19,6 +19,7 @@ type UserRepositoryInterface interface {
 	FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error)
 	FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error)
 	Update(ctx context.Context, user *User) error
+	UpdateSettings(ctx context.Context, user *User) error
 	Remove(ctx context.Context, id string) error
 }
 
@@ -126,6 +127,22 @@ func (s *UserRepository) Update(ctx context.Context, user *User) error {
 	user.LastModifiedAt = time.Now()
 
 	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": user})
+	if err != nil {
+		return err
+	}
+
+	if result.MatchedCount != 1 {
+		return errors.New("updated count != 1")
+	}
+
+	return nil
+}
+
+// UpdateSettings updates only the user settings
+func (s *UserRepository) UpdateSettings(ctx context.Context, user *User) error {
+	user.LastModifiedAt = time.Now()
+
+	result, err := s.DB.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": bson.M{"settings": user.Settings, "lastModifiedAt": user.LastModifiedAt}})
 	if err != nil {
 		return err
 	}
