@@ -1,6 +1,7 @@
-package calendar
+package date
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -27,6 +28,16 @@ type Timespan struct {
 // Duration simply get the duration of a Timespan
 func (t *Timespan) Duration() time.Duration {
 	return t.End.Sub(t.Start)
+}
+
+// IsStartBeforeEnd checks if start is earlier than end
+func (t *Timespan) IsStartBeforeEnd() bool {
+	return t.Start.Before(t.End)
+}
+
+// String prints a timespan string
+func (t *Timespan) String() string {
+	return fmt.Sprintf("%s - %s", t.Start, t.End)
 }
 
 // ContainsByClock checks if a timespan is contained by the source timespan only by time and not by date
@@ -131,26 +142,6 @@ func calcSecondsFromClock(hours int, minutes int, seconds int) int {
 	secondsTotal += minutes * 60
 	secondsTotal += seconds
 	return secondsTotal
-}
-
-// SplitByDays splits a timespan that's longer than one day into multiple timespan with the size of one day
-func (t *Timespan) SplitByDays() []Timespan {
-	var splitted []Timespan
-	if t.Start.Day() != t.End.Day() {
-		timespan1 := Timespan{Start: t.Start, End: time.Date(
-			t.Start.Year(), t.Start.Month(), t.Start.Day(), 23, 59, 59, 0, t.Start.Location())}
-		splitted = append(splitted, timespan1)
-
-		timespan2 := Timespan{
-			Start: newTimeFromDateAndTime(t.Start.AddDate(0, 0, 1),
-				time.Date(0, 0, 0, 0, 0, 0, 0, t.Start.Location())),
-			End: t.End,
-		}
-		splitted = append(splitted, timespan2.SplitByDays()...)
-	} else {
-		splitted = append(splitted, *t)
-	}
-	return splitted
 }
 
 // RemoveFromTimespanSlice removes a Timespan from a Timespan slice

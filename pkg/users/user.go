@@ -1,6 +1,7 @@
 package users
 
 import (
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/oauth2"
 	"time"
@@ -29,6 +30,7 @@ type User struct {
 	Contacts       []Contact          `json:"contacts" bson:"contacts"`
 
 	GoogleCalendarConnection GoogleCalendarConnection `json:"googleCalendarConnection" bson:"googleCalendarConnection"`
+	Settings                 UserSettings             `json:"settings" bson:"settings"`
 }
 
 // UserLogin is the view for users logger in
@@ -65,4 +67,12 @@ type GoogleCalendarSync struct {
 	ChannelID      string    `json:"-" bson:"channelId,omitempty"`
 	SyncToken      string    `json:"-" bson:"syncToken,omitempty"`
 	Expiration     time.Time `json:"-" bson:"expiration,omitempty"`
+}
+
+// UserSettings hold different settings roughly separated by topics
+type UserSettings struct {
+	Scheduling struct {
+		TimeZone         string          `json:"timeZone" bson:"timeZone" validate:"required"`
+		AllowedTimespans []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
+	} `json:"scheduling" bson:"scheduling"`
 }

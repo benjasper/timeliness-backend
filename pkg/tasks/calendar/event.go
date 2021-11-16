@@ -1,6 +1,9 @@
 package calendar
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 // Type declares in which calendar implementation an event is persisted
 type Type string
@@ -12,25 +15,25 @@ const (
 
 // Event represents a simple calendar event
 type Event struct {
-	Date        Timespan `json:"date" bson:"date" validate:"required"`
-	Title       string   `json:"-" bson:"title"`
-	Description string   `json:"-" bson:"-"`
-	IsOriginal  bool     `json:"-" bson:"-"`
-	Blocking    bool     `json:"-" bson:"blocking"`
-	Deleted     bool     `json:"-" bson:"deleted"`
+	Date        date.Timespan `json:"date" bson:"date" validate:"required"`
+	Title       string        `json:"-" bson:"title"`
+	Description string        `json:"-" bson:"-"`
+	IsOriginal  bool          `json:"-" bson:"-"`
+	Blocking    bool          `json:"-" bson:"blocking"`
+	Deleted     bool          `json:"-" bson:"deleted"`
 
 	CalendarEvents PersistedEvents `json:"-" bson:"calendarEvents"`
 }
 
 // AgendaEvent represents an agenda view calendar event
 type AgendaEvent struct {
-	Date        Timespan `json:"date" bson:"date" validate:"required"`
-	Title       string   `json:"-" bson:"title"`
-	Description string   `json:"-" bson:"-"`
-	IsOriginal  bool     `json:"-" bson:"-"`
-	Blocking    bool     `json:"-" bson:"blocking"`
-	Deleted     bool     `json:"-" bson:"deleted"`
-	Type        string   `json:"type" bson:"type"`
+	Date        date.Timespan `json:"date" bson:"date" validate:"required"`
+	Title       string        `json:"-" bson:"title"`
+	Description string        `json:"-" bson:"-"`
+	IsOriginal  bool          `json:"-" bson:"-"`
+	Blocking    bool          `json:"-" bson:"blocking"`
+	Deleted     bool          `json:"-" bson:"deleted"`
+	Type        string        `json:"type" bson:"type"`
 
 	CalendarEvents PersistedEvents `json:"-" bson:"calendarEvents"`
 }

@@ -3,6 +3,7 @@ package calendar
 import (
 	"crypto/md5"
 	"errors"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 )
 
@@ -98,7 +99,7 @@ func (r *MockCalendarRepository) DeleteEvent(event *Event) error {
 }
 
 // AddBusyToWindow adds busy times
-func (r *MockCalendarRepository) AddBusyToWindow(window *TimeWindow) error {
+func (r *MockCalendarRepository) AddBusyToWindow(window *date.TimeWindow) error {
 	for _, event := range r.Events {
 		window.AddToBusy(event.Date)
 	}

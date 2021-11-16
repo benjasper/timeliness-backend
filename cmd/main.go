@@ -192,6 +192,7 @@ func main() {
 	authenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)
 	authenticatedAPI.Path("/user").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
+	authenticatedAPI.Path("/user/settings").HandlerFunc(userHandler.UserSettingsPatch).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/user/device").HandlerFunc(userHandler.UserAddDevice).Methods(http.MethodPost)
 	authenticatedAPI.Path("/user/device/{deviceToken}").HandlerFunc(userHandler.UserRemoveDevice).Methods(http.MethodDelete)
 
