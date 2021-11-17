@@ -28,6 +28,15 @@ var primaryUser = users.User{
 			ContactRequestedAt: time.Date(2021, 1, 1, 1, 1, 1, 1, location),
 		},
 	},
+	Settings: users.UserSettings{
+		Scheduling: struct {
+			TimeZone         string          `json:"timeZone" bson:"timeZone" validate:"required"`
+			AllowedTimespans []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
+		}(struct {
+			TimeZone         string
+			AllowedTimespans []date.Timespan
+		}{TimeZone: "Europe/Berlin"}),
+	},
 }
 
 var userRepo = users.MockUserRepository{
@@ -59,19 +68,8 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 		userRepository:            &userRepo,
 		taskRepository:            taskRepo,
 		calendarRepositoryManager: &calendarRepositoryManager,
-		logger:                    log, locker: locker, constraint: &date.FreeConstraint{
-			Location: location,
-			AllowedTimeSpans: []date.Timespan{
-				{
-					Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
-					End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
-				},
-				{
-					Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
-					End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
-				},
-			},
-		}}
+		logger:                    log, locker: locker,
+	}
 
 	type repoEntry struct {
 		userID             primitive.ObjectID
@@ -391,19 +389,8 @@ func TestPlanningService_SyncCalendar(t *testing.T) {
 		userRepository:            &userRepo,
 		taskRepository:            taskRepo,
 		calendarRepositoryManager: &calendarRepositoryManager,
-		logger:                    log, locker: locker, constraint: &date.FreeConstraint{
-			Location: location,
-			AllowedTimeSpans: []date.Timespan{
-				{
-					Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
-					End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
-				},
-				{
-					Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
-					End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
-				},
-			},
-		}}
+		logger:                    log, locker: locker,
+	}
 
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*30)
 	defer cancel()
