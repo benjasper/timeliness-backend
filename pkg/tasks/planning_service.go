@@ -22,7 +22,6 @@ type PlanningService struct {
 	userRepository            users.UserRepositoryInterface
 	taskRepository            TaskRepositoryInterface
 	logger                    logger.Interface
-	constraint                *date.FreeConstraint
 	locker                    locking.LockerInterface
 	calendarRepositoryManager *CalendarRepositoryManager
 	taskTextRenderer          *TaskTextRenderer
@@ -35,33 +34,12 @@ func NewPlanningController(userService users.UserRepositoryInterface,
 	calendarRepositoryManager *CalendarRepositoryManager) *PlanningService {
 	controller := PlanningService{}
 
-	location, err := time.LoadLocation("Europe/Berlin")
-	if err != nil {
-		logger.Fatal(err)
-		return nil
-	}
-
 	controller.userRepository = userService
 	controller.taskRepository = taskRepository
 	controller.logger = logger
 	controller.locker = locker
 	controller.calendarRepositoryManager = calendarRepositoryManager
 	controller.taskTextRenderer = &TaskTextRenderer{}
-
-	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
-	controller.constraint = &date.FreeConstraint{
-		Location: location,
-		AllowedTimeSpans: []date.Timespan{
-			{
-				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
-			},
-			{
-				Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
-			},
-		},
-	}
 
 	return &controller
 }
@@ -164,7 +142,28 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		}
 	}
 
-	windowTotal.ComputeFree(c.constraint)
+	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
+	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
+	constraint := &date.FreeConstraint{
+		Location: location,
+		AllowedTimeSpans: []date.Timespan{
+			{
+				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
+			},
+			{
+				Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
+			},
+		},
+	}
+
+	windowTotal.ComputeFree(constraint)
 
 	workloadToSchedule := t.WorkloadOverall
 	for _, unit := range t.WorkUnits {
@@ -356,7 +355,28 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 		}
 	}
 
-	windowTotal.ComputeFree(c.constraint)
+	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
+	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
+	constraint := &date.FreeConstraint{
+		Location: location,
+		AllowedTimeSpans: []date.Timespan{
+			{
+				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
+			},
+			{
+				Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
+				End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
+			},
+		},
+	}
+
+	windowTotal.ComputeFree(constraint)
 
 	workloadToSchedule := w.Workload
 
