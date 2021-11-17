@@ -355,7 +355,7 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, &userSettings)
+	handler.ResponseManager.Respond(writer, &user)
 }
 
 // UserRefresh refreshes a users access token with a new one by providing a refresh token
