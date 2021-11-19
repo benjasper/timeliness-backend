@@ -35,7 +35,19 @@ var primaryUser = users.User{
 		}(struct {
 			TimeZone         string
 			AllowedTimespans []date.Timespan
-		}{TimeZone: "Europe/Berlin"}),
+		}{
+			TimeZone: "Europe/Berlin",
+			AllowedTimespans: []date.Timespan{
+				{
+					Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
+					End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
+				},
+				{
+					Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
+					End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
+				},
+			},
+		}),
 	},
 }
 
