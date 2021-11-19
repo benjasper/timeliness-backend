@@ -150,17 +150,8 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
 	constraint := &date.FreeConstraint{
-		Location: location,
-		AllowedTimeSpans: []date.Timespan{
-			{
-				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
-			},
-			{
-				Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
-			},
-		},
+		Location:         location,
+		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
 	}
 
 	windowTotal.ComputeFree(constraint)
@@ -363,17 +354,8 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 
 	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
 	constraint := &date.FreeConstraint{
-		Location: location,
-		AllowedTimeSpans: []date.Timespan{
-			{
-				Start: time.Date(0, 0, 0, 9, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 12, 0, 0, 0, location),
-			},
-			{
-				Start: time.Date(0, 0, 0, 13, 0, 0, 0, location),
-				End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
-			},
-		},
+		Location:         location,
+		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
 	}
 
 	windowTotal.ComputeFree(constraint)
