@@ -180,14 +180,14 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 }
 
 func min(a, b time.Time) time.Time {
-	if a.UnixMilli() < b.UnixMilli() {
+	if a.Unix() < b.Unix() {
 		return a
 	}
 	return b
 }
 
 func max(a, b time.Time) time.Time {
-	if a.UnixMilli() > b.UnixMilli() {
+	if a.Unix() > b.Unix() {
 		return a
 	}
 	return b
@@ -206,7 +206,7 @@ func MergeTimespans(timespans []Timespan) []Timespan {
 	index := 0
 
 	for i := 1; i < len(timespans); i++ {
-		if timespans[index].End.UnixMilli() >= timespans[i].Start.UnixMilli() {
+		if timespans[index].End.Unix() >= timespans[i].Start.Unix() {
 			timespans[index].End = max(timespans[index].End, timespans[i].End)
 			timespans[index].Start = min(timespans[index].Start, timespans[i].Start)
 		} else {
