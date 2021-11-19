@@ -2,7 +2,6 @@ package date
 
 import (
 	"fmt"
-	"github.com/badgerodon/collections/stack"
 	"sort"
 	"time"
 )
@@ -180,6 +179,21 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	w.Busy = MergeTimespans(w.Busy)
 }
 
+func min(a, b time.Time) time.Time {
+	if a.UnixMilli() < b.UnixMilli() {
+		return a
+	}
+	return b
+}
+
+func max(a, b time.Time) time.Time {
+	if a.UnixMilli() > b.UnixMilli() {
+		return a
+	}
+	return b
+}
+
+// MergeTimespans merges Timespan structs together in case they overlap, they don't have to be presorted
 func MergeTimespans(timespans []Timespan) []Timespan {
 	if len(timespans) == 0 {
 		return nil
@@ -189,25 +203,21 @@ func MergeTimespans(timespans []Timespan) []Timespan {
 		return timespans[i].Start.Before(timespans[j].Start)
 	})
 
-	s := stack.New()
-
-	s.Push(timespans[0])
+	index := 0
 
 	for i := 1; i < len(timespans); i++ {
-		top := s.Peek().(Timespan)
-
-		if top.End.Before(timespans[i].Start) {
-			s.Push(timespans[i])
-		} else if top.End.Before(timespans[i].End) {
-			top.End = timespans[i].End
-			s.Pop()
-			s.Push(top)
+		if timespans[index].End.UnixMilli() >= timespans[i].Start.UnixMilli() {
+			timespans[index].End = max(timespans[index].End, timespans[i].End)
+			timespans[index].Start = min(timespans[index].Start, timespans[i].Start)
+		} else {
+			index++
+			timespans[index] = timespans[i]
 		}
 	}
 
 	var mergedTimespans []Timespan
-	for s.Len() != 0 {
-		mergedTimespans = append([]Timespan{s.Pop().(Timespan)}, mergedTimespans...)
+	for i := 0; i <= index; i++ {
+		mergedTimespans = append(mergedTimespans, timespans[i])
 	}
 
 	return mergedTimespans
