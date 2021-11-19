@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/logging v1.4.2
 	cloud.google.com/go/profiler v0.1.0
 	firebase.google.com/go/v4 v4.6.0
+	github.com/badgerodon/collections v0.0.0-20130729185459-604e922904d3 // indirect
 	github.com/bsm/redislock v0.7.1
 	github.com/go-playground/validator/v10 v10.4.1
 	github.com/go-redis/cache/v8 v8.4.1

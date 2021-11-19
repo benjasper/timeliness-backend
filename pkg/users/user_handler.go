@@ -9,6 +9,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"io"
@@ -337,6 +338,8 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 				return
 			}
 		}
+
+		userSettings.Scheduling.AllowedTimespans = date.MergeTimespans(userSettings.Scheduling.AllowedTimespans)
 	}
 
 	v := validator.New()
