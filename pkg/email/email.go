@@ -6,10 +6,12 @@ import (
 	"strconv"
 )
 
+// Mailer is the interface email services can implement
 type Mailer interface {
 	SendEmail(ctx context.Context, mail *Email) error
 }
 
+// Email is a struct that contains information to send an email
 type Email struct {
 	ReceiverName    string
 	ReceiverAddress string
@@ -17,6 +19,7 @@ type Email struct {
 	Parameters      map[string]interface{}
 }
 
+// SendInBlueService is an implementation of Mailer
 type SendInBlueService struct {
 	mailer *sendinblue.APIClient
 }
