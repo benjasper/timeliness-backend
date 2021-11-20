@@ -31,6 +31,8 @@ type User struct {
 
 	GoogleCalendarConnection GoogleCalendarConnection `json:"googleCalendarConnection" bson:"googleCalendarConnection"`
 	Settings                 UserSettings             `json:"settings" bson:"settings"`
+	EmailVerified            bool                     `json:"emailVerified" bson:"emailVerified"`
+	EmailVerificationToken   string                   `json:"-" bson:"emailVerificationToken"`
 }
 
 // UserLogin is the view for users logger in

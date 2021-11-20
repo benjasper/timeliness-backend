@@ -50,6 +50,17 @@ func (r *MockUserRepository) FindByGoogleStateToken(ctx context.Context, stateTo
 	return nil, errors.New("user not found")
 }
 
+// FindByVerificationToken finds a user by email verification token
+func (r *MockUserRepository) FindByVerificationToken(ctx context.Context, token string) (*User, error) {
+	for _, user := range r.Users {
+		if user.EmailVerificationToken == token {
+			return user, nil
+		}
+	}
+
+	return nil, errors.New("user not found")
+}
+
 // FindBySyncExpiration is not implemented yet
 func (r *MockUserRepository) FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error) {
 	panic("implement me")
