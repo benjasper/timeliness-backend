@@ -27,6 +27,7 @@ const ReplyToName = "Timeliness"
 // ReplyToEmail the reply to email for all emails
 const ReplyToEmail = "hello@timeliness.app"
 
+// NewSendInBlueService constructs a new SendInBlueService
 func NewSendInBlueService(apiKey string) *SendInBlueService {
 	service := SendInBlueService{}
 
@@ -39,6 +40,7 @@ func NewSendInBlueService(apiKey string) *SendInBlueService {
 	return &service
 }
 
+// SendEmail sends an email
 func (s *SendInBlueService) SendEmail(ctx context.Context, mail *Email) error {
 	templateId, err := strconv.Atoi(mail.Template)
 	if err != nil {
