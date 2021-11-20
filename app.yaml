@@ -9,6 +9,7 @@ main: ./cmd
 env_variables:
   APP_ENV: prod
   BASE_URL: https://api.timeliness.app
+  FRONTEND_BASE_URL: https://alpha.timeliness.app
   DATABASE: mongodb+srv://app:LH40LlgfV2cJp1zO@cluster0.byyhv.mongodb.net/test?retryWrites=true&w=majority
   SECRET: AEFC82667184DE543D9BCE58F2AF8
   SCHEDULER_SECRET: ASKNF8912ADS89MVUF213
@@ -17,3 +18,4 @@ env_variables:
   REDIS: redis-11447.c78.eu-west-1-2.ec2.cloud.redislabs.com:11447
   REDIS_PASSWORD: IbZhlgDm5kYsvYrcBvWXiXjqbTv1CBYs
   CORS: timeliness.app
+  SENDINBLUE: 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

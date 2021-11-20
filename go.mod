@@ -6,7 +6,6 @@ require (
 	cloud.google.com/go/logging v1.4.2
 	cloud.google.com/go/profiler v0.1.0
 	firebase.google.com/go/v4 v4.6.0
-	github.com/badgerodon/collections v0.0.0-20130729185459-604e922904d3 // indirect
 	github.com/bsm/redislock v0.7.1
 	github.com/go-playground/validator/v10 v10.4.1
 	github.com/go-redis/cache/v8 v8.4.1
@@ -17,6 +16,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/golang-lru v0.5.1
+	github.com/sendinblue/APIv3-go-library v2.0.0+incompatible
 	go.mongodb.org/mongo-driver v1.5.0
 	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf // indirect

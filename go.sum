@@ -58,11 +58,10 @@ firebase.google.com/go/v4 v4.6.0/go.mod h1:UgGSTOhEZVbB2L3dQ3z4pThDTiH869i8TDAZK
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
+github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwcg=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/aws/aws-sdk-go v1.34.28 h1:sscPpn/Ns3i0F4HPEWAVcwdIRaZZCuL7llJ2/60yPIk=
 github.com/aws/aws-sdk-go v1.34.28/go.mod h1:H7NKnBqNVzoTJpGfLrQkkD+ytBA93eiDYi/+8rV9s48=
-github.com/badgerodon/collections v0.0.0-20130729185459-604e922904d3 h1:ooC26VNhy3ronBnebGlYPPMJOdYnp+ePnbOrgSddoPQ=
-github.com/badgerodon/collections v0.0.0-20130729185459-604e922904d3/go.mod h1:9iqE3TMnuFhHQI3OoJXBDOKj4bDZAuujavGYkpS3CI0=
 github.com/bsm/ginkgo v1.16.4 h1:pkHpo2VJRvI0NGlxCYi8qovww76L7+g82MgM+UBvH4A=
 github.com/bsm/ginkgo v1.16.4/go.mod h1:RabIZLzOCPghgHJKUqHZpqrQETA5AnF4aCSIYy5C1bk=
 github.com/bsm/gomega v1.13.0 h1:fzOh8E2Wu/x407rP+v3mEb9yGJaMVguiJBtmFkuOmlc=
@@ -288,6 +287,8 @@ github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6L
 github.com/rogpeppe/go-internal v1.1.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.2.2/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
+github.com/sendinblue/APIv3-go-library v2.0.0+incompatible h1:42+8Vpk+y6jOWyqZHWDaYwVZoQQzAd/xubfkD4IV5Lg=
+github.com/sendinblue/APIv3-go-library v2.0.0+incompatible/go.mod h1:n7Mrg8LF5Y9qvuiuJBuLzxnMWNfM7r2AWicEMs1faxY=
 github.com/sirupsen/logrus v1.4.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=

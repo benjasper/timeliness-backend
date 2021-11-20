@@ -4,17 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
+	"github.com/timeliness-app/timeliness-backend/pkg/email"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"io"
 	"net/http"
+	"os"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -24,6 +28,7 @@ type Handler struct {
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
 	Secret          string
+	EmailService    email.Mailer
 }
 
 // UserRegister is the route for registering a user
@@ -46,7 +51,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+		handler.ResponseManager.RespondWithError(writer, http.StatusConflict,
 			"User with email "+presentUser.Email+" already exists", err)
 		return
 	}
@@ -70,10 +75,26 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		}
 	}
 
+	user.EmailVerificationToken = uuid.New().String()
+
 	err = handler.UserRepository.Add(request.Context(), &user)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"User couldn't be persisted in the database", err)
+		return
+	}
+
+	err = handler.EmailService.SendEmail(request.Context(), &email.Email{
+		ReceiverName:    fmt.Sprintf("%s %s", user.Firstname, user.Lastname),
+		ReceiverAddress: user.Email,
+		Template:        "1",
+		Parameters: map[string]interface{}{
+			"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", os.Getenv("BASE_URL"), user.EmailVerificationToken),
+		},
+	})
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not send registration confirmation mail", err)
 		return
 	}
 
@@ -482,7 +503,11 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 	usr.GoogleCalendarConnection.StateToken = ""
 	usr.GoogleCalendarConnection.Status = CalendarConnectionStatusActive
 
-	_ = handler.UserRepository.Update(request.Context(), usr)
+	err = handler.UserRepository.Update(request.Context(), usr)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
+		return
+	}
 
 	var response = map[string]interface{}{
 		"message": "Successfully connected accounts",
@@ -499,6 +524,33 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 		handler.Logger.Fatal(err)
 		return
 	}
+}
+
+// VerifyRegistrationGet is endpoint that gets called when the email verification link gets hit
+func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, request *http.Request) {
+	token := request.URL.Query().Get("token")
+
+	if token == strings.Trim(token, " ") {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", nil)
+		return
+	}
+
+	usr, err := handler.UserRepository.FindByVerificationToken(request.Context(), strings.Trim(token, " "))
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		return
+	}
+
+	usr.EmailVerificationToken = ""
+	usr.EmailVerified = true
+
+	err = handler.UserRepository.Update(request.Context(), usr)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
+		return
+	}
+
+	http.Redirect(writer, request, fmt.Sprintf("%s/confirmation", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
 }
 
 // RegisterForNewsletter proxies a request to mailchimp and return mail chimps response
