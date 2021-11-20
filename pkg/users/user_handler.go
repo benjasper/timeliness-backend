@@ -34,7 +34,7 @@ type Handler struct {
 // UserRegister is the route for registering a user
 func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.Request) {
 	user := User{}
-	body := map[string]string{}
+	body := map[string]interface{}{}
 
 	decoder := json.NewDecoder(request.Body)
 
@@ -45,9 +45,10 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	user.Firstname = body["firstname"]
-	user.Lastname = body["lastname"]
-	user.Email = body["email"]
+	user.Firstname = body["firstname"].(string)
+	user.Lastname = body["lastname"].(string)
+	user.Email = body["email"].(string)
+	user.Settings = body["settings"].(UserSettings)
 
 	presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
@@ -56,7 +57,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	password := body["password"]
+	password := body["password"].(string)
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
