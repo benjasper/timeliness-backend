@@ -48,7 +48,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	user.Firstname = body["firstname"].(string)
 	user.Lastname = body["lastname"].(string)
 	user.Email = body["email"].(string)
-	user.Settings = body["settings"].(UserSettings)
+	user.Settings.Scheduling.TimeZone = "Europe/Berlin"
 
 	presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
