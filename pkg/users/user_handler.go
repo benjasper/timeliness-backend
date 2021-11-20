@@ -531,7 +531,7 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, request *http.Request) {
 	token := request.URL.Query().Get("token")
 
-	if token == strings.Trim(token, " ") {
+	if strings.Trim(token, " ") == "" {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", nil)
 		return
 	}
