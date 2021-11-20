@@ -45,7 +45,7 @@ func NewSendInBlueService(apiKey string) *SendInBlueService {
 
 // SendEmail sends an email
 func (s *SendInBlueService) SendEmail(ctx context.Context, mail *Email) error {
-	templateId, err := strconv.Atoi(mail.Template)
+	templateID, err := strconv.Atoi(mail.Template)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (s *SendInBlueService) SendEmail(ctx context.Context, mail *Email) error {
 	params := interface{}(mail.Parameters)
 
 	_, _, err = s.mailer.TransactionalEmailsApi.SendTransacEmail(ctx, sendinblue.SendSmtpEmail{
-		TemplateId: int64(templateId),
+		TemplateId: int64(templateID),
 		To: []sendinblue.SendSmtpEmailTo{
 			{
 				Email: mail.ReceiverAddress,
