@@ -524,13 +524,14 @@ func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, reques
 		return
 	}
 
-	usr.EmailVerificationToken = ""
-	usr.EmailVerified = true
+	if !usr.EmailVerified {
+		usr.EmailVerified = true
 
-	err = handler.UserRepository.Update(request.Context(), usr)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
-		return
+		err = handler.UserRepository.Update(request.Context(), usr)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
+			return
+		}
 	}
 
 	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=true", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
