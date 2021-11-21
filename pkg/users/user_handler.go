@@ -511,30 +511,31 @@ func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, r
 
 // VerifyRegistrationGet is endpoint that gets called when the email verification link gets hit
 func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, request *http.Request) {
+	success := true
 	token := request.URL.Query().Get("token")
 
 	if strings.Trim(token, " ") == "" {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", nil)
-		return
+		handler.Logger.Warning("Invalid request", nil)
+		success = false
 	}
 
 	usr, err := handler.UserRepository.FindByVerificationToken(request.Context(), strings.Trim(token, " "))
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
-		return
+		handler.Logger.Warning("Invalid request", err)
+		success = false
 	}
 
-	if !usr.EmailVerified {
+	if !usr.EmailVerified && success == true {
 		usr.EmailVerified = true
 
 		err = handler.UserRepository.Update(request.Context(), usr)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
-			return
+			handler.Logger.Error("Problem updating user", err)
+			success = false
 		}
 	}
 
-	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=true", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
+	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=%t", os.Getenv("FRONTEND_BASE_URL"), success), http.StatusFound)
 }
 
 // RegisterForNewsletter proxies a request to mailchimp and return mail chimps response
