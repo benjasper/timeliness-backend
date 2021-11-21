@@ -551,7 +551,7 @@ func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, reques
 		return
 	}
 
-	http.Redirect(writer, request, fmt.Sprintf("%s/confirmation", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
+	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
 }
 
 // RegisterForNewsletter proxies a request to mailchimp and return mail chimps response
