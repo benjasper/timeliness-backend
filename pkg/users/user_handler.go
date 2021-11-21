@@ -99,19 +99,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	binary, err := json.Marshal(user)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Parsing users didn't work", err)
-		return
-	}
-
-	_, err = writer.Write(binary)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Writing response data didn't work", err)
-		return
-	}
+	handler.generateAndRespondWithTokens(&user, writer)
 }
 
 // UserAddDevice upserts a DeviceToken
@@ -276,6 +264,10 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	handler.generateAndRespondWithTokens(user, writer)
+}
+
+func (handler *Handler) generateAndRespondWithTokens(user *User, writer http.ResponseWriter) {
 	accessClaims := jwt.Claims{
 		Subject:        user.ID.Hex(),
 		Issuer:         "timeliness",
@@ -313,17 +305,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		"refreshToken": refreshTokenString,
 	}
 
-	binary, err := json.Marshal(response)
-	if err != nil {
-		handler.Logger.Fatal(err)
-		return
-	}
-
-	_, err = writer.Write(binary)
-	if err != nil {
-		handler.Logger.Fatal(err)
-		return
-	}
+	handler.ResponseManager.Respond(writer, response)
 }
 
 // UserSettingsPatch updates specific values of a user
