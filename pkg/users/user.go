@@ -73,7 +73,8 @@ type GoogleCalendarSync struct {
 
 // UserSettings hold different settings roughly separated by topics
 type UserSettings struct {
-	Scheduling struct {
+	OnboardingCompleted bool `json:"onboardingCompleted" bson:"onboardingCompleted"`
+	Scheduling          struct {
 		TimeZone         string          `json:"timeZone" bson:"timeZone" validate:"required"`
 		AllowedTimespans []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
 	} `json:"scheduling" bson:"scheduling"`
