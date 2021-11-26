@@ -146,8 +146,8 @@ func main() {
 	emailService := email.NewSendInBlueService(os.Getenv("SENDINBLUE"))
 
 	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret, EmailService: emailService}
-	calendarHandler := tasks.CalendarHandler{UserService: &userRepository, Logger: logging, ResponseManager: &responseManager,
-		TaskService: &taskRepository, PlanningService: planningService, Locker: locker}
+	calendarHandler := tasks.CalendarHandler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager,
+		TaskRepository: &taskRepository, PlanningService: planningService, Locker: locker}
 
 	taskHandler := tasks.Handler{
 		TaskRepository:  &taskRepository,
@@ -183,7 +183,7 @@ func main() {
 	unauthenticatedAPI.Path("/auth/register/verify").HandlerFunc(userHandler.VerifyRegistrationGet).Methods(http.MethodGet)
 	unauthenticatedAPI.Path("/auth/refresh").HandlerFunc(userHandler.UserRefresh).Methods(http.MethodPost)
 	unauthenticatedAPI.Path("/auth/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
-	unauthenticatedAPI.Path("/auth/google").HandlerFunc(userHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
+	unauthenticatedAPI.Path("/auth/google").HandlerFunc(calendarHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
 
 	unauthenticatedAPI.Path("/calendar/google/notifications").
 		HandlerFunc(calendarHandler.GoogleCalendarNotification).Methods(http.MethodPost)

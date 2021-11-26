@@ -464,51 +464,6 @@ func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, r
 	}
 }
 
-// GoogleCalendarAuthCallback is the call the api will redirect to
-func (handler *Handler) GoogleCalendarAuthCallback(writer http.ResponseWriter, request *http.Request) {
-	authCode := request.URL.Query().Get("code")
-
-	stateToken := request.URL.Query().Get("state")
-
-	usr, err := handler.UserRepository.FindByGoogleStateToken(request.Context(), stateToken)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
-		return
-	}
-
-	token, err := google.GetGoogleToken(request.Context(), authCode)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
-		return
-	}
-
-	usr.GoogleCalendarConnection.Token = *token
-	usr.GoogleCalendarConnection.StateToken = ""
-	usr.GoogleCalendarConnection.Status = CalendarConnectionStatusActive
-
-	err = handler.UserRepository.Update(request.Context(), usr)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
-		return
-	}
-
-	var response = map[string]interface{}{
-		"message": "Successfully connected accounts",
-	}
-
-	binary, err := json.Marshal(response)
-	if err != nil {
-		handler.Logger.Fatal(err)
-		return
-	}
-
-	_, err = writer.Write(binary)
-	if err != nil {
-		handler.Logger.Fatal(err)
-		return
-	}
-}
-
 // VerifyRegistrationGet is endpoint that gets called when the email verification link gets hit
 func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, request *http.Request) {
 	success := true
