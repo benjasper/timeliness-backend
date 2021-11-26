@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
@@ -20,8 +21,8 @@ import (
 
 // CalendarHandler handles all calendar related API calls
 type CalendarHandler struct {
-	UserService     users.UserRepositoryInterface
-	TaskService     *MongoDBTaskRepository
+	UserRepository  users.UserRepositoryInterface
+	TaskRepository  *MongoDBTaskRepository
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
 	PlanningService *PlanningService
@@ -35,7 +36,7 @@ type calendarsPost struct {
 // GetAllCalendars responds with all calendars the user can register for busy time information
 func (handler *CalendarHandler) GetAllCalendars(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
-	u, err := handler.UserService.FindByID(request.Context(), userID)
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not find user", err)
@@ -91,7 +92,7 @@ func (handler *CalendarHandler) GetAllCalendars(writer http.ResponseWriter, requ
 // PostCalendars sets the active calendars used for busy time calculation
 func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
-	u, err := handler.UserService.FindByID(request.Context(), userID)
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not find user", err)
@@ -123,7 +124,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 
 	u.GoogleCalendarConnection.CalendarsOfInterest = matchNewGoogleCalendars(requestBody, googleCalendars, u)
 
-	err = handler.UserService.Update(request.Context(), u)
+	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
 		return
@@ -149,7 +150,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		}
 	}
 
-	err = handler.UserService.Update(request.Context(), u)
+	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
 		return
@@ -214,7 +215,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 
 	now := time.Now().Add(calendar.GoogleNotificationExpirationOffset)
 
-	_, count, err := handler.UserService.FindBySyncExpiration(request.Context(), now, 0, pageSize)
+	_, count, err := handler.UserRepository.FindBySyncExpiration(request.Context(), now, 0, pageSize)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem finding users for renewal", err)
 		return
@@ -223,7 +224,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 	pages := int(math.Ceil(float64(count) / float64(pageSize)))
 
 	for i := 0; i < pages; i++ {
-		u, _, err := handler.UserService.FindBySyncExpiration(request.Context(), now, i, pageSize)
+		u, _, err := handler.UserRepository.FindBySyncExpiration(request.Context(), now, i, pageSize)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem finding users for renewal", err)
 			return
@@ -259,12 +260,43 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			return
 		}
 
-		err = handler.UserService.Update(context.Background(), user)
+		err = handler.UserRepository.Update(context.Background(), user)
 		if err != nil {
 			handler.Logger.Error("Problem while trying to update user", err)
 			return
 		}
 	}
+}
+
+// GoogleCalendarAuthCallback is the call the api will redirect to
+func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseWriter, request *http.Request) {
+	authCode := request.URL.Query().Get("code")
+
+	stateToken := request.URL.Query().Get("state")
+
+	usr, err := handler.UserRepository.FindByGoogleStateToken(request.Context(), stateToken)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		return
+	}
+
+	token, err := google.GetGoogleToken(request.Context(), authCode)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
+		return
+	}
+
+	usr.GoogleCalendarConnection.Token = *token
+	usr.GoogleCalendarConnection.StateToken = ""
+	usr.GoogleCalendarConnection.Status = users.CalendarConnectionStatusActive
+
+	err = handler.UserRepository.Update(request.Context(), usr)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
+		return
+	}
+
+	http.Redirect(writer, request, fmt.Sprintf("%s/static/google-connected", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
 }
 
 // GoogleCalendarNotification receives event change notifications from Google Calendar
@@ -285,7 +317,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 
 	userID := encryption.Decrypt(token)
 
-	user, err := handler.UserService.FindByID(request.Context(), userID)
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Could not find user", err)
@@ -332,7 +364,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 			return
 		}
 
-		err = handler.UserService.Update(ctx, user)
+		err = handler.UserRepository.Update(ctx, user)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("problem updating user %s", userID), err)
 			return
