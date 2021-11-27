@@ -147,7 +147,7 @@ func main() {
 
 	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret, EmailService: emailService}
 	calendarHandler := tasks.CalendarHandler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager,
-		TaskRepository: &taskRepository, PlanningService: planningService, Locker: locker}
+		TaskRepository: &taskRepository, PlanningService: planningService, Locker: locker, CalendarRepositoryManager: calendarRepositoryManager}
 
 	taskHandler := tasks.Handler{
 		TaskRepository:  &taskRepository,

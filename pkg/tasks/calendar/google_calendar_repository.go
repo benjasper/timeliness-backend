@@ -32,7 +32,7 @@ type GoogleCalendarRepository struct {
 	apiBaseURL string
 }
 
-// NewGoogleCalendarRepository constructs a GoogleCalendarRepository
+// NewGoogleCalendarRepository constructs a GoogleCalendarRepository, best to use CalendarRepositoryManager for this
 func NewGoogleCalendarRepository(ctx context.Context, u *users.User, logger logger.Interface) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
