@@ -130,11 +130,21 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		return
 	}
 
+	err = handler.syncGoogleCalendars(writer, request, u)
+	if err != nil {
+		// We don't have to print error messages because the sub routine already took care of it
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+}
+
+func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, request *http.Request, u *users.User) error {
 	googleCalendarRepository, err := calendar.NewGoogleCalendarRepository(request.Context(), u, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
-		return
+		return err
 	}
 
 	env := os.Getenv("APP_ENV")
@@ -146,17 +156,17 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with calendar notification registration", err)
-			return
+			return err
 		}
 	}
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
-		return
+		return err
 	}
 
-	writer.WriteHeader(http.StatusAccepted)
+	return nil
 }
 
 func matchNewGoogleCalendars(request calendarsPost, googleCalendars map[string]*calendar.Calendar, u *users.User) []users.GoogleCalendarSync {
@@ -293,6 +303,13 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 	err = handler.UserRepository.Update(request.Context(), usr)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
+		return
+	}
+
+	// Let's also set up the calendar repository here and sync it, so we can initialize things like the Timeliness calendar
+	err = handler.syncGoogleCalendars(writer, request, usr)
+	if err != nil {
+		// We don't have to print error messages because the sub routine already took care of it
 		return
 	}
 
