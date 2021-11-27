@@ -21,12 +21,13 @@ import (
 
 // CalendarHandler handles all calendar related API calls
 type CalendarHandler struct {
-	UserRepository  users.UserRepositoryInterface
-	TaskRepository  *MongoDBTaskRepository
-	Logger          logger.Interface
-	ResponseManager *communication.ResponseManager
-	PlanningService *PlanningService
-	Locker          locking.LockerInterface
+	UserRepository            users.UserRepositoryInterface
+	TaskRepository            *MongoDBTaskRepository
+	Logger                    logger.Interface
+	ResponseManager           *communication.ResponseManager
+	PlanningService           *PlanningService
+	Locker                    locking.LockerInterface
+	CalendarRepositoryManager *CalendarRepositoryManager
 }
 
 type calendarsPost struct {
@@ -140,7 +141,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 }
 
 func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, request *http.Request, u *users.User) error {
-	googleCalendarRepository, err := calendar.NewGoogleCalendarRepository(request.Context(), u, handler.Logger)
+	googleCalendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUser(request.Context(), u)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -253,7 +254,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 }
 
 func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time time.Time) {
-	calendarRepository, err := calendar.NewGoogleCalendarRepository(context.Background(), user, handler.Logger)
+	calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUser(context.Background(), user)
 	if err != nil {
 		handler.Logger.Error("Problem while processing user for sync renewal", err)
 		return
