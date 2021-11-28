@@ -90,7 +90,8 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	if original.WorkloadOverall != task.WorkloadOverall {
+	// If the tasks' workload was changed or if we have unscheduled time we want to schedule the task
+	if original.WorkloadOverall != task.WorkloadOverall || task.NotScheduled > 0 {
 		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), (*Task)(task))
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
@@ -111,13 +112,24 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 			return
 		}
 
+		// In case there are work units now after the deadline
 		var toReschedule []WorkUnit
 		for _, unit := range task.WorkUnits {
 			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) {
 				toReschedule = append(toReschedule, unit)
 			}
 		}
-		// TODO reschedule toReschschedule work units
+
+		if len(toReschedule) > 0 {
+			for _, unit := range toReschedule {
+				task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit)
+				if err != nil {
+					handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+						fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
+					return
+				}
+			}
+		}
 	}
 
 	if original.IsDone != task.IsDone {
