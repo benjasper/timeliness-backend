@@ -540,9 +540,9 @@ func (s *MongoDBTaskRepository) CountWorkUnitsBetween(ctx context.Context, userI
 		return 0, err
 	}
 
-	result := struct {
+	var result []struct {
 		Count int64
-	}{}
+	}
 
 	matchStage := bson.D{{Key: "$match", Value: bson.D{{
 		Key: "$or", Value: bson.A{
@@ -584,7 +584,7 @@ func (s *MongoDBTaskRepository) CountWorkUnitsBetween(ctx context.Context, userI
 		return 0, err
 	}
 
-	return result.Count, nil
+	return result[0].Count, nil
 }
 
 // Delete deletes a task
