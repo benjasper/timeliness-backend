@@ -562,8 +562,8 @@ func (s *MongoDBTaskRepository) CountWorkUnitsBetween(ctx context.Context, userI
 	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnits", "includeArrayIndex": "workUnitsIndex"}}}
 
 	matchStage2 := bson.D{{Key: "$match", Value: bson.D{
-		{Key: "workUnits.date.start", Value: bson.M{"$gte": from}},
-		{Key: "workUnits.date.start", Value: bson.M{"$lte": to}},
+		{Key: "workUnits.scheduledAt.date.start", Value: bson.M{"$gte": from}},
+		{Key: "workUnits.scheduledAt.date.start", Value: bson.M{"$lte": to}},
 		{Key: "workUnits.isDone", Value: isDone},
 	}}}
 
