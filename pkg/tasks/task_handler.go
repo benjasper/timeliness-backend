@@ -505,6 +505,7 @@ func (handler *Handler) GetTaskBetween(writer http.ResponseWriter, request *http
 
 	count, err := handler.TaskRepository.CountTasksBetween(request.Context(), userID, from, to, true)
 	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem with db connection", err)
 		return
 	}
 
@@ -538,6 +539,7 @@ func (handler *Handler) GetWorkUnitsBetween(writer http.ResponseWriter, request 
 
 	count, err := handler.TaskRepository.CountWorkUnitsBetween(request.Context(), userID, from, to, true)
 	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem with db connection", err)
 		return
 	}
 
