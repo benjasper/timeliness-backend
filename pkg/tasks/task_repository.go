@@ -521,8 +521,8 @@ func (s *MongoDBTaskRepository) CountTasksBetween(ctx context.Context, userID st
 		},
 		{Key: "deleted", Value: false},
 		{Key: "isDone", Value: isDone},
-		{Key: "scheduledAt.date.start", Value: bson.M{"$gte": from}},
-		{Key: "scheduledAt.date.start", Value: bson.M{"$lte": to}},
+		{Key: "dueAt.date.start", Value: bson.M{"$gte": from}},
+		{Key: "dueAt.date.start", Value: bson.M{"$lte": to}},
 	}
 
 	result, err := s.DB.CountDocuments(ctx, queryFilter)
@@ -557,14 +557,14 @@ func (s *MongoDBTaskRepository) CountWorkUnitsBetween(ctx context.Context, userI
 		{
 			Key: "deleted", Value: false,
 		},
-		{Key: "isDone", Value: isDone},
 	}}}
 
-	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
+	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnits", "includeArrayIndex": "workUnitsIndex"}}}
 
 	matchStage2 := bson.D{{Key: "$match", Value: bson.D{
-		{Key: "workUnit.date.start", Value: bson.M{"$gte": from}},
-		{Key: "workUnit.date.start", Value: bson.M{"$lte": to}},
+		{Key: "workUnits.date.start", Value: bson.M{"$gte": from}},
+		{Key: "workUnits.date.start", Value: bson.M{"$lte": to}},
+		{Key: "workUnits.isDone", Value: isDone},
 	}}}
 
 	countStage := bson.D{
