@@ -23,6 +23,8 @@ type TaskRepositoryInterface interface {
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error)
 	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string, isDeleted bool) ([]Task, error)
+	CountTasksBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
+	CountWorkUnitsBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
 	Delete(ctx context.Context, taskID string, userID string) error
 	DeleteFinally(ctx context.Context, taskID string, userID string) error
 	DeleteTag(ctx context.Context, tagID string, userID string) error
@@ -498,6 +500,91 @@ func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, u
 	}
 
 	return t, nil
+}
+
+// CountTasksBetween counts tasks between dates
+func (s *MongoDBTaskRepository) CountTasksBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error) {
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return 0, err
+	}
+
+	queryFilter := bson.D{
+		{
+			Key: "$or", Value: bson.A{
+				bson.D{
+					{Key: "userId", Value: userObjectID},
+				},
+				bson.D{
+					{Key: "collaborators.userId", Value: userObjectID},
+				}},
+		},
+		{Key: "deleted", Value: false},
+		{Key: "isDone", Value: isDone},
+		{Key: "scheduledAt.date.start", Value: bson.M{"$gte": from}},
+		{Key: "scheduledAt.date.start", Value: bson.M{"$lte": to}},
+	}
+
+	result, err := s.DB.CountDocuments(ctx, queryFilter)
+	if err != nil {
+		return 0, err
+	}
+
+	return result, nil
+}
+
+// CountWorkUnitsBetween counts work units between dates
+func (s *MongoDBTaskRepository) CountWorkUnitsBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error) {
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return 0, err
+	}
+
+	result := struct {
+		Count int64
+	}{}
+
+	matchStage := bson.D{{Key: "$match", Value: bson.D{{
+		Key: "$or", Value: bson.A{
+			bson.D{
+				{Key: "userId", Value: userObjectID},
+			},
+			bson.D{
+				{Key: "collaborators.userId", Value: userObjectID},
+			},
+		},
+	},
+		{
+			Key: "deleted", Value: false,
+		},
+		{Key: "isDone", Value: isDone},
+	}}}
+
+	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
+
+	matchStage2 := bson.D{{Key: "$match", Value: bson.D{
+		{Key: "workUnit.date.start", Value: bson.M{"$gte": from}},
+		{Key: "workUnit.date.start", Value: bson.M{"$lte": to}},
+	}}}
+
+	countStage := bson.D{
+		{
+			Key:   "$count",
+			Value: "count",
+		},
+	}
+
+	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, unwindStage, matchStage2, countStage})
+	if err != nil {
+		return 0, err
+	}
+
+	err = cursor.All(ctx, result)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.Count, nil
 }
 
 // Delete deletes a task
