@@ -16,3 +16,5 @@ jobs:
         uses: google-github-actions/deploy-appengine@main
         with:
           credentials: ${{ secrets.gcp_credentials }}
+          working_directory: /
+          deliverables: app.yaml
