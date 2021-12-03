@@ -157,3 +157,13 @@ func (m *MockTaskRepository) DeleteTag(ctx context.Context, tagID string, userID
 func (m *MockTaskRepository) FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error) {
 	panic("not implemented")
 }
+
+// CountTasksBetween counts tasks between dates
+func (m *MockTaskRepository) CountTasksBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error) {
+	panic("not implemented")
+}
+
+// CountWorkUnitsBetween counts work units between dates
+func (m *MockTaskRepository) CountWorkUnitsBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error) {
+	panic("not implemented")
+}

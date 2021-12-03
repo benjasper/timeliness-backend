@@ -202,7 +202,9 @@ func main() {
 
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
+	authenticatedAPI.Path("/tasks/between").HandlerFunc(taskHandler.GetTaskBetween).Methods(http.MethodGet)
 	authenticatedAPI.Path("/tasks/workunits").HandlerFunc(taskHandler.GetAllTasksByWorkUnits).Methods(http.MethodGet)
+	authenticatedAPI.Path("/tasks/workunits/between").HandlerFunc(taskHandler.GetWorkUnitsBetween).Methods(http.MethodGet)
 	authenticatedAPI.Path("/tasks/agenda").HandlerFunc(taskHandler.GetTasksByAgenda).Methods(http.MethodGet)
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskGet).Methods(http.MethodGet)
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPatch)

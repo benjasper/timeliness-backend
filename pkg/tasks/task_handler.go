@@ -482,6 +482,72 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	handler.ResponseManager.Respond(writer, response)
 }
 
+// GetTaskBetween is the endpoint for getting counts for the statistic
+func (handler *Handler) GetTaskBetween(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	queryFrom := request.URL.Query().Get("from")
+	queryTo := request.URL.Query().Get("to")
+
+	from := time.Time{}
+	from, err := time.Parse(time.RFC3339, queryFrom)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string from", err)
+		return
+	}
+
+	to := time.Time{}
+	to, err = time.Parse(time.RFC3339, queryTo)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string to", err)
+		return
+	}
+
+	count, err := handler.TaskRepository.CountTasksBetween(request.Context(), userID, from, to, true)
+	if err != nil {
+		return
+	}
+
+	response := map[string]int64{
+		"count": count,
+	}
+
+	handler.ResponseManager.Respond(writer, response)
+}
+
+// GetWorkUnitsBetween is the endpoint for getting counts for the statistic
+func (handler *Handler) GetWorkUnitsBetween(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	queryFrom := request.URL.Query().Get("from")
+	queryTo := request.URL.Query().Get("to")
+
+	from := time.Time{}
+	from, err := time.Parse(time.RFC3339, queryFrom)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string from", err)
+		return
+	}
+
+	to := time.Time{}
+	to, err = time.Parse(time.RFC3339, queryTo)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string to", err)
+		return
+	}
+
+	count, err := handler.TaskRepository.CountWorkUnitsBetween(request.Context(), userID, from, to, true)
+	if err != nil {
+		return
+	}
+
+	response := map[string]int64{
+		"count": count,
+	}
+
+	handler.ResponseManager.Respond(writer, response)
+}
+
 // GetTasksByAgenda is the route for the agenda view
 func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
