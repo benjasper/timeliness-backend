@@ -1,10 +1,7 @@
-name: Go
+name: Tests and Static Code Analysis
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_call:
 
 jobs:
   build:
