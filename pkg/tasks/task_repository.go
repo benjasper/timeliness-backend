@@ -579,7 +579,7 @@ func (s *MongoDBTaskRepository) CountWorkUnitsBetween(ctx context.Context, userI
 		return 0, err
 	}
 
-	err = cursor.All(ctx, result)
+	err = cursor.All(ctx, &result)
 	if err != nil {
 		return 0, err
 	}
