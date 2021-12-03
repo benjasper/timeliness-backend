@@ -584,6 +584,10 @@ func (s *MongoDBTaskRepository) CountWorkUnitsBetween(ctx context.Context, userI
 		return 0, err
 	}
 
+	if len(result) == 0 {
+		return 0, nil
+	}
+
 	return result[0].Count, nil
 }
 
