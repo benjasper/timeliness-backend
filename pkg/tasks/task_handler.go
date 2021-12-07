@@ -120,14 +120,12 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 			}
 		}
 
-		if len(toReschedule) > 0 {
-			for _, unit := range toReschedule {
-				task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit)
-				if err != nil {
-					handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-						fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
-					return
-				}
+		for _, unit := range toReschedule {
+			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit)
+			if err != nil {
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+					fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
+				return
 			}
 		}
 	}

@@ -300,8 +300,13 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 		}
 	}(lock, ctx)
 
+	return c.rescheduleWorkUnitWithoutLock(ctx, t, w)
+}
+
+// rescheduleWorkUnitWithoutLock takes a work unit and reschedules it to a time between now and the task due end, updates task
+func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
 	// Refresh task, after potential change
-	t, err = c.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
+	t, err := c.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
 	if err != nil {
 		return nil, err
 	}
@@ -641,11 +646,11 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	dueAtCalendarEvent := task.DueAt.CalendarEvents.FindByUserID(userID)
 	if dueAtCalendarEvent != nil && dueAtCalendarEvent.CalendarEventID == calendarEvent.CalendarEventID {
+		// If there is no change we do nothing
 		if task.DueAt.Date == event.Date {
 			return
 		}
 
-		// TODO: do other actions based on due date change
 		if event.Deleted {
 			err := c.DeleteTask(ctx, (*Task)(task))
 			if err != nil {
@@ -667,6 +672,23 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			c.logger.Error("problem with updating task", err)
 			return
 		}
+
+		// Also check if we need to reschedule work units
+		var toReschedule []WorkUnit
+		for _, unit := range task.WorkUnits {
+			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) {
+				toReschedule = append(toReschedule, unit)
+			}
+		}
+
+		for _, unit := range toReschedule {
+			task, err = c.rescheduleWorkUnitWithoutLock(ctx, task, &unit)
+			if err != nil {
+				c.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
+				return
+			}
+		}
+
 		return
 	}
 
