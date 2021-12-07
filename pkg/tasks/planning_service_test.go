@@ -10,6 +10,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -80,7 +81,8 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 		userRepository:            &userRepo,
 		taskRepository:            taskRepo,
 		calendarRepositoryManager: &calendarRepositoryManager,
-		logger:                    log, locker: locker,
+		logger:                    log,
+		locker:                    locker,
 	}
 
 	type repoEntry struct {
@@ -467,4 +469,332 @@ func testScheduledTask(task *Task) error {
 	}
 
 	return nil
+}
+
+func TestPlanningService_processTaskEventChange(t *testing.T) {
+	taskID1 := primitive.NewObjectID()
+	taskRepo := &MockTaskRepository{Tasks: []*Task{
+		{
+			ID:              taskID1,
+			UserID:          primaryUser.ID,
+			CreatedAt:       time.Now(),
+			LastModifiedAt:  time.Now(),
+			Deleted:         false,
+			Name:            "Testtask 2",
+			Description:     "",
+			WorkloadOverall: time.Hour * 4,
+			DueAt: calendar.Event{
+				Date: date.Timespan{
+					Start: time.Date(2021, 2, 10, 18, 0, 0, 0, location),
+					End:   time.Date(2021, 2, 10, 18, 15, 0, 0, location),
+				},
+				CalendarEvents: calendar.PersistedEvents{
+					calendar.PersistedEvent{
+						CalendarEventID: "due-1",
+						UserID:          primaryUser.ID,
+						CalendarType:    "mock_calendar",
+					},
+				},
+			},
+			WorkUnits: WorkUnits{
+				{
+					ID:       primitive.NewObjectID(),
+					Workload: time.Hour * 2,
+					ScheduledAt: calendar.Event{
+						Date: date.Timespan{
+							Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+							End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+						},
+						CalendarEvents: calendar.PersistedEvents{
+							calendar.PersistedEvent{
+								CalendarEventID: "test-1",
+								UserID:          primaryUser.ID,
+								CalendarType:    "mock_calendar",
+							},
+						},
+					},
+				},
+				{
+					ID:       primitive.NewObjectID(),
+					Workload: time.Hour * 2,
+					ScheduledAt: calendar.Event{
+						Date: date.Timespan{
+							Start: time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+							End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+						},
+						CalendarEvents: calendar.PersistedEvents{
+							calendar.PersistedEvent{
+								CalendarEventID: "test-2",
+								UserID:          primaryUser.ID,
+								CalendarType:    "mock_calendar",
+							},
+						},
+					},
+				},
+			},
+		},
+	}}
+
+	var calendarRepositoryManager = CalendarRepositoryManager{
+		userRepository:  &userRepo,
+		logger:          log,
+		overriddenRepos: make(map[string]calendar.RepositoryInterface),
+	}
+
+	calendarRepositoryManager.overriddenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 2, 10, 18, 0, 0, 0, location),
+				End:   time.Date(2021, 2, 10, 18, 15, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "due-1",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-1",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-2",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+	}, User: &primaryUser}
+
+	service := PlanningService{
+		userRepository:            &userRepo,
+		taskRepository:            taskRepo,
+		calendarRepositoryManager: &calendarRepositoryManager,
+		logger:                    log,
+		locker:                    locker,
+	}
+
+	type args struct {
+		userID string
+		event  *calendar.Event
+		taskID primitive.ObjectID
+	}
+	tests := []struct {
+		name              string
+		args              args
+		want              *Task
+		wantOnlyValidTask bool
+	}{
+		{
+			name: "New workunit time",
+			args: args{
+				userID: primaryUser.ID.Hex(),
+				event: &calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 1, 15, 14, 0, 0, 0, location),
+						End:   time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "test-1",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				taskID: taskID1,
+			},
+			want: &Task{
+				ID:              taskID1,
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Now(),
+				LastModifiedAt:  time.Now(),
+				Deleted:         false,
+				Name:            "Testtask 2",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						ID:       primitive.NewObjectID(),
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 14, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-1",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+					{
+						ID:       primitive.NewObjectID(),
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "New due at time (with work units still fitting)",
+			args: args{
+				userID: primaryUser.ID.Hex(),
+				event: &calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 12, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 12, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "due-1",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				taskID: taskID1,
+			},
+			want: &Task{
+				ID:              taskID1,
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Now(),
+				LastModifiedAt:  time.Now(),
+				Deleted:         false,
+				Name:            "Testtask 2",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 12, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 12, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "due-1",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						ID:       primitive.NewObjectID(),
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 14, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-1",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+					{
+						ID:       primitive.NewObjectID(),
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "New due at time (with work units then being planned after the due date)",
+			args: args{
+				userID: primaryUser.ID.Hex(),
+				event: &calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 1, 10, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 1, 10, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "due-1",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				taskID: taskID1,
+			},
+			wantOnlyValidTask: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			service.processTaskEventChange(context.TODO(), tt.args.event, tt.args.userID)
+			resultTask, err := service.taskRepository.FindByID(context.TODO(), tt.args.taskID.Hex(), tt.args.userID, false)
+			if err != nil {
+				t.Errorf("bad task err: %s", err)
+			}
+
+			if tt.wantOnlyValidTask {
+				err = testScheduledTask(&resultTask)
+				if err != nil {
+					t.Errorf("task was not valid %s", err)
+				}
+				return
+			}
+
+			if reflect.DeepEqual(resultTask, *tt.want) {
+				t.Errorf("checkForIntersectingWorkUnits() = %v, want %v", resultTask, tt.want)
+			}
+		})
+	}
 }

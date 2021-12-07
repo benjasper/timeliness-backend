@@ -3,6 +3,7 @@ package date
 import (
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -158,10 +159,15 @@ type TimeWindow struct {
 	Busy         []Timespan
 	Free         []Timespan
 	BusyPadding  time.Duration
+	busyMutex    sync.Mutex
+	freeMutex    sync.Mutex
 }
 
 // Duration simply get the duration of a Timespan
 func (w *TimeWindow) Duration() time.Duration {
+	w.busyMutex.Lock()
+	defer w.busyMutex.Unlock()
+
 	return w.End.Sub(w.Start)
 }
 
@@ -169,6 +175,9 @@ func (w *TimeWindow) Duration() time.Duration {
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	timespan.Start = timespan.Start.Add(w.BusyPadding * -1)
 	timespan.End = timespan.End.Add(w.BusyPadding)
+
+	w.busyMutex.Lock()
+	defer w.busyMutex.Unlock()
 
 	w.Busy = append(w.Busy, timespan)
 
@@ -225,6 +234,9 @@ func MergeTimespans(timespans []Timespan) []Timespan {
 
 // ComputeFree computes the free times, that are the inverse of busy times in the specified window
 func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
+	w.freeMutex.Lock()
+	defer w.freeMutex.Unlock()
+
 	w.Free = nil
 	w.FreeDuration = 0
 
@@ -267,6 +279,9 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules
 func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) *Timespan {
+	w.freeMutex.Lock()
+	defer w.freeMutex.Unlock()
+
 	for index, timespan := range w.Free {
 		foundFlag := false
 
@@ -303,6 +318,9 @@ func (w *TimeWindow) FindTimeSlot(rules *[]RuleInterface) *Timespan {
 
 // GetPreferredTimeWindow returns a TimeWindow that was cut to the specified times
 func (w *TimeWindow) GetPreferredTimeWindow(from time.Time, to time.Time) *TimeWindow {
+	w.freeMutex.Lock()
+	defer w.freeMutex.Unlock()
+
 	preferred := TimeWindow{Start: from, End: to}
 	for _, timespan := range w.Free {
 		if timespan.Start.Before(from) {
