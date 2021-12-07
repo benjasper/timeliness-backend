@@ -17,13 +17,13 @@ func getLocation() *time.Location {
 }
 
 var timeWindowTests = []struct {
-	in         TimeWindow
+	in         *TimeWindow
 	constraint FreeConstraint
 	out        []Timespan
 }{
 	{
 		// Case single busy time
-		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: []Timespan{{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)}}},
 		FreeConstraint{},
 		[]Timespan{
@@ -32,7 +32,7 @@ var timeWindowTests = []struct {
 	},
 	{
 		// Case 2 busy time
-		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: []Timespan{
 				{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)}}},
@@ -44,7 +44,7 @@ var timeWindowTests = []struct {
 	},
 	{
 		// Case 3 busy time
-		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: []Timespan{
 				{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
@@ -60,7 +60,7 @@ var timeWindowTests = []struct {
 	},
 	{
 		// Case windows start is in busy time
-		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: []Timespan{
 				{Start: timeDate(2020, 6, 10, 12, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
@@ -75,7 +75,7 @@ var timeWindowTests = []struct {
 	},
 	{
 		// Case busy == 0
-		TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
 			Busy: nil,
 		},
 		FreeConstraint{},
@@ -85,7 +85,7 @@ var timeWindowTests = []struct {
 	},
 	{
 		// Case with free constraint
-		TimeWindow{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 7, 17, 00, 0),
+		&TimeWindow{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 7, 17, 00, 0),
 			Busy: []Timespan{
 				{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 4, 23, 59, 0)},
 				{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
@@ -105,7 +105,7 @@ var timeWindowTests = []struct {
 	},
 	{
 		// Case with two free constraints
-		TimeWindow{Start: timeDate(2021, 3, 5, 8, 30, 0), End: timeDate(2021, 3, 7, 18, 00, 0),
+		&TimeWindow{Start: timeDate(2021, 3, 5, 8, 30, 0), End: timeDate(2021, 3, 7, 18, 00, 0),
 			Busy: []Timespan{
 				{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
 				{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
@@ -147,7 +147,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 func TestTimeWindow_AddToBusy(t *testing.T) {
 	var timespanAddToBusyTests = []struct {
 		input  Timespan
-		window TimeWindow
+		window *TimeWindow
 		output []Timespan
 	}{
 		{
@@ -156,7 +156,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 28, 9, 30, 0),
 				End:   timeDate(2021, 2, 28, 16, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -195,7 +195,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 7, 9, 30, 0),
 				End:   timeDate(2021, 3, 7, 16, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -234,7 +234,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 1, 9, 30, 0),
 				End:   timeDate(2021, 3, 1, 16, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -269,7 +269,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 17, 30, 0),
 				End:   timeDate(2021, 3, 4, 17, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -304,7 +304,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 17, 30, 0),
 				End:   timeDate(2021, 3, 3, 7, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -343,7 +343,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 1, 10, 30, 0),
 				End:   timeDate(2021, 3, 5, 10, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 2, 6, 9, 30, 0),
 					End:   timeDate(2021, 2, 7, 16, 30, 0),
@@ -391,7 +391,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 10, 30, 0),
 				End:   timeDate(2021, 3, 3, 10, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -422,7 +422,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 2, 10, 30, 0),
 				End:   timeDate(2021, 4, 3, 10, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -449,7 +449,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 1, 9, 30, 0),
 				End:   timeDate(2021, 4, 3, 10, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -476,7 +476,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 2, 10, 30, 0),
 				End:   timeDate(2021, 3, 6, 16, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -503,7 +503,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 16, 30, 0),
 				End:   timeDate(2021, 3, 3, 9, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -534,7 +534,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 16, 30, 0),
 				End:   timeDate(2021, 3, 3, 12, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -565,7 +565,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 15, 30, 0),
 				End:   timeDate(2021, 3, 3, 9, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -596,7 +596,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 2, 15, 30, 0),
 				End:   timeDate(2021, 3, 1, 9, 30, 0),
 			},
-			window: TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{Busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
