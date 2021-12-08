@@ -244,12 +244,12 @@ func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event, lo
 	var err error
 
 	if event.Start.Date != "" && event.End.Date != "" && loc != nil {
-		start, err = time.ParseInLocation(time.RFC3339, event.Start.Date, loc)
+		start, err = time.ParseInLocation("2006-01-02", event.Start.Date, loc)
 		if err != nil {
 			return nil, err
 		}
 
-		end, err = time.ParseInLocation(time.RFC3339, event.End.Date, loc)
+		end, err = time.ParseInLocation("2006-01-02", event.End.Date, loc)
 		if err != nil {
 			return nil, err
 		}
