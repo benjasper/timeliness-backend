@@ -213,7 +213,7 @@ func findSyncByID(connection users.GoogleCalendarConnection, ID string) int {
 	return -1
 }
 
-func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event) (*Event, error) {
+func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event, loc *time.Location) (*Event, error) {
 	newEvent := &Event{
 		Title:       event.Summary,
 		Description: event.Description,
@@ -234,19 +234,37 @@ func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event) (*
 		newEvent.Blocking = true
 	}
 
-	if event.Start.DateTime == "" || event.End.DateTime == "" {
+	if event.Status == "cancelled" {
 		newEvent.Deleted = true
 		return newEvent, nil
 	}
 
-	start, err := time.Parse(time.RFC3339, event.Start.DateTime)
-	if err != nil {
-		return nil, err
-	}
+	start := time.Time{}
+	end := time.Time{}
+	var err error
 
-	end, err := time.Parse(time.RFC3339, event.End.DateTime)
-	if err != nil {
-		return nil, err
+	if event.Start.Date != "" && event.End.Date != "" && loc != nil {
+		start, err = time.ParseInLocation(time.RFC3339, event.Start.Date, loc)
+		if err != nil {
+			return nil, err
+		}
+
+		end, err = time.ParseInLocation(time.RFC3339, event.End.Date, loc)
+		if err != nil {
+			return nil, err
+		}
+	} else if event.Start.DateTime != "" && event.End.DateTime != "" {
+		start, err = time.Parse(time.RFC3339, event.Start.DateTime)
+		if err != nil {
+			return nil, err
+		}
+
+		end, err = time.Parse(time.RFC3339, event.End.DateTime)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("neither date with location or datetime was filled in google event")
 	}
 
 	newEvent.Date = date.Timespan{
@@ -294,6 +312,8 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 			return
 		}
 
+		location, _ := time.LoadLocation(response.TimeZone)
+
 		for _, item := range response.Items {
 			if item.Status == "cancelled" {
 				// TODO: Figure out what to do with deleted events
@@ -309,7 +329,8 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 				}
 				continue
 			}
-			event, err := c.googleEventToEvent(item)
+
+			event, err := c.googleEventToEvent(item, location)
 			if err != nil {
 				*errorChannel <- err
 				return
@@ -361,6 +382,9 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event) *gcalendar.Ev
 		Description:  event.Description,
 		Transparency: transparency,
 		Source:       &source,
+		Reminders: &gcalendar.EventReminders{
+			UseDefault: true,
+		},
 	}
 
 	return &googleEvent
