@@ -6,8 +6,8 @@ automatic_scaling:
   max_concurrent_requests: 80
   max_instances: 1
 main: ./cmd
+service: staging
 env_variables:
-  service: staging
   APP_ENV: prod
   BASE_URL: https://staging.api.timeliness.app
   FRONTEND_BASE_URL: https://alpha.timeliness.app
