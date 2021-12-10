@@ -1,8 +1,8 @@
-name: Deploy Production
+name: Deploy Staging
 
 on:
   push:
-    branches: [ main ]
+    branches: [ staging ]
 
 jobs:
   run-tests:
@@ -19,4 +19,4 @@ jobs:
         uses: google-github-actions/deploy-appengine@main
         with:
           credentials: ${{ secrets.gcp_credentials }}
-          deliverables: app.yaml
+          deliverables: app-staging.yaml
