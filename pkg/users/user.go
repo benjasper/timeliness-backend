@@ -57,6 +57,7 @@ type DeviceToken struct {
 	LastRegistered time.Time
 }
 
+// GoogleCalendarConnections is a slice of GoogleCalendarConnection
 type GoogleCalendarConnections []GoogleCalendarConnection
 
 // FindByConnectionID finds a connection by it ID
@@ -81,8 +82,10 @@ type GoogleCalendarConnection struct {
 	CalendarsOfInterest      GoogleCalendarSyncs `json:"-" bson:"calendarsOfInterest,omitempty"`
 }
 
+// GoogleCalendarSyncs is a slice of GoogleCalendarSync
 type GoogleCalendarSyncs []GoogleCalendarSync
 
+// HasCalendarWithID checks if a calendar exists in a sync
 func (s GoogleCalendarSyncs) HasCalendarWithID(ID string) bool {
 	for _, sync := range s {
 		if sync.CalendarID == ID {

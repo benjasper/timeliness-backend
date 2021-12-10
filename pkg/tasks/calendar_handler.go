@@ -31,6 +31,7 @@ type CalendarHandler struct {
 	CalendarRepositoryManager *CalendarRepositoryManager
 }
 
+// GoogleConnectionWithCalendars is the type the calendar handler works with
 type GoogleConnectionWithCalendars struct {
 	Connection users.GoogleCalendarConnection `json:"connection"`
 	Calendars  []*calendar.Calendar           `json:"calendars"`
