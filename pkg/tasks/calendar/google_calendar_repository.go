@@ -11,6 +11,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"os"
@@ -28,12 +29,13 @@ type GoogleCalendarRepository struct {
 	Config     *oauth2.Config
 	Logger     logger.Interface
 	Service    *gcalendar.Service
-	user       *users.User
+	connection *users.GoogleCalendarConnection
 	apiBaseURL string
+	userID     primitive.ObjectID
 }
 
 // NewGoogleCalendarRepository constructs a GoogleCalendarRepository, best to use CalendarRepositoryManager for this
-func NewGoogleCalendarRepository(ctx context.Context, u *users.User, logger logger.Interface) (*GoogleCalendarRepository, error) {
+func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID, connection *users.GoogleCalendarConnection, logger logger.Interface) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
 	config, err := google.ReadGoogleConfig()
@@ -43,20 +45,20 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User, logger logg
 
 	newRepo.Config = config
 
-	if u.GoogleCalendarConnection.Token.AccessToken == "" {
+	if connection.Token.AccessToken == "" {
 		return nil, communication.ErrCalendarAuthInvalid
 	}
 
-	if u.GoogleCalendarConnection.Token.Expiry.Before(time.Now()) {
-		source := newRepo.Config.TokenSource(ctx, &u.GoogleCalendarConnection.Token)
+	if connection.Token.Expiry.Before(time.Now()) {
+		source := newRepo.Config.TokenSource(ctx, &connection.Token)
 		newToken, err := source.Token()
 		if err != nil {
 			return nil, err
 		}
-		u.GoogleCalendarConnection.Token = *newToken
+		connection.Token = *newToken
 	}
 
-	client := newRepo.Config.Client(ctx, &u.GoogleCalendarConnection.Token)
+	client := newRepo.Config.Client(ctx, &connection.Token)
 
 	srv, err := gcalendar.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
@@ -65,7 +67,8 @@ func NewGoogleCalendarRepository(ctx context.Context, u *users.User, logger logg
 
 	newRepo.Service = srv
 	newRepo.Logger = logger
-	newRepo.user = u
+	newRepo.connection = connection
+	newRepo.userID = userID
 
 	newRepo.apiBaseURL = "http://localhost"
 	envBaseURL, ok := os.LookupEnv("BASE_URL")
@@ -118,7 +121,7 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 	}
 
 	for _, cal := range calList.Items {
-		if c.user.GoogleCalendarConnection.TaskCalendarID == cal.Id {
+		if c.connection.TaskCalendarID == cal.Id {
 			continue
 		}
 		calendars[cal.Id] = &Calendar{CalendarID: cal.Id, Name: cal.Summary}
@@ -130,7 +133,7 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 	googleEvent := c.createGoogleEvent(event)
 
-	createdEvent, err := c.Service.Events.Insert(c.user.GoogleCalendarConnection.TaskCalendarID, googleEvent).Do()
+	createdEvent, err := c.Service.Events.Insert(c.connection.TaskCalendarID, googleEvent).Do()
 	if err != nil {
 		return nil, checkForInvalidTokenError(err)
 	}
@@ -138,7 +141,7 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 	calEvent := PersistedEvent{
 		CalendarEventID: createdEvent.Id,
 		CalendarType:    PersistedCalendarTypeGoogleCalendar,
-		UserID:          c.user.ID,
+		UserID:          c.userID,
 	}
 
 	event.CalendarEvents = append(event.CalendarEvents, calEvent)
@@ -150,10 +153,10 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
 	googleEvent := c.createGoogleEvent(event)
 
-	calendarEvent := event.CalendarEvents.FindByUserID(c.user.ID.Hex())
+	calendarEvent := event.CalendarEvents.FindByUserID(c.userID.Hex())
 
 	_, err := c.Service.Events.
-		Update(c.user.GoogleCalendarConnection.TaskCalendarID, calendarEvent.CalendarEventID, googleEvent).Do()
+		Update(c.connection.TaskCalendarID, calendarEvent.CalendarEventID, googleEvent).Do()
 	if err != nil {
 		return checkForInvalidTokenError(err)
 	}
@@ -166,24 +169,24 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	channel := gcalendar.Channel{
 		Id:      uuid.New().String(),
 		Address: fmt.Sprintf("%s/v1/calendar/google/notifications", c.apiBaseURL),
-		Token:   encryption.Encrypt(user.ID.Hex()),
+		Token:   encryption.Encrypt(c.userID.Hex()),
 		Type:    "web_hook",
 	}
 
-	index := findSyncByID(user.GoogleCalendarConnection, calendarID)
+	index := findSyncByID(c.connection, calendarID)
 	if index == -1 {
 		return nil, errors.New("calendar id could not be found in calendars of interest")
 	}
 
-	if user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration.After(time.Now().Add(GoogleNotificationExpirationOffset)) {
+	if c.connection.CalendarsOfInterest[index].Expiration.After(time.Now().Add(GoogleNotificationExpirationOffset)) {
 		return user, nil
 	}
 
-	if user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID != "" &&
-		user.GoogleCalendarConnection.CalendarsOfInterest[index].ChannelID != "" {
+	if c.connection.CalendarsOfInterest[index].SyncResourceID != "" &&
+		c.connection.CalendarsOfInterest[index].ChannelID != "" {
 		oldChannel := gcalendar.Channel{
-			Id:         user.GoogleCalendarConnection.CalendarsOfInterest[index].ChannelID,
-			ResourceId: user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID,
+			Id:         c.connection.CalendarsOfInterest[index].ChannelID,
+			ResourceId: c.connection.CalendarsOfInterest[index].SyncResourceID,
 		}
 		err := c.Service.Channels.Stop(&oldChannel).Do()
 		if err != nil {
@@ -196,14 +199,20 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 		return nil, err
 	}
 
-	user.GoogleCalendarConnection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
-	user.GoogleCalendarConnection.CalendarsOfInterest[index].ChannelID = response.Id
-	user.GoogleCalendarConnection.CalendarsOfInterest[index].Expiration = time.Unix(0, response.Expiration*int64(time.Millisecond))
+	c.connection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
+	c.connection.CalendarsOfInterest[index].ChannelID = response.Id
+	c.connection.CalendarsOfInterest[index].Expiration = time.Unix(0, response.Expiration*int64(time.Millisecond))
+
+	for i, connection := range user.GoogleCalendarConnections {
+		if connection.ID == c.connection.ID {
+			user.GoogleCalendarConnections[i] = *c.connection
+		}
+	}
 
 	return user, nil
 }
 
-func findSyncByID(connection users.GoogleCalendarConnection, ID string) int {
+func findSyncByID(connection *users.GoogleCalendarConnection, ID string) int {
 	for i, sync := range connection.CalendarsOfInterest {
 		if sync.CalendarID == ID {
 			return i
@@ -221,7 +230,7 @@ func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event, lo
 			{
 				CalendarEventID: event.Id,
 				CalendarType:    PersistedCalendarTypeGoogleCalendar,
-				UserID:          c.user.ID,
+				UserID:          c.userID,
 			},
 		},
 	}
@@ -284,11 +293,10 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	now := time.Now()
 	request := c.Service.Events.List(calendarID).SingleEvents(true)
 
-	c.user = user
-	syncIndex := findSyncByID(user.GoogleCalendarConnection, calendarID)
+	syncIndex := findSyncByID(c.connection, calendarID)
 
-	if user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken != "" && user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].Expiration.After(now) {
-		request = request.SyncToken(user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken)
+	if c.connection.CalendarsOfInterest[syncIndex].SyncToken != "" && c.connection.CalendarsOfInterest[syncIndex].Expiration.After(now) {
+		request = request.SyncToken(c.connection.CalendarsOfInterest[syncIndex].SyncToken)
 	} else {
 		request = request.TimeMin(now.Format(time.RFC3339))
 		request = request.TimeMax(now.Add(time.Hour * 24 * 31 * 6).Format(time.RFC3339)) // 6 months from now
@@ -303,7 +311,14 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 		if err != nil {
 			googleError, ok := err.(*googleapi.Error)
 			if ok && googleError.Code == 410 {
-				user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken = ""
+				c.connection.CalendarsOfInterest[syncIndex].SyncToken = ""
+
+				for i, connection := range user.GoogleCalendarConnections {
+					if connection.ID == c.connection.ID {
+						user.GoogleCalendarConnections[i] = *c.connection
+					}
+				}
+
 				*userChannel <- user
 				return
 			}
@@ -322,7 +337,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 						{
 							CalendarEventID: item.Id,
 							CalendarType:    PersistedCalendarTypeGoogleCalendar,
-							UserID:          c.user.ID,
+							UserID:          c.userID,
 						},
 					},
 					Deleted: true,
@@ -340,7 +355,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 		}
 
 		if response.NextSyncToken != "" {
-			user.GoogleCalendarConnection.CalendarsOfInterest[syncIndex].SyncToken = response.NextSyncToken
+			c.connection.CalendarsOfInterest[syncIndex].SyncToken = response.NextSyncToken
 			break
 		}
 
@@ -392,7 +407,7 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event) *gcalendar.Ev
 
 // AddBusyToWindow reads times from a window and fills it with busy timeslots
 func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow) error {
-	calList := c.user.GoogleCalendarConnection.CalendarsOfInterest
+	calList := c.connection.CalendarsOfInterest
 
 	var items = make([]*gcalendar.FreeBusyRequestItem, len(calList))
 	for _, cal := range calList {
@@ -428,12 +443,12 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow) erro
 
 // DeleteEvent deletes a single Event
 func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
-	calendarEvent := event.CalendarEvents.FindByUserID(c.user.ID.Hex())
+	calendarEvent := event.CalendarEvents.FindByUserID(c.userID.Hex())
 	if calendarEvent == nil {
-		return fmt.Errorf("persisted calendar event for user %s could not be found while deleting event", c.user.ID.Hex())
+		return fmt.Errorf("persisted calendar event for user %s could not be found while deleting event", c.userID.Hex())
 	}
 
-	err := c.Service.Events.Delete(c.user.GoogleCalendarConnection.TaskCalendarID, calendarEvent.CalendarEventID).Do()
+	err := c.Service.Events.Delete(c.connection.TaskCalendarID, calendarEvent.CalendarEventID).Do()
 	if err != nil {
 		if checkForIsGone(err) == nil {
 			return nil

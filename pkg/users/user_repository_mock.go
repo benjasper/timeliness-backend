@@ -42,8 +42,10 @@ func (r *MockUserRepository) FindByEmail(ctx context.Context, email string) (*Us
 // FindByGoogleStateToken finds a user by a GoogleStateToken
 func (r *MockUserRepository) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
 	for _, user := range r.Users {
-		if user.GoogleCalendarConnection.StateToken == stateToken {
-			return user, nil
+		for _, connection := range user.GoogleCalendarConnections {
+			if connection.StateToken == stateToken {
+				return user, nil
+			}
 		}
 	}
 
