@@ -397,6 +397,11 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 	usr.GoogleCalendarConnections[foundConnectionIndex].StateToken = ""
 	usr.GoogleCalendarConnections[foundConnectionIndex].Status = users.CalendarConnectionStatusActive
 
+	// TODO: needs to check for other calendar sources as well
+	if len(usr.GoogleCalendarConnections) == 1 {
+		usr.GoogleCalendarConnections[foundConnectionIndex].IsTaskCalendarConnection = true
+	}
+
 	err = handler.UserRepository.Update(request.Context(), usr)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)

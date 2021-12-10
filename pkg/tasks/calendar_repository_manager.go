@@ -119,7 +119,7 @@ func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u
 		needsUserUpdate = true
 	}
 
-	if connection.TaskCalendarID == "" {
+	if connection.TaskCalendarID == "" && connection.IsTaskCalendarConnection {
 		calendarID, err := calendarRepository.CreateCalendar()
 		if err != nil {
 			return nil, err
