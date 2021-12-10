@@ -2,9 +2,11 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // CalendarRepositoryManager manages calendar repositories. It decided which user needs which repository.
@@ -28,12 +30,19 @@ func (m *CalendarRepositoryManager) GetAllCalendarRepositoriesForUser(ctx contex
 		return []calendar.RepositoryInterface{m.overriddenRepos[user.ID.Hex()]}, nil
 	}
 
-	calendarRepository, err := m.setupGoogleRepository(ctx, user)
-	if err != nil {
-		return nil, err
+	var repos []calendar.RepositoryInterface
+
+	// TODO: Make parallel
+	for i, connection := range user.GoogleCalendarConnections {
+		calendarRepository, err := m.setupGoogleRepository(ctx, user, &connection, i)
+		if err != nil {
+			return nil, err
+		}
+
+		repos = append(repos, calendarRepository)
 	}
 
-	return []calendar.RepositoryInterface{calendarRepository}, nil
+	return repos, nil
 }
 
 // GetTaskCalendarRepositoryForUser gets the task calendar repository for a user
@@ -42,55 +51,91 @@ func (m *CalendarRepositoryManager) GetTaskCalendarRepositoryForUser(ctx context
 		return m.overriddenRepos[user.ID.Hex()], nil
 	}
 
-	calendarRepository, err := m.setupGoogleRepository(ctx, user)
-	if err != nil {
-		return nil, err
+	for i, connection := range user.GoogleCalendarConnections {
+		if connection.IsTaskCalendarConnection {
+			calendarRepository, err := m.setupGoogleRepository(ctx, user, &connection, i)
+			if err != nil {
+				return nil, err
+			}
+
+			return calendarRepository, nil
+		}
 	}
 
-	return calendarRepository, nil
+	return nil, fmt.Errorf("could not find a connection that has a task calendar connection for user %s", user.ID.Hex())
 }
 
-// GetCalendarRepositoryForUserAndCalendarID gets a specific calendar repository for a user
-func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserAndCalendarID(ctx context.Context, user *users.User, calendarID string) (calendar.RepositoryInterface, error) {
-	// TODO: return the calendar repository which contains the given calendar id
+// GetCalendarRepositoryForUserByCalendarID gets a specific calendar repository for a user
+func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByCalendarID(ctx context.Context, user *users.User, calendarID string) (calendar.RepositoryInterface, error) {
 	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
 		return m.overriddenRepos[user.ID.Hex()], nil
 	}
 
-	calendarRepository, err := m.setupGoogleRepository(ctx, user)
-	if err != nil {
-		return nil, err
-	}
+	for i, connection := range user.GoogleCalendarConnections {
+		if connection.CalendarsOfInterest.HasCalendarWithID(calendarID) {
+			calendarRepository, err := m.setupGoogleRepository(ctx, user, &connection, i)
+			if err != nil {
+				return nil, err
+			}
 
-	return calendarRepository, nil
-}
-
-// setupGoogleRepository manages token refreshing and calendar creation
-func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u *users.User) (*calendar.GoogleCalendarRepository, error) {
-	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
-
-	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, &u.GoogleCalendarConnection, m.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	if oldAccessToken != u.GoogleCalendarConnection.Token.AccessToken {
-		err := m.userRepository.Update(ctx, u)
-		if err != nil {
-			return nil, err
+			return calendarRepository, nil
 		}
 	}
 
-	if u.GoogleCalendarConnection.TaskCalendarID == "" {
+	return nil, fmt.Errorf("could not find a connection that contains the given calendar %s for user %s", calendarID, user.ID.Hex())
+}
+
+// GetCalendarRepositoryForUserByConnectionID gets a specific calendar repository for a connection
+func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByConnectionID(ctx context.Context, user *users.User, connectionID primitive.ObjectID) (calendar.RepositoryInterface, error) {
+	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
+		return m.overriddenRepos[user.ID.Hex()], nil
+	}
+
+	for i, connection := range user.GoogleCalendarConnections {
+		if connection.ID == connectionID {
+			calendarRepository, err := m.setupGoogleRepository(ctx, user, &connection, i)
+			if err != nil {
+				return nil, err
+			}
+
+			return calendarRepository, nil
+		}
+	}
+
+	return nil, fmt.Errorf("could not find a connection that has the given id %s for user %s", connectionID.Hex(), user.ID.Hex())
+}
+
+// setupGoogleRepository manages token refreshing and calendar creation
+func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u *users.User, connection *users.GoogleCalendarConnection, connectionIndex int) (*calendar.GoogleCalendarRepository, error) {
+	oldAccessToken := connection.Token.AccessToken
+	needsUserUpdate := false
+
+	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if oldAccessToken != connection.Token.AccessToken {
+		needsUserUpdate = true
+	}
+
+	if connection.TaskCalendarID == "" {
 		calendarID, err := calendarRepository.CreateCalendar()
 		if err != nil {
 			return nil, err
 		}
 
-		u.GoogleCalendarConnection.TaskCalendarID = calendarID
-		u.GoogleCalendarConnection.CalendarsOfInterest = append(u.GoogleCalendarConnection.CalendarsOfInterest,
+		connection.TaskCalendarID = calendarID
+		connection.CalendarsOfInterest = append(connection.CalendarsOfInterest,
 			users.GoogleCalendarSync{CalendarID: calendarID})
-		err = m.userRepository.Update(ctx, u)
+
+		needsUserUpdate = true
+	}
+
+	if needsUserUpdate {
+		u.GoogleCalendarConnections[connectionIndex] = *connection
+
+		err := m.userRepository.Update(ctx, u)
 		if err != nil {
 			return nil, err
 		}

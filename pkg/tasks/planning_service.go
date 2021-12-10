@@ -593,7 +593,7 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
 
-	calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUserAndCalendarID(ctx, user, calendarID)
+	calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUserByCalendarID(ctx, user, calendarID)
 	if err != nil {
 		return nil, err
 	}

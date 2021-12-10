@@ -1,6 +1,7 @@
 package users
 
 import (
+	"fmt"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/oauth2"
@@ -16,6 +17,9 @@ const CalendarConnectionStatusInactive = ""
 // CalendarConnectionStatusExpired marks an active calendar connection
 const CalendarConnectionStatusExpired = "expired"
 
+// CalendarConnectionStatusUnverified marks a calendar connection in progress
+const CalendarConnectionStatusUnverified = "unverified"
+
 // User represents the user
 type User struct {
 	ID             primitive.ObjectID `json:"id" bson:"_id"`
@@ -29,10 +33,10 @@ type User struct {
 	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
 	Contacts       []Contact          `json:"contacts" bson:"contacts"`
 
-	GoogleCalendarConnection GoogleCalendarConnection `json:"googleCalendarConnection" bson:"googleCalendarConnection"`
-	Settings                 UserSettings             `json:"settings" bson:"settings"`
-	EmailVerified            bool                     `json:"emailVerified" bson:"emailVerified"`
-	EmailVerificationToken   string                   `json:"-" bson:"emailVerificationToken"`
+	GoogleCalendarConnections GoogleCalendarConnections `json:"googleCalendarConnection" bson:"googleCalendarConnection"`
+	Settings                  UserSettings              `json:"settings" bson:"settings"`
+	EmailVerified             bool                      `json:"emailVerified" bson:"emailVerified"`
+	EmailVerificationToken    string                    `json:"-" bson:"emailVerificationToken"`
 }
 
 // UserLogin is the view for users logger in
@@ -53,13 +57,40 @@ type DeviceToken struct {
 	LastRegistered time.Time
 }
 
+type GoogleCalendarConnections []GoogleCalendarConnection
+
+// FindByConnectionID finds a connection by it ID
+func (g GoogleCalendarConnections) FindByConnectionID(connectionID string) (*GoogleCalendarConnection, int, error) {
+	for i, connection := range g {
+		if connectionID == connection.ID.Hex() {
+			return &connection, i, nil
+		}
+	}
+
+	return nil, 0, fmt.Errorf("could not find connection with id %s", connectionID)
+}
+
 // GoogleCalendarConnection stores everything related to Google Calendar
 type GoogleCalendarConnection struct {
-	Status              string               `json:"status" bson:"status"`
-	Token               oauth2.Token         `json:"-" bson:"token,omitempty"`
-	StateToken          string               `json:"-" bson:"stateToken,omitempty"`
-	TaskCalendarID      string               `json:"-" bson:"taskCalendarID,omitempty"`
-	CalendarsOfInterest []GoogleCalendarSync `json:"-" bson:"calendarsOfInterest,omitempty"`
+	ID                       primitive.ObjectID  `json:"id" bson:"_id"`
+	IsTaskCalendarConnection bool                `json:"isTaskCalendarConnection" bson:"isTaskCalendarConnection"`
+	Status                   string              `json:"status" bson:"status"`
+	Token                    oauth2.Token        `json:"-" bson:"token,omitempty"`
+	StateToken               string              `json:"-" bson:"stateToken,omitempty"`
+	TaskCalendarID           string              `json:"-" bson:"taskCalendarID,omitempty"`
+	CalendarsOfInterest      GoogleCalendarSyncs `json:"-" bson:"calendarsOfInterest,omitempty"`
+}
+
+type GoogleCalendarSyncs []GoogleCalendarSync
+
+func (s GoogleCalendarSyncs) HasCalendarWithID(ID string) bool {
+	for _, sync := range s {
+		if sync.CalendarID == ID {
+			return true
+		}
+	}
+
+	return false
 }
 
 // GoogleCalendarSync holds information about a calendar that will be used to determine busy times

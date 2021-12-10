@@ -203,7 +203,11 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	c.connection.CalendarsOfInterest[index].ChannelID = response.Id
 	c.connection.CalendarsOfInterest[index].Expiration = time.Unix(0, response.Expiration*int64(time.Millisecond))
 
-	user.GoogleCalendarConnection = *c.connection
+	for i, connection := range user.GoogleCalendarConnections {
+		if connection.ID == c.connection.ID {
+			user.GoogleCalendarConnections[i] = *c.connection
+		}
+	}
 
 	return user, nil
 }
@@ -308,7 +312,13 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 			googleError, ok := err.(*googleapi.Error)
 			if ok && googleError.Code == 410 {
 				c.connection.CalendarsOfInterest[syncIndex].SyncToken = ""
-				user.GoogleCalendarConnection = *c.connection
+
+				for i, connection := range user.GoogleCalendarConnections {
+					if connection.ID == c.connection.ID {
+						user.GoogleCalendarConnections[i] = *c.connection
+					}
+				}
+
 				*userChannel <- user
 				return
 			}
