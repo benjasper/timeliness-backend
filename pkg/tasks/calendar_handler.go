@@ -14,6 +14,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 	"net/http"
 	"os"
@@ -302,6 +303,63 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 				return
 			}
 		}
+	}
+}
+
+// InitiateGoogleCalendarAuth responds with the Google Auth URL
+func (handler *CalendarHandler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		return
+	}
+
+	url, stateToken, err := google.GetGoogleAuthURL()
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
+		return
+	}
+
+	var foundUnverified int = -1
+	for i, connection := range u.GoogleCalendarConnections {
+		if connection.Status == users.CalendarConnectionStatusUnverified {
+			foundUnverified = i
+			break
+		}
+	}
+
+	if foundUnverified == -1 {
+		u.GoogleCalendarConnections = append(u.GoogleCalendarConnections, users.GoogleCalendarConnection{
+			ID:         primitive.NewObjectID(),
+			StateToken: stateToken,
+			Status:     users.CalendarConnectionStatusUnverified,
+		})
+	} else {
+		u.GoogleCalendarConnections[foundUnverified].StateToken = stateToken
+	}
+
+	err = handler.UserRepository.Update(request.Context(), u)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		return
+	}
+
+	var response = map[string]interface{}{
+		"url": url,
+	}
+
+	binary, err := json.Marshal(response)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
+	}
+
+	_, err = writer.Write(binary)
+	if err != nil {
+		handler.Logger.Fatal(err)
+		return
 	}
 }
 

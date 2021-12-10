@@ -6,14 +6,12 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 	"io"
 	"net/http"
@@ -422,51 +420,6 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 	}
 
 	handler.ResponseManager.Respond(writer, response)
-}
-
-// InitiateGoogleCalendarAuth responds with the Google Auth URL
-func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, request *http.Request) {
-	userID := request.Context().Value(auth.KeyUserID).(string)
-
-	u, err := handler.UserRepository.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
-		return
-	}
-
-	url, stateToken, err := google.GetGoogleAuthURL()
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
-		return
-	}
-
-	u.GoogleCalendarConnections = append(u.GoogleCalendarConnections, GoogleCalendarConnection{
-		ID:         primitive.NewObjectID(),
-		StateToken: stateToken,
-		Status:     CalendarConnectionStatusUnverified,
-	})
-
-	err = handler.UserRepository.Update(request.Context(), u)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
-		return
-	}
-
-	var response = map[string]interface{}{
-		"url": url,
-	}
-
-	binary, err := json.Marshal(response)
-	if err != nil {
-		handler.Logger.Fatal(err)
-		return
-	}
-
-	_, err = writer.Write(binary)
-	if err != nil {
-		handler.Logger.Fatal(err)
-		return
-	}
 }
 
 // VerifyRegistrationGet is endpoint that gets called when the email verification link gets hit
