@@ -125,20 +125,28 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		return nil, err
 	}
 
-	repositories := make(map[string]calendar.RepositoryInterface)
+	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)
 
 	// TODO make TimeWindow thread safe and make this parallel
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+		taskRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
 
-		repositories[user.ID.Hex()] = repository
+		taskCalendarRepositories[user.ID.Hex()] = taskRepository
 
-		err = repository.AddBusyToWindow(&windowTotal)
+		// Repositories for availability
+		repositories, err := c.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
+		}
+
+		for _, repository := range repositories {
+			err = repository.AddBusyToWindow(&windowTotal)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -174,7 +182,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 			var workEvent *calendar.Event
 			for _, user := range relevantUsers {
-				workEvent, err = repositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt)
+				workEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt)
 				if err != nil {
 					return nil, err
 				}
@@ -239,7 +247,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		for _, user := range relevantUsers {
 			for _, unit := range shouldDelete {
-				err = repositories[user.ID.Hex()].DeleteEvent(&unit.ScheduledAt)
+				err = taskCalendarRepositories[user.ID.Hex()].DeleteEvent(&unit.ScheduledAt)
 				if err != nil {
 					return nil, err
 				}
@@ -248,7 +256,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		for _, user := range relevantUsers {
 			for _, unit := range shouldUpdate {
-				err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt)
+				err = taskCalendarRepositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt)
 				if err != nil {
 					return nil, err
 				}
@@ -267,7 +275,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 			if persistedEvent := t.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
 				continue
 			}
-			dueEvent, err = repositories[user.ID.Hex()].NewEvent(&t.DueAt)
+			dueEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&t.DueAt)
 			if err != nil {
 				return nil, err
 			}
@@ -330,24 +338,29 @@ func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	// TODO Make parallel
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+		taskRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
 
-		repositories[user.ID.Hex()] = repository
+		repositories[user.ID.Hex()] = taskRepository
 
-		err = repository.DeleteEvent(&w.ScheduledAt)
+		err = taskRepository.DeleteEvent(&w.ScheduledAt)
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	// TODO Make parallel
-	for _, user := range relevantUsers {
-		err = repositories[user.ID.Hex()].AddBusyToWindow(&windowTotal)
+		// Repositories for availability
+		repositories, err := c.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
+		}
+
+		for _, repository := range repositories {
+			err = repository.AddBusyToWindow(&windowTotal)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -475,7 +488,7 @@ func (c *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 	}
 
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -501,7 +514,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	repositories := make(map[string]calendar.RepositoryInterface)
 
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -548,7 +561,7 @@ func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 
 	// TODO make these parallel
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+		repository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -580,7 +593,7 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
 
-	calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+	calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUserAndCalendarID(ctx, user, calendarID)
 	if err != nil {
 		return nil, err
 	}
@@ -717,7 +730,7 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 				continue
 			}
 
-			calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+			calendarRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 			if err != nil {
 				c.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
 				continue
@@ -773,7 +786,7 @@ func (c *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 			continue
 		}
 
-		calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUser(ctx, user)
+		calendarRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			c.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
 			continue

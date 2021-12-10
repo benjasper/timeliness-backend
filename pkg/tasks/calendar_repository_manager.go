@@ -21,9 +21,38 @@ func NewCalendarRepositoryManager(_ int, userRepository users.UserRepositoryInte
 	return &manager, nil
 }
 
-// GetCalendarRepositoryForUser gets the correct calendar repository for a user
-func (m *CalendarRepositoryManager) GetCalendarRepositoryForUser(ctx context.Context, user *users.User) (calendar.RepositoryInterface, error) {
+// GetAllCalendarRepositoriesForUser gets all calendar repositories for a user
+func (m *CalendarRepositoryManager) GetAllCalendarRepositoriesForUser(ctx context.Context, user *users.User) ([]calendar.RepositoryInterface, error) {
 	// TODO: Figure out which calendarRepository to use
+	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
+		return []calendar.RepositoryInterface{m.overriddenRepos[user.ID.Hex()]}, nil
+	}
+
+	calendarRepository, err := m.setupGoogleRepository(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return []calendar.RepositoryInterface{calendarRepository}, nil
+}
+
+// GetTaskCalendarRepositoryForUser gets the task calendar repository for a user
+func (m *CalendarRepositoryManager) GetTaskCalendarRepositoryForUser(ctx context.Context, user *users.User) (calendar.RepositoryInterface, error) {
+	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
+		return m.overriddenRepos[user.ID.Hex()], nil
+	}
+
+	calendarRepository, err := m.setupGoogleRepository(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return calendarRepository, nil
+}
+
+// GetCalendarRepositoryForUserAndCalendarID gets a specific calendar repository for a user
+func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserAndCalendarID(ctx context.Context, user *users.User, calendarID string) (calendar.RepositoryInterface, error) {
+	// TODO: return the calendar repository which contains the given calendar id
 	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
 		return m.overriddenRepos[user.ID.Hex()], nil
 	}
@@ -40,7 +69,7 @@ func (m *CalendarRepositoryManager) GetCalendarRepositoryForUser(ctx context.Con
 func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u *users.User) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := u.GoogleCalendarConnection.Token.AccessToken
 
-	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u, m.logger)
+	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, &u.GoogleCalendarConnection, m.logger)
 	if err != nil {
 		return nil, err
 	}

@@ -45,7 +45,7 @@ func (handler *CalendarHandler) GetAllCalendars(writer http.ResponseWriter, requ
 	}
 
 	// TODO: check which sources have a connection
-	googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u, handler.Logger)
+	googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u.ID, &u.GoogleCalendarConnection, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with Google Calendar connection", err)
@@ -109,7 +109,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 	}
 
 	// TODO: check which sources have a connection
-	googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u, handler.Logger)
+	googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u.ID, &u.GoogleCalendarConnection, handler.Logger)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusServiceUnavailable,
 			"Problem with Google Calendar connection", err)
@@ -141,7 +141,7 @@ func (handler *CalendarHandler) PostCalendars(writer http.ResponseWriter, reques
 }
 
 func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, request *http.Request, u *users.User) error {
-	googleCalendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUser(request.Context(), u)
+	googleCalendarRepositories, err := handler.CalendarRepositoryManager.GetAllCalendarRepositoriesForUser(request.Context(), u)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)
@@ -153,7 +153,9 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 		if env != environment.Production {
 			continue
 		}
-		u, err = googleCalendarRepository.WatchCalendar(sync.CalendarID, u)
+
+		// TODO: Change when multiple google repositories are allowed
+		u, err = googleCalendarRepositories[0].WatchCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with calendar notification registration", err)
@@ -254,7 +256,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 }
 
 func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time time.Time) {
-	calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUser(context.Background(), user)
+	calendarRepositories, err := handler.CalendarRepositoryManager.GetAllCalendarRepositoriesForUser(context.Background(), user)
 	if err != nil {
 		handler.Logger.Error("Problem while processing user for sync renewal", err)
 		return
@@ -265,7 +267,8 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			continue
 		}
 
-		user, err := calendarRepository.WatchCalendar(sync.CalendarID, user)
+		// TODO: change when multiple repositories are allowed
+		user, err := calendarRepositories[0].WatchCalendar(sync.CalendarID, user)
 		if err != nil {
 			handler.Logger.Error("Problem while trying to renew sync", err)
 			return
