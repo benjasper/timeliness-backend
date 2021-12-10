@@ -220,7 +220,7 @@ func main() {
 	authenticatedAPI.Path("/calendar/google/connect").
 		HandlerFunc(userHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
 	authenticatedAPI.Path("/calendars").HandlerFunc(calendarHandler.GetAllCalendars).Methods(http.MethodGet)
-	authenticatedAPI.Path("/calendars/{connectionID}").HandlerFunc(calendarHandler.PutCalendars).Methods(http.MethodPost)
+	authenticatedAPI.Path("/calendars/{connectionID}").HandlerFunc(calendarHandler.PutCalendars).Methods(http.MethodPut)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
