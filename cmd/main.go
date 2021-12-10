@@ -39,9 +39,14 @@ func main() {
 		appEnv = environment.Dev
 	}
 
-	databaseURL := os.Getenv("DATABASE")
+	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		databaseURL = "mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"
+	}
+
+	database := os.Getenv("DATABASE")
+	if database == "" {
+		database = "test"
 	}
 
 	redisURL := os.Getenv("REDIS")
@@ -114,7 +119,7 @@ func main() {
 
 	logging.Info("Redis connected")
 
-	db := client.Database("test")
+	db := client.Database(database)
 
 	userCollection := db.Collection("Users")
 	taskCollection := db.Collection("Tasks")
