@@ -13,6 +13,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 	"io"
 	"net/http"
@@ -439,7 +440,11 @@ func (handler *Handler) InitiateGoogleCalendarAuth(writer http.ResponseWriter, r
 		return
 	}
 
-	u.GoogleCalendarConnection.StateToken = stateToken
+	u.GoogleCalendarConnections = append(u.GoogleCalendarConnections, GoogleCalendarConnection{
+		ID:         primitive.NewObjectID(),
+		StateToken: stateToken,
+		Status:     CalendarConnectionStatusUnverified,
+	})
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
