@@ -7,6 +7,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gcalendar "google.golang.org/api/calendar/v3"
+	oauth22 "google.golang.org/api/oauth2/v2"
+	"google.golang.org/api/option"
 	"io/ioutil"
 	"os"
 )
@@ -19,7 +21,7 @@ func ReadGoogleConfig() (*oauth2.Config, error) {
 	}
 
 	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created")
+	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created", "https://www.googleapis.com/auth/userinfo.profile")
 	if err != nil {
 		return nil, err
 	}
@@ -61,4 +63,33 @@ func GetGoogleAuthURL() (string, string, error) {
 	url := config.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
 
 	return url, stateToken, nil
+}
+
+func GetUserId(ctx context.Context, token *oauth2.Token) (string, error) {
+	config, err := ReadGoogleConfig()
+	if err != nil {
+		return "", err
+	}
+
+	client := config.Client(ctx, token)
+
+	service, err := oauth22.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return "", err
+	}
+
+	userinfo, err := service.Userinfo.Get().Do()
+	if err != nil {
+		return "", err
+	}
+
+	if userinfo.Id == "" {
+		if userinfo.Email == "" {
+			return "", fmt.Errorf("neither user ID nor email exists")
+		}
+
+		return userinfo.Email, nil
+	}
+
+	return userinfo.Id, nil
 }

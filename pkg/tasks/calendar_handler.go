@@ -9,12 +9,10 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
-	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 	"net/http"
 	"os"
@@ -100,8 +98,8 @@ func (handler *CalendarHandler) GetAllCalendars(writer http.ResponseWriter, requ
 	}
 }
 
-// PutCalendars sets the active calendars used for busy time calculation
-func (handler *CalendarHandler) PutCalendars(writer http.ResponseWriter, request *http.Request) {
+// PatchCalendars sets the active calendars used for busy time calculation
+func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	connectionID := mux.Vars(request)["connectionID"]
 
@@ -141,7 +139,7 @@ func (handler *CalendarHandler) PutCalendars(writer http.ResponseWriter, request
 		return
 	}
 
-	connection.CalendarsOfInterest = matchNewGoogleCalendars(requestBody, googleCalendars, connection)
+	connection.CalendarsOfInterest, u = handler.matchNewGoogleCalendars(request.Context(), u, requestBody, googleCalendars, connection)
 
 	u.GoogleCalendarConnections[index] = *connection
 
@@ -161,7 +159,6 @@ func (handler *CalendarHandler) PutCalendars(writer http.ResponseWriter, request
 }
 
 func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, request *http.Request, u *users.User) error {
-	env := os.Getenv("APP_ENV")
 	for _, connection := range u.GoogleCalendarConnections {
 		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(context.Background(), u, connection.ID)
 		if err != nil {
@@ -170,10 +167,6 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 		}
 
 		for _, sync := range connection.CalendarsOfInterest {
-			if env != environment.Production {
-				continue
-			}
-
 			u, err = calendarRepository.WatchCalendar(sync.CalendarID, u)
 			if err != nil {
 				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
@@ -192,7 +185,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 	return nil
 }
 
-func matchNewGoogleCalendars(requestCalendars []calendar.Calendar, googleCalendars map[string]*calendar.Calendar, connection *users.GoogleCalendarConnection) []users.GoogleCalendarSync {
+func (handler *CalendarHandler) matchNewGoogleCalendars(ctx context.Context, u *users.User, requestCalendars []calendar.Calendar, googleCalendars map[string]*calendar.Calendar, connection *users.GoogleCalendarConnection) ([]users.GoogleCalendarSync, *users.User) {
 	var newGoogleCalendars []users.GoogleCalendarSync
 
 	for _, c := range requestCalendars {
@@ -209,7 +202,15 @@ func matchNewGoogleCalendars(requestCalendars []calendar.Calendar, googleCalenda
 		}
 
 		if !c.IsActive && foundPresentCalendar != nil {
-			// TODO: deregister c notifications gracefully
+			repository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(ctx, u, connection.ID)
+			if err != nil {
+				return nil, u
+			}
+
+			u, err = repository.StopWatchingCalendar(foundPresentCalendar.CalendarID, u)
+			if err != nil {
+				return nil, u
+			}
 			continue
 		}
 
@@ -231,7 +232,7 @@ func matchNewGoogleCalendars(requestCalendars []calendar.Calendar, googleCalenda
 		}
 	}
 
-	return newGoogleCalendars
+	return newGoogleCalendars, u
 }
 
 // GoogleCalendarSyncRenewal is hit by a scheduler to renew sync that are about to expire
@@ -332,7 +333,7 @@ func (handler *CalendarHandler) InitiateGoogleCalendarAuth(writer http.ResponseW
 
 	if foundUnverified == -1 {
 		u.GoogleCalendarConnections = append(u.GoogleCalendarConnections, users.GoogleCalendarConnection{
-			ID:         primitive.NewObjectID(),
+			ID:         "",
 			StateToken: stateToken,
 			Status:     users.CalendarConnectionStatusUnverified,
 		})
@@ -363,10 +364,58 @@ func (handler *CalendarHandler) InitiateGoogleCalendarAuth(writer http.ResponseW
 	}
 }
 
+// DeleteGoogleConnection deletes a Google connection and stops calendar notifications
+func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	connectionID := mux.Vars(request)["connectionID"]
+
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		return
+	}
+
+	connection, _, err := u.GoogleCalendarConnections.FindByConnectionID(connectionID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find connection id %s", connectionID), err)
+		return
+	}
+
+	repository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connectionID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem with calendar connection", err)
+		return
+	}
+
+	for _, sync := range connection.CalendarsOfInterest {
+		u, err = repository.StopWatchingCalendar(sync.CalendarID, u)
+		if err != nil {
+			handler.Logger.Warning("Calendar notifications could not be stopped", err)
+			continue
+		}
+	}
+
+	u.GoogleCalendarConnections = u.GoogleCalendarConnections.RemoveConnection(connectionID)
+
+	err = handler.UserRepository.Update(request.Context(), u)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+}
+
 // GoogleCalendarAuthCallback is the call the api will redirect to
 func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseWriter, request *http.Request) {
+	googleError := request.URL.Query().Get("error")
 	authCode := request.URL.Query().Get("code")
 	stateToken := request.URL.Query().Get("state")
+
+	if googleError != "" {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Access was denied by user", fmt.Errorf(googleError))
+		return
+	}
 
 	usr, err := handler.UserRepository.FindByGoogleStateToken(request.Context(), stateToken)
 	if err != nil {
@@ -393,6 +442,20 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 		return
 	}
 
+	userID, err := google.GetUserId(request.Context(), token)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem getting user id", err)
+		return
+	}
+
+	for _, connection := range usr.GoogleCalendarConnections {
+		if connection.ID == userID {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Account is already connected", fmt.Errorf("account already connected"))
+			return
+		}
+	}
+
+	usr.GoogleCalendarConnections[foundConnectionIndex].ID = userID
 	usr.GoogleCalendarConnections[foundConnectionIndex].Token = *token
 	usr.GoogleCalendarConnections[foundConnectionIndex].StateToken = ""
 	usr.GoogleCalendarConnections[foundConnectionIndex].Status = users.CalendarConnectionStatusActive

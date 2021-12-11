@@ -63,7 +63,7 @@ type GoogleCalendarConnections []GoogleCalendarConnection
 // FindByConnectionID finds a connection by it ID
 func (g GoogleCalendarConnections) FindByConnectionID(connectionID string) (*GoogleCalendarConnection, int, error) {
 	for i, connection := range g {
-		if connectionID == connection.ID.Hex() {
+		if connectionID == connection.ID {
 			return &connection, i, nil
 		}
 	}
@@ -71,9 +71,20 @@ func (g GoogleCalendarConnections) FindByConnectionID(connectionID string) (*Goo
 	return nil, 0, fmt.Errorf("could not find connection with id %s", connectionID)
 }
 
+// RemoveConnection removes a connection
+func (g GoogleCalendarConnections) RemoveConnection(connectionID string) GoogleCalendarConnections {
+	for i, connection := range g {
+		if connectionID == connection.ID {
+			return append(g[:i], g[i+1:]...)
+		}
+	}
+
+	return g
+}
+
 // GoogleCalendarConnection stores everything related to Google Calendar
 type GoogleCalendarConnection struct {
-	ID                       primitive.ObjectID  `json:"id" bson:"_id"`
+	ID                       string              `json:"id" bson:"_id"`
 	IsTaskCalendarConnection bool                `json:"isTaskCalendarConnection" bson:"isTaskCalendarConnection"`
 	Status                   string              `json:"status" bson:"status"`
 	Token                    oauth2.Token        `json:"-" bson:"token,omitempty"`

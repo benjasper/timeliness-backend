@@ -212,6 +212,39 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	return user, nil
 }
 
+// StopWatchingCalendar stops notifications for a calendar
+func (c *GoogleCalendarRepository) StopWatchingCalendar(calendarID string, user *users.User) (*users.User, error) {
+	index := findSyncByID(c.connection, calendarID)
+	if index == -1 {
+		return nil, errors.New("calendar id could not be found in calendars of interest")
+	}
+
+	if c.connection.CalendarsOfInterest[index].ChannelID == "" || c.connection.CalendarsOfInterest[index].SyncResourceID == "" {
+		return user, nil
+	}
+
+	channel := gcalendar.Channel{
+		Id:         c.connection.CalendarsOfInterest[index].ChannelID,
+		ResourceId: c.connection.CalendarsOfInterest[index].SyncResourceID,
+	}
+
+	err := c.Service.Channels.Stop(&channel).Do()
+	if err != nil {
+		return nil, err
+	}
+
+	c.connection.CalendarsOfInterest[index].SyncResourceID = ""
+	c.connection.CalendarsOfInterest[index].ChannelID = ""
+
+	for i, connection := range user.GoogleCalendarConnections {
+		if connection.ID == c.connection.ID {
+			user.GoogleCalendarConnections[i] = *c.connection
+		}
+	}
+
+	return user, nil
+}
+
 func findSyncByID(connection *users.GoogleCalendarConnection, ID string) int {
 	for i, sync := range connection.CalendarsOfInterest {
 		if sync.CalendarID == ID {
