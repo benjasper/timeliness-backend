@@ -442,7 +442,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 		return
 	}
 
-	userID, err := google.GetUserId(request.Context(), token)
+	userID, err := google.GetUserID(request.Context(), token)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem getting user id", err)
 		return

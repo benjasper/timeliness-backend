@@ -65,7 +65,8 @@ func GetGoogleAuthURL() (string, string, error) {
 	return url, stateToken, nil
 }
 
-func GetUserId(ctx context.Context, token *oauth2.Token) (string, error) {
+// GetUserID gets the matching user id to a token from the Google API
+func GetUserID(ctx context.Context, token *oauth2.Token) (string, error) {
 	config, err := ReadGoogleConfig()
 	if err != nil {
 		return "", err

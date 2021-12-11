@@ -112,6 +112,7 @@ func (r *MockCalendarRepository) WatchCalendar(calendarID string, user *users.Us
 	return nil, nil
 }
 
+// StopWatchingCalendar is not implemented yet
 func (r *MockCalendarRepository) StopWatchingCalendar(calendarID string, user *users.User) (*users.User, error) {
 	return nil, nil
 }
