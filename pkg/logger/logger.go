@@ -42,7 +42,7 @@ func (l Logger) Fatal(err error) {
 
 // Warning is for throwing a log message with status Warning
 func (l Logger) Warning(message string, err error) {
-	log.Fatalf("[WARNING] %s: %v\n", message, err)
+	log.Printf("[WARNING] %s: %v\n", message, err)
 }
 
 // GoogleCloudLogger is for production use on the google cloud
