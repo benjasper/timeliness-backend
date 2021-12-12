@@ -222,11 +222,10 @@ func main() {
 	authenticatedAPI.Path("/tags/{tagID}").HandlerFunc(tagHandler.TagUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tags/{tagID}").HandlerFunc(tagHandler.TagDelete).Methods(http.MethodDelete)
 
-	authenticatedAPI.Path("/connections/google").
-		HandlerFunc(calendarHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
-	authenticatedAPI.Path("/connections/{connectionID}/google").
-		HandlerFunc(calendarHandler.DeleteGoogleConnection).Methods(http.MethodDelete)
-	authenticatedAPI.Path("/connections/calendars").HandlerFunc(calendarHandler.GetAllCalendars).Methods(http.MethodGet)
+	authenticatedAPI.Path("/connections/google").HandlerFunc(calendarHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
+	authenticatedAPI.Path("/connections/{connectionID}/google").HandlerFunc(calendarHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
+	authenticatedAPI.Path("/connections/{connectionID}/google").HandlerFunc(calendarHandler.DeleteGoogleConnection).Methods(http.MethodDelete)
+	authenticatedAPI.Path("/connections/{connectionID}/calendars").HandlerFunc(calendarHandler.GetCalendarsFromConnection).Methods(http.MethodGet)
 	authenticatedAPI.Path("/connections/{connectionID}/calendars").HandlerFunc(calendarHandler.PatchCalendars).Methods(http.MethodPatch)
 
 	r.Use(func(next http.Handler) http.Handler {
