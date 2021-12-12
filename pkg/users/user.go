@@ -33,7 +33,7 @@ type User struct {
 	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
 	Contacts       []Contact          `json:"contacts" bson:"contacts"`
 
-	GoogleCalendarConnections GoogleCalendarConnections `json:"googleCalendarConnection" bson:"googleCalendarConnections"`
+	GoogleCalendarConnections GoogleCalendarConnections `json:"googleCalendarConnections" bson:"googleCalendarConnections"`
 	Settings                  UserSettings              `json:"settings" bson:"settings"`
 	EmailVerified             bool                      `json:"emailVerified" bson:"emailVerified"`
 	EmailVerificationToken    string                    `json:"-" bson:"emailVerificationToken"`
