@@ -6,7 +6,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // CalendarRepositoryManager manages calendar repositories. It decided which user needs which repository.
@@ -34,6 +33,9 @@ func (m *CalendarRepositoryManager) GetAllCalendarRepositoriesForUser(ctx contex
 
 	// TODO: Make parallel
 	for i, connection := range user.GoogleCalendarConnections {
+		if connection.Status != users.CalendarConnectionStatusActive {
+			continue
+		}
 		calendarRepository, err := m.setupGoogleRepository(ctx, user, &connection, i)
 		if err != nil {
 			return nil, err
@@ -86,7 +88,7 @@ func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByCalendarID(ctx
 }
 
 // GetCalendarRepositoryForUserByConnectionID gets a specific calendar repository for a connection
-func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByConnectionID(ctx context.Context, user *users.User, connectionID primitive.ObjectID) (calendar.RepositoryInterface, error) {
+func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByConnectionID(ctx context.Context, user *users.User, connectionID string) (calendar.RepositoryInterface, error) {
 	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
 		return m.overriddenRepos[user.ID.Hex()], nil
 	}
@@ -102,7 +104,7 @@ func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByConnectionID(c
 		}
 	}
 
-	return nil, fmt.Errorf("could not find a connection that has the given id %s for user %s", connectionID.Hex(), user.ID.Hex())
+	return nil, fmt.Errorf("could not find a connection that has the given id %s for user %s", connectionID, user.ID.Hex())
 }
 
 // setupGoogleRepository manages token refreshing and calendar creation

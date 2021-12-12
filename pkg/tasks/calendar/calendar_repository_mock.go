@@ -112,6 +112,11 @@ func (r *MockCalendarRepository) WatchCalendar(calendarID string, user *users.Us
 	return nil, nil
 }
 
+// StopWatchingCalendar is not implemented yet
+func (r *MockCalendarRepository) StopWatchingCalendar(calendarID string, user *users.User) (*users.User, error) {
+	return nil, nil
+}
+
 // SyncEvents returns the events in EventsToSync
 func (r *MockCalendarRepository) SyncEvents(calendarID string, user *users.User, eventChannel *chan *Event, errorChannel *chan error, userChannel *chan *users.User) {
 	defer close(*eventChannel)

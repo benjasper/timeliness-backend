@@ -18,5 +18,6 @@ type RepositoryInterface interface {
 	DeleteEvent(event *Event) error
 	AddBusyToWindow(window *date.TimeWindow) error
 	WatchCalendar(calendarID string, user *users.User) (*users.User, error)
+	StopWatchingCalendar(calendarID string, user *users.User) (*users.User, error)
 	SyncEvents(calendarID string, user *users.User, eventChannel *chan *Event, errorChannel *chan error, userChannel *chan *users.User)
 }
