@@ -150,7 +150,7 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 
 func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, request *http.Request, u *users.User) error {
 	for _, connection := range u.GoogleCalendarConnections {
-		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(context.Background(), u, connection.ID)
+		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
 			handler.Logger.Error("Problem while processing user for sync renewal", err)
 			return err
