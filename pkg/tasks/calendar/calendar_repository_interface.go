@@ -7,9 +7,9 @@ import (
 
 // RepositoryInterface is an interface for every calendar implementation e.g. Google Calendar, Microsoft Calendar,...
 type RepositoryInterface interface {
-	CreateCalendar() (string, error)
 	GetAllCalendarsOfInterest() (map[string]*Calendar, error)
 	NewEvent(event *Event) (*Event, error)
+	TestTaskCalendarExistence(*users.User) (*users.User, error)
 
 	// UpdateEvent updates an event in a calendar, make sure to persist changes to the event before calling this method
 	UpdateEvent(event *Event) error
@@ -18,5 +18,6 @@ type RepositoryInterface interface {
 	DeleteEvent(event *Event) error
 	AddBusyToWindow(window *date.TimeWindow) error
 	WatchCalendar(calendarID string, user *users.User) (*users.User, error)
+	StopWatchingCalendar(calendarID string, user *users.User) (*users.User, error)
 	SyncEvents(calendarID string, user *users.User, eventChannel *chan *Event, errorChannel *chan error, userChannel *chan *users.User)
 }

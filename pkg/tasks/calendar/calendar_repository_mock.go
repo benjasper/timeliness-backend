@@ -37,9 +37,9 @@ func (r *MockCalendarRepository) findEventByID(ID string) (*Event, int, error) {
 	return nil, -1, nil
 }
 
-// CreateCalendar creates a test calendar
-func (r *MockCalendarRepository) CreateCalendar() (string, error) {
-	return "test", nil
+// TestTaskCalendarExistence creates a test calendar
+func (r *MockCalendarRepository) TestTaskCalendarExistence(u *users.User) (*users.User, error) {
+	return u, nil
 }
 
 // GetAllCalendarsOfInterest is not implemented yet
@@ -109,6 +109,11 @@ func (r *MockCalendarRepository) AddBusyToWindow(window *date.TimeWindow) error 
 
 // WatchCalendar is not implemented yet
 func (r *MockCalendarRepository) WatchCalendar(calendarID string, user *users.User) (*users.User, error) {
+	return nil, nil
+}
+
+// StopWatchingCalendar is not implemented yet
+func (r *MockCalendarRepository) StopWatchingCalendar(calendarID string, user *users.User) (*users.User, error) {
 	return nil, nil
 }
 

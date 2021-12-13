@@ -3,27 +3,35 @@ module github.com/timeliness-app/timeliness-backend
 go 1.16
 
 require (
+	cloud.google.com/go/firestore v1.6.1 // indirect
 	cloud.google.com/go/logging v1.4.2
-	cloud.google.com/go/profiler v0.1.0
-	firebase.google.com/go/v4 v4.6.0
+	cloud.google.com/go/profiler v0.1.1
+	cloud.google.com/go/storage v1.18.2 // indirect
+	firebase.google.com/go/v4 v4.6.1
 	github.com/bsm/redislock v0.7.1
-	github.com/go-playground/validator/v10 v10.4.1
-	github.com/go-redis/cache/v8 v8.4.1
-	github.com/go-redis/redis/v8 v8.11.3
+	github.com/census-instrumentation/opencensus-proto v0.3.0 // indirect
+	github.com/cncf/xds/go v0.0.0-20211130200136-a8f946100490 // indirect
+	github.com/envoyproxy/go-control-plane v0.10.1 // indirect
+	github.com/envoyproxy/protoc-gen-validate v0.6.2 // indirect
+	github.com/go-playground/validator/v10 v10.9.0
+	github.com/go-redis/cache/v8 v8.4.3
+	github.com/go-redis/redis/v8 v8.11.4
+	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/google/pprof v0.0.0-20210827144239-02619b876842 // indirect
-	github.com/google/uuid v1.1.2
-	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
+	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/pprof v0.0.0-20211204230040-2007db6d4f53 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/hashicorp/golang-lru v0.5.1
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/sendinblue/APIv3-go-library v2.0.0+incompatible
-	go.mongodb.org/mongo-driver v1.5.0
-	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
-	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf // indirect
-	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
+	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
+	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
+	go.mongodb.org/mongo-driver v1.8.1
+	golang.org/x/crypto v0.0.0-20211209193657-4570a0811e8b
+	golang.org/x/exp v0.0.0-20211213173848-79cd87713b62 // indirect
+	golang.org/x/net v0.0.0-20211209124913-491a49abca63 // indirect
+	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210917161153-d61c044b1678 // indirect
-	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/api v0.57.0
-	google.golang.org/genproto v0.0.0-20210917145530-b395a37504d4 // indirect
+	google.golang.org/api v0.63.0
+	google.golang.org/grpc v1.42.0 // indirect
 )

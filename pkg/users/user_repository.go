@@ -79,7 +79,7 @@ func (s *UserRepository) FindByEmail(ctx context.Context, email string) (*User, 
 func (s *UserRepository) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
 	var u = User{}
 
-	result := s.DB.FindOne(ctx, bson.M{"googleCalendarConnection.stateToken": stateToken})
+	result := s.DB.FindOne(ctx, bson.M{"googleCalendarConnections.stateToken": stateToken})
 	if result.Err() != nil {
 		return nil, result.Err()
 	}
@@ -118,7 +118,7 @@ func (s *UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan t
 	findOptions.SetLimit(int64(pageSize))
 
 	queryFilter := bson.D{{
-		Key:   "googleCalendarConnection.calendarsOfInterest.expiration",
+		Key:   "googleCalendarConnections.calendarsOfInterest.expiration",
 		Value: bson.M{"$lte": greaterThan}},
 	}
 
