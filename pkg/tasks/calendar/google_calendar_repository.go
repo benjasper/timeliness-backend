@@ -139,7 +139,14 @@ func (c *GoogleCalendarRepository) TestTaskCalendarExistence(u *users.User) (*us
 			return nil, err
 		}
 
+		if c.connection.TaskCalendarID != "" {
+			c.connection.CalendarsOfInterest.RemoveCalendar(c.connection.TaskCalendarID)
+		}
+
 		c.connection.TaskCalendarID = calendarID
+
+		c.connection.CalendarsOfInterest = append(c.connection.CalendarsOfInterest,
+			users.GoogleCalendarSync{CalendarID: calendarID})
 
 		for i, connection := range u.GoogleCalendarConnections {
 			if connection.ID == c.connection.ID {

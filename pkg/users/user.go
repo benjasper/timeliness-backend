@@ -107,6 +107,17 @@ func (s GoogleCalendarSyncs) HasCalendarWithID(ID string) bool {
 	return false
 }
 
+// RemoveCalendar removes a calendar sync
+func (s GoogleCalendarSyncs) RemoveCalendar(ID string) GoogleCalendarSyncs {
+	for i, sync := range s {
+		if sync.CalendarID == ID {
+			return append(s[:i], s[i+1:]...)
+		}
+	}
+
+	return s
+}
+
 // GoogleCalendarSync holds information about a calendar that will be used to determine busy times
 type GoogleCalendarSync struct {
 	CalendarID     string    `json:"-" bson:"calendarId,omitempty"`
