@@ -109,7 +109,7 @@ func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByConnectionID(c
 
 // CheckIfGoogleTaskCalendarIsSet checks if a task calendar is set already
 func (m *CalendarRepositoryManager) CheckIfGoogleTaskCalendarIsSet(ctx context.Context, u *users.User, connection *users.GoogleCalendarConnection, connectionIndex int) (*users.User, error) {
-	if connection.TaskCalendarID == "" && connection.IsTaskCalendarConnection {
+	if connection.IsTaskCalendarConnection {
 		calendarRepository, err := m.setupGoogleRepository(ctx, u, connection, connectionIndex)
 		if err != nil {
 			return nil, err
