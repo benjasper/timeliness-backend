@@ -107,21 +107,14 @@ func (m *CalendarRepositoryManager) GetCalendarRepositoryForUserByConnectionID(c
 	return nil, fmt.Errorf("could not find a connection that has the given id %s for user %s", connectionID, user.ID.Hex())
 }
 
-// setupGoogleRepository manages token refreshing and calendar creation
-func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u *users.User, connection *users.GoogleCalendarConnection, connectionIndex int) (*calendar.GoogleCalendarRepository, error) {
-	oldAccessToken := connection.Token.AccessToken
-	needsUserUpdate := false
-
-	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	if oldAccessToken != connection.Token.AccessToken {
-		needsUserUpdate = true
-	}
-
+// CheckIfGoogleTaskCalendarIsSet checks if a task calendar is set already
+func (m *CalendarRepositoryManager) CheckIfGoogleTaskCalendarIsSet(ctx context.Context, u *users.User, connection *users.GoogleCalendarConnection, connectionIndex int) (*users.User, error) {
 	if connection.TaskCalendarID == "" && connection.IsTaskCalendarConnection {
+		calendarRepository, err := m.setupGoogleRepository(ctx, u, connection, connectionIndex)
+		if err != nil {
+			return nil, err
+		}
+
 		calendarID, err := calendarRepository.CreateCalendar()
 		if err != nil {
 			return nil, err
@@ -131,10 +124,25 @@ func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u
 		connection.CalendarsOfInterest = append(connection.CalendarsOfInterest,
 			users.GoogleCalendarSync{CalendarID: calendarID})
 
-		needsUserUpdate = true
+		err = m.userRepository.Update(ctx, u)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if needsUserUpdate {
+	return u, nil
+}
+
+// setupGoogleRepository manages token refreshing and calendar creation
+func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u *users.User, connection *users.GoogleCalendarConnection, connectionIndex int) (*calendar.GoogleCalendarRepository, error) {
+	oldAccessToken := connection.Token.AccessToken
+
+	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if oldAccessToken != connection.Token.AccessToken {
 		u.GoogleCalendarConnections[connectionIndex] = *connection
 
 		err := m.userRepository.Update(ctx, u)

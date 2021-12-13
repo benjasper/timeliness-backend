@@ -149,7 +149,14 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 }
 
 func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, request *http.Request, u *users.User) error {
-	for _, connection := range u.GoogleCalendarConnections {
+	var err error
+
+	for i, connection := range u.GoogleCalendarConnections {
+		u, err = handler.CalendarRepositoryManager.CheckIfGoogleTaskCalendarIsSet(request.Context(), u, &connection, i)
+		if err != nil {
+			return err
+		}
+
 		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
 			handler.Logger.Error("Problem while processing user for sync renewal", err)
@@ -166,7 +173,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 		}
 	}
 
-	err := handler.UserRepository.Update(request.Context(), u)
+	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
 		return err
