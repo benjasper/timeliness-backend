@@ -394,6 +394,14 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 
 	repository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connectionID)
 	if err != nil {
+		u.GoogleCalendarConnections = u.GoogleCalendarConnections.RemoveConnection(connectionID)
+
+		err = handler.UserRepository.Update(request.Context(), u)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+			return
+		}
+
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem with calendar connection", err)
 		return
 	}
