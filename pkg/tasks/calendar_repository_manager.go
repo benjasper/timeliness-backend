@@ -124,6 +124,8 @@ func (m *CalendarRepositoryManager) CheckIfGoogleTaskCalendarIsSet(ctx context.C
 		connection.CalendarsOfInterest = append(connection.CalendarsOfInterest,
 			users.GoogleCalendarSync{CalendarID: calendarID})
 
+		u.GoogleCalendarConnections[connectionIndex] = *connection
+
 		err = m.userRepository.Update(ctx, u)
 		if err != nil {
 			return nil, err
