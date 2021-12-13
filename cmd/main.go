@@ -226,7 +226,7 @@ func main() {
 	authenticatedAPI.Path("/connections/{connectionID}/google").HandlerFunc(calendarHandler.InitiateGoogleCalendarAuth).Methods(http.MethodPost)
 	authenticatedAPI.Path("/connections/{connectionID}/google").HandlerFunc(calendarHandler.DeleteGoogleConnection).Methods(http.MethodDelete)
 	authenticatedAPI.Path("/connections/{connectionID}/calendars").HandlerFunc(calendarHandler.GetCalendarsFromConnection).Methods(http.MethodGet)
-	authenticatedAPI.Path("/connections/{connectionID}/calendars").HandlerFunc(calendarHandler.PatchCalendars).Methods(http.MethodPatch)
+	authenticatedAPI.Path("/connections/{connectionID}/calendars").HandlerFunc(calendarHandler.PatchCalendars).Methods(http.MethodPut)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
