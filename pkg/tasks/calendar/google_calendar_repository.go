@@ -100,7 +100,7 @@ func checkForIsGone(err error) error {
 }
 
 // CreateCalendar creates a calendar and returns its id
-func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
+func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 	newCalendar := gcalendar.Calendar{
 		Summary: "Timeliness tasks",
 	}
@@ -110,6 +110,45 @@ func (c *GoogleCalendarRepository) CreateCalendar() (string, error) {
 	}
 
 	return cal.Id, nil
+}
+
+// TestTaskCalendarExistence checks if the task calendar still exists and creates a new one if it doesn't
+func (c *GoogleCalendarRepository) TestTaskCalendarExistence(u *users.User) (*users.User, error) {
+	if !c.connection.IsTaskCalendarConnection {
+		return u, nil
+	}
+
+	createCalendar := false
+
+	if c.connection.TaskCalendarID == "" {
+		createCalendar = true
+	} else {
+		_, err := c.Service.Calendars.Get(c.connection.TaskCalendarID).Do()
+		if err != nil {
+			if checkForInvalidTokenError(err) == communication.ErrCalendarAuthInvalid {
+				return nil, communication.ErrCalendarAuthInvalid
+			}
+
+			createCalendar = true
+		}
+	}
+
+	if createCalendar {
+		calendarId, err := c.createCalendar()
+		if err != nil {
+			return nil, err
+		}
+
+		c.connection.TaskCalendarID = calendarId
+
+		for i, connection := range u.GoogleCalendarConnections {
+			if connection.ID == c.connection.ID {
+				u.GoogleCalendarConnections[i] = *c.connection
+			}
+		}
+	}
+
+	return u, nil
 }
 
 // GetAllCalendarsOfInterest retrieves all Calendars from Google Calendar
