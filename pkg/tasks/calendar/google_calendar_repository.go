@@ -134,12 +134,12 @@ func (c *GoogleCalendarRepository) TestTaskCalendarExistence(u *users.User) (*us
 	}
 
 	if createCalendar {
-		calendarId, err := c.createCalendar()
+		calendarID, err := c.createCalendar()
 		if err != nil {
 			return nil, err
 		}
 
-		c.connection.TaskCalendarID = calendarId
+		c.connection.TaskCalendarID = calendarID
 
 		for i, connection := range u.GoogleCalendarConnections {
 			if connection.ID == c.connection.ID {
