@@ -7,7 +7,6 @@ import (
 
 // RepositoryInterface is an interface for every calendar implementation e.g. Google Calendar, Microsoft Calendar,...
 type RepositoryInterface interface {
-	createCalendar() (string, error)
 	GetAllCalendarsOfInterest() (map[string]*Calendar, error)
 	NewEvent(event *Event) (*Event, error)
 	TestTaskCalendarExistence(*users.User) (*users.User, error)

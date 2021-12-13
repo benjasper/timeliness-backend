@@ -37,9 +37,9 @@ func (r *MockCalendarRepository) findEventByID(ID string) (*Event, int, error) {
 	return nil, -1, nil
 }
 
-// CreateCalendar creates a test calendar
-func (r *MockCalendarRepository) CreateCalendar() (string, error) {
-	return "test", nil
+// TestTaskCalendarExistence creates a test calendar
+func (r *MockCalendarRepository) TestTaskCalendarExistence(u *users.User) (*users.User, error) {
+	return u, nil
 }
 
 // GetAllCalendarsOfInterest is not implemented yet
