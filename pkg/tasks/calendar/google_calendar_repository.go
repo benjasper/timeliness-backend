@@ -243,7 +243,13 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	response, err := c.Service.Events.Watch(calendarID, &channel).Do()
 	if err != nil {
 		c.connection.CalendarsOfInterest = c.connection.CalendarsOfInterest.RemoveCalendar(calendarID)
-		return nil, err
+		for i, connection := range user.GoogleCalendarConnections {
+			if connection.ID == c.connection.ID {
+				user.GoogleCalendarConnections[i] = *c.connection
+			}
+		}
+
+		return user, err
 	}
 
 	c.connection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
