@@ -17,8 +17,8 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/sendinblue/APIv3-go-library v2.0.0+incompatible
-	go.mongodb.org/mongo-driver v1.5.0
-	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
+	go.mongodb.org/mongo-driver v1.8.1
+	golang.org/x/crypto v0.0.0-20201216223049-8b5274cf687f
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
