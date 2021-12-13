@@ -140,7 +140,7 @@ func (c *GoogleCalendarRepository) TestTaskCalendarExistence(u *users.User) (*us
 		}
 
 		if c.connection.TaskCalendarID != "" {
-			c.connection.CalendarsOfInterest.RemoveCalendar(c.connection.TaskCalendarID)
+			c.connection.CalendarsOfInterest = c.connection.CalendarsOfInterest.RemoveCalendar(c.connection.TaskCalendarID)
 		}
 
 		c.connection.TaskCalendarID = calendarID
@@ -242,6 +242,7 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 
 	response, err := c.Service.Events.Watch(calendarID, &channel).Do()
 	if err != nil {
+		c.connection.CalendarsOfInterest = c.connection.CalendarsOfInterest.RemoveCalendar(calendarID)
 		return nil, err
 	}
 
