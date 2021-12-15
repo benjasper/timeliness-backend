@@ -345,6 +345,13 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 		userSettings.Scheduling.AllowedTimespans = date.MergeTimespans(userSettings.Scheduling.AllowedTimespans)
 	}
 
+	if userSettings.Scheduling.BusyTimeSpacing != originalSettings.Scheduling.BusyTimeSpacing {
+		if userSettings.Scheduling.BusyTimeSpacing > time.Hour*2 {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("BusyTimeSpacing is invalid"), nil)
+			return
+		}
+	}
+
 	v := validator.New()
 	err = v.Struct(userSettings)
 	if err != nil {

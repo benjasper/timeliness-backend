@@ -33,9 +33,11 @@ var primaryUser = users.User{
 		Scheduling: struct {
 			TimeZone         string          `json:"timeZone" bson:"timeZone" validate:"required"`
 			AllowedTimespans []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
+			BusyTimeSpacing  time.Duration   `json:"busyTimeSpacing" bson:"busyTimeSpacing"`
 		}(struct {
 			TimeZone         string
 			AllowedTimespans []date.Timespan
+			BusyTimeSpacing  time.Duration
 		}{
 			TimeZone: "Europe/Berlin",
 			AllowedTimespans: []date.Timespan{
