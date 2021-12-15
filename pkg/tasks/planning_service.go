@@ -100,6 +100,13 @@ func (c *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) (
 	return c.getAllRelevantUsersWithOwner(ctx, task, initializeWithOwner)
 }
 
+func maxDuration(a, b time.Duration) time.Duration {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
 // and pushes or removes events to and from the calendar
 func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, error) {
@@ -117,13 +124,18 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		}(lock, ctx)
 	}
 
-	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
-
 	relevantUsers, err := c.getAllRelevantUsers(ctx, t)
 	if err != nil {
 		return nil, err
 	}
+
+	var spacing time.Duration
+	for _, user := range relevantUsers {
+		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
+	}
+
+	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
 
 	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)
 
@@ -326,13 +338,18 @@ func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
 
-	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: 15 * time.Minute}
-
 	relevantUsers, err := c.getAllRelevantUsers(ctx, (*Task)(t))
 	if err != nil {
 		return nil, err
 	}
+
+	var spacing time.Duration
+	for _, user := range relevantUsers {
+		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
+	}
+
+	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
 
 	repositories := make(map[string]calendar.RepositoryInterface)
 

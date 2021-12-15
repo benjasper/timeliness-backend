@@ -133,5 +133,6 @@ type UserSettings struct {
 	Scheduling          struct {
 		TimeZone         string          `json:"timeZone" bson:"timeZone" validate:"required"`
 		AllowedTimespans []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
+		BusyTimeSpacing  time.Duration   `json:"busyTimeSpacing" bson:"busyTimeSpacing"`
 	} `json:"scheduling" bson:"scheduling"`
 }
