@@ -48,6 +48,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	user.Lastname = body["lastname"].(string)
 	user.Email = body["email"].(string)
 	user.Settings.Scheduling.TimeZone = "Europe/Berlin"
+	user.Settings.Scheduling.BusyTimeSpacing = time.Minute * 15
 
 	presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
