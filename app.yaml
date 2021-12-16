@@ -9,7 +9,7 @@ main: ./cmd
 env_variables:
   APP_ENV: prod
   BASE_URL: https://api.timeliness.app
-  FRONTEND_BASE_URL: https://alpha.timeliness.app
+  FRONTEND_BASE_URL: https://web.timeliness.app
   DATABASE_URL: mongodb+srv://app:LH40LlgfV2cJp1zO@cluster0.byyhv.mongodb.net/test?retryWrites=true&w=majority
   DATABASE: test
   SECRET: AEFC82667184DE543D9BCE58F2AF8
