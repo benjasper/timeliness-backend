@@ -9,7 +9,9 @@ import (
 	gcalendar "google.golang.org/api/calendar/v3"
 	oauth22 "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
+	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 )
 
@@ -93,4 +95,35 @@ func GetUserID(ctx context.Context, token *oauth2.Token) (string, error) {
 	}
 
 	return userinfo.Id, nil
+}
+
+// RevokeToken revokes a google access token
+func RevokeToken(ctx context.Context, token *oauth2.Token) error {
+	tokenToRevoke := token.AccessToken
+	if token.RefreshToken != "" {
+		tokenToRevoke = token.RefreshToken
+	}
+
+	url := fmt.Sprintf("https://oauth2.googleapis.com/revoke?token=%s", tokenToRevoke)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		// We don't care if this worked or not
+		_ = Body.Close()
+	}(resp.Body)
+
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("google revoke: status %d: %s", resp.StatusCode, body)
+	}
+
+	return nil
 }
