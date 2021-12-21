@@ -14,9 +14,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Create .env file
+        uses: SpicyPizza/create-envfile@v1.2
+        with:
+          envkey_APP_ENV: prod
+          envkey_BASE_URL: https://api.timeliness.app
+          envkey_FRONTEND_BASE_URL: https://web.timeliness.app
+          envkey_CORS: timeliness.app
+          envkey_GCP_PROJECT_ID: project-tasks-294214
+          envkey_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          envkey_DATABASE: ${{ secrets.DATABASE }}
+          envkey_SECRET: ${{ secrets.SECRET }}
+          envkey_SCHEDULER_SECRET: ${{ secrets.SCHEDULER_SECRET }}
+          envkey_GCP_AUTH_CREDENTIALS: ${{ secrets.GCP_AUTH_CREDENTIALS }}
+          envkey_FIREBASE: ${{ secrets.FIREBASE }}
+          envkey_REDIS: ${{ secrets.REDIS }}
+          envkey_REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          envkey_SENDINBLUE: ${{ secrets.SENDINBLUE }}
+      - id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_BUILD_CREDENTIALS }}
       - id: deploy
         name: Deploy to App engine
         uses: google-github-actions/deploy-appengine@main
         with:
-          credentials: ${{ secrets.gcp_credentials }}
           deliverables: app.yaml
