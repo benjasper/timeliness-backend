@@ -3,8 +3,10 @@ package main
 import (
 	"cloud.google.com/go/profiler"
 	"context"
+	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
@@ -23,6 +25,11 @@ import (
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	apiVersion := "v1"
 	port := os.Getenv("PORT")
 	if port == "" {

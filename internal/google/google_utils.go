@@ -17,10 +17,7 @@ import (
 
 // ReadGoogleConfig reads and parses the json file where google credentials are stored
 func ReadGoogleConfig() (*oauth2.Config, error) {
-	b, err := ioutil.ReadFile("./keys/credentials.json")
-	if err != nil {
-		return nil, err
-	}
+	b := []byte(os.Getenv("GCP_AUTH_CREDENTIALS"))
 
 	// If modifying these scopes, delete your previously saved token.json.
 	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created", "https://www.googleapis.com/auth/userinfo.profile")
