@@ -6,17 +6,3 @@ automatic_scaling:
   max_concurrent_requests: 80
   max_instances: 1
 main: ./cmd
-env_variables:
-  APP_ENV: prod
-  BASE_URL: https://api.timeliness.app
-  FRONTEND_BASE_URL: https://web.timeliness.app
-  DATABASE_URL: mongodb+srv://app:LH40LlgfV2cJp1zO@cluster0.byyhv.mongodb.net/test?retryWrites=true&w=majority
-  DATABASE: test
-  SECRET: AEFC82667184DE543D9BCE58F2AF8
-  SCHEDULER_SECRET: ASKNF8912ADS89MVUF213
-  FIREBASE: AAAAhOFhDWY:APA91bERVT0IbX_6zSF-oJJgeEbeBm0FDrQ4Ic7g_5vkzL7Lr6vVhYxKmxQjKldfSJQkWFAkKt5yGmBv0aj1JmqFb-By0edF4ETfUUd3xuT7SKYYDFFIJeUrKTIv58_VifoSmDBDSao2
-  GCP_PROJECT_ID: project-tasks-294214
-  REDIS: redis-11447.c78.eu-west-1-2.ec2.cloud.redislabs.com:11447
-  REDIS_PASSWORD: IbZhlgDm5kYsvYrcBvWXiXjqbTv1CBYs
-  CORS: timeliness.app
-  SENDINBLUE: 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
