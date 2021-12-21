@@ -31,9 +31,12 @@ jobs:
           envkey_REDIS: ${{ secrets.REDIS }}
           envkey_REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           envkey_SENDINBLUE: ${{ secrets.SENDINBLUE }}
+      - id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_BUILD_CREDENTIALS }}
       - id: deploy
         name: Deploy to App engine
         uses: google-github-actions/deploy-appengine@main
         with:
-          credentials: ${{ secrets.gcp_credentials }}
           deliverables: app-staging.yaml
