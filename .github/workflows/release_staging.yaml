@@ -40,3 +40,5 @@ jobs:
         uses: google-github-actions/deploy-appengine@main
         with:
           deliverables: app-staging.yaml
+      - id: test
+        run: 'curl "${{ steps.deploy.outputs.url }}"'
