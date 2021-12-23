@@ -242,7 +242,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 	}
 
 	if request.Header.Get("scheduler-secret") != schedulerSecret {
-		handler.ResponseManager.RespondWithError(writer, http.StatusForbidden, "Invalid secret", nil)
+		handler.ResponseManager.RespondWithError(writer, http.StatusForbidden, "Invalid secret", fmt.Errorf("%s != %s", request.Header.Get("scheduler-secret"), schedulerSecret))
 		return
 	}
 
