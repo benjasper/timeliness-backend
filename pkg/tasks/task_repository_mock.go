@@ -2,7 +2,7 @@ package tasks
 
 import (
 	"context"
-	"errors"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"

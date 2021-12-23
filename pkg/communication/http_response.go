@@ -2,7 +2,7 @@ package communication
 
 import (
 	"encoding/json"
-	"errors"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"net/http"

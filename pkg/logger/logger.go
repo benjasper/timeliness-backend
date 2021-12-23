@@ -22,7 +22,7 @@ type Logger struct {
 
 // Error is for throwing a log message with status Error
 func (l Logger) Error(message string, err error) {
-	log.Printf("[ERROR] %s: %v\n", message, err)
+	log.Printf("[ERROR] %s: %+v\n", message, err)
 }
 
 // Info is for throwing a log message with status Info
@@ -37,12 +37,12 @@ func (l Logger) Debug(message string) {
 
 // Fatal is for throwing a log message with status Fatal
 func (l Logger) Fatal(err error) {
-	log.Fatalf("[FATAL] %v\n", err)
+	log.Fatalf("[FATAL] %+v\n", err)
 }
 
 // Warning is for throwing a log message with status Warning
 func (l Logger) Warning(message string, err error) {
-	log.Printf("[WARNING] %s: %v\n", message, err)
+	log.Printf("[WARNING] %s: %+v\n", message, err)
 }
 
 // GoogleCloudLogger is for production use on the google cloud
@@ -60,7 +60,7 @@ func NewGoogleCloudLogger() Interface {
 	// Creates a client.
 	client, err := logging.NewClient(ctx, projectID)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		log.Fatalf("Failed to create client: %+v", err)
 	}
 
 	// Sets the name of the log to write to.
@@ -74,12 +74,12 @@ func NewGoogleCloudLogger() Interface {
 
 // Error severity
 func (g GoogleCloudLogger) Error(message string, err error) {
-	g.logger.StandardLogger(logging.Error).Printf("[ERROR] %s: %v\n", message, err)
+	g.logger.StandardLogger(logging.Error).Printf("[ERROR] %s: %+v\n", message, err)
 }
 
 // Warning Severity
 func (g GoogleCloudLogger) Warning(message string, err error) {
-	g.logger.StandardLogger(logging.Warning).Printf("[WARNING] %s: %v\n", message, err)
+	g.logger.StandardLogger(logging.Warning).Printf("[WARNING] %s: %+v\n", message, err)
 }
 
 // Info severity
@@ -94,5 +94,5 @@ func (g GoogleCloudLogger) Debug(message string) {
 
 // Fatal severity
 func (g GoogleCloudLogger) Fatal(err error) {
-	g.logger.StandardLogger(logging.Critical).Printf("[FATAL] %v\n", err)
+	g.logger.StandardLogger(logging.Critical).Printf("[FATAL] %+v\n", err)
 }

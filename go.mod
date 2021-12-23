@@ -24,6 +24,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/joho/godotenv v1.4.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sendinblue/APIv3-go-library v2.0.0+incompatible
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
