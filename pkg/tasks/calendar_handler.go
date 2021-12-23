@@ -242,7 +242,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 	}
 
 	if request.Header.Get("scheduler-secret") != schedulerSecret {
-		handler.ResponseManager.RespondWithError(writer, http.StatusForbidden, "Invalid secret", nil)
+		handler.ResponseManager.RespondWithError(writer, http.StatusForbidden, "Invalid secret", fmt.Errorf("%s != the scheduler secret", request.Header.Get("scheduler-secret")))
 		return
 	}
 
@@ -271,6 +271,8 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 	response := map[string]interface{}{
 		"usersProcessed": count,
 	}
+
+	handler.Logger.Info(fmt.Sprintf("Processed %d users for google sync renewal", count))
 
 	handler.ResponseManager.Respond(writer, response)
 }
