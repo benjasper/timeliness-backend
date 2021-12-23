@@ -2,7 +2,7 @@ package users
 
 import (
 	"context"
-	"errors"
+	"github.com/pkg/errors"
 	"time"
 )
 

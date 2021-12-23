@@ -2,7 +2,7 @@ package calendar
 
 import (
 	"crypto/md5"
-	"errors"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 )

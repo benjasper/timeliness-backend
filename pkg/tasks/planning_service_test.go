@@ -2,8 +2,8 @@ package tasks
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	logger "github.com/timeliness-app/timeliness-backend/pkg/logger"

@@ -2,9 +2,9 @@ package calendar
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
