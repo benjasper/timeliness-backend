@@ -44,7 +44,7 @@ func NewPlanningController(userService users.UserRepositoryInterface,
 	return &controller
 }
 
-func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task *Task, initializeWithOwner *users.User) ([]*users.User, error) {
+func (s *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task *Task, initializeWithOwner *users.User) ([]*users.User, error) {
 	relevantUsers := []*users.User{initializeWithOwner}
 
 	mutex := sync.Mutex{}
@@ -55,7 +55,7 @@ func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task
 			var collaboratorUser *users.User
 			var err error
 
-			collaboratorUser, err = c.userRepository.FindByID(ctx, collaborator.UserID.Hex())
+			collaboratorUser, err = s.userRepository.FindByID(ctx, collaborator.UserID.Hex())
 			if err != nil {
 				return err
 			}
@@ -89,15 +89,15 @@ func (c *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task
 	return relevantUsers, nil
 }
 
-func (c *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) ([]*users.User, error) {
+func (s *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) ([]*users.User, error) {
 	var initializeWithOwner *users.User
 
-	initializeWithOwner, err := c.userRepository.FindByID(ctx, task.UserID.Hex())
+	initializeWithOwner, err := s.userRepository.FindByID(ctx, task.UserID.Hex())
 	if err != nil {
 		return nil, err
 	}
 
-	return c.getAllRelevantUsersWithOwner(ctx, task, initializeWithOwner)
+	return s.getAllRelevantUsersWithOwner(ctx, task, initializeWithOwner)
 }
 
 func maxDuration(a, b time.Duration) time.Duration {
@@ -109,9 +109,9 @@ func maxDuration(a, b time.Duration) time.Duration {
 
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
 // and pushes or removes events to and from the calendar
-func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, error) {
+func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, error) {
 	if !t.ID.IsZero() {
-		lock, err := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
 		if err != nil {
 			return nil, err
 		}
@@ -119,12 +119,12 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				c.logger.Error("problem releasing lock", err)
+				s.logger.Error("problem releasing lock", err)
 			}
 		}(lock, ctx)
 	}
 
-	relevantUsers, err := c.getAllRelevantUsers(ctx, t)
+	relevantUsers, err := s.getAllRelevantUsers(ctx, t)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 	// TODO make TimeWindow thread safe and make this parallel
 	for _, user := range relevantUsers {
-		taskRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		taskRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +149,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		taskCalendarRepositories[user.ID.Hex()] = taskRepository
 
 		// Repositories for availability
-		repositories, err := c.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		repositories, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +189,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		for _, workUnit := range foundWorkUnits {
 			workUnit.ScheduledAt.Blocking = true
-			workUnit.ScheduledAt.Title = c.taskTextRenderer.RenderWorkUnitEventTitle(t)
+			workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t)
 			workUnit.ScheduledAt.Description = ""
 
 			var workEvent *calendar.Event
@@ -252,7 +252,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		t.WorkUnits = workUnits
 
-		err := c.taskRepository.Update(ctx, (*TaskUpdate)(t), false)
+		err := s.taskRepository.Update(ctx, (*TaskUpdate)(t), false)
 		if err != nil {
 			return nil, err
 		}
@@ -278,7 +278,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 	if len(t.DueAt.CalendarEvents) != len(relevantUsers) {
 		t.DueAt.Blocking = false
-		t.DueAt.Title = c.taskTextRenderer.RenderDueEventTitle(t)
+		t.DueAt.Title = s.taskTextRenderer.RenderDueEventTitle(t)
 		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
 		t.DueAt.Description = ""
 
@@ -297,7 +297,7 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 	}
 
 	if !t.ID.IsZero() {
-		err := c.taskRepository.Update(ctx, (*TaskUpdate)(t), false)
+		err := s.taskRepository.Update(ctx, (*TaskUpdate)(t), false)
 		if err != nil {
 			return nil, err
 		}
@@ -307,8 +307,8 @@ func (c *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 }
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
-	lock, err := c.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
+	lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
 	if err != nil {
 		return nil, err
 	}
@@ -316,17 +316,17 @@ func (c *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			c.logger.Error("problem releasing lock", err)
+			s.logger.Error("problem releasing lock", err)
 		}
 	}(lock, ctx)
 
-	return c.rescheduleWorkUnitWithoutLock(ctx, t, w)
+	return s.rescheduleWorkUnitWithoutLock(ctx, t, w)
 }
 
 // rescheduleWorkUnitWithoutLock takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
+func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
 	// Refresh task, after potential change
-	t, err := c.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
+	t, err := s.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
 
-	relevantUsers, err := c.getAllRelevantUsers(ctx, (*Task)(t))
+	relevantUsers, err := s.getAllRelevantUsers(ctx, (*Task)(t))
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +355,7 @@ func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	// TODO Make parallel
 	for _, user := range relevantUsers {
-		taskRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		taskRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -368,7 +368,7 @@ func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 		}
 
 		// Repositories for availability
-		repositories, err := c.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		repositories, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -399,7 +399,7 @@ func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	for _, workUnit := range findWorkUnitTimes(&windowTotal, workloadToSchedule) {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = c.taskTextRenderer.RenderWorkUnitEventTitle((*Task)(t))
+		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle((*Task)(t))
 		workUnit.ScheduledAt.Description = ""
 
 		var workEvent *calendar.Event
@@ -420,7 +420,7 @@ func (c *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 		t.NotScheduled += workloadToSchedule
 	}
 
-	err = c.taskRepository.Update(ctx, t, false)
+	err = s.taskRepository.Update(ctx, t, false)
 	if err != nil {
 		return nil, err
 	}
@@ -498,14 +498,14 @@ func findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration) WorkUni
 }
 
 // UpdateEvent updates an any calendar event
-func (c *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *calendar.Event) error {
-	relevantUsers, err := c.getAllRelevantUsers(ctx, task)
+func (s *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *calendar.Event) error {
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
 		return err
 	}
 
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -520,10 +520,10 @@ func (c *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 }
 
 // UpdateTaskTitle updates the events of the tasks and work units
-func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updateWorkUnits bool) error {
-	task.DueAt.Title = c.taskTextRenderer.RenderDueEventTitle(task)
+func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updateWorkUnits bool) error {
+	task.DueAt.Title = s.taskTextRenderer.RenderDueEventTitle(task)
 
-	relevantUsers, err := c.getAllRelevantUsers(ctx, task)
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -531,7 +531,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	repositories := make(map[string]calendar.RepositoryInterface)
 
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -549,7 +549,7 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	}
 
 	for _, unit := range task.WorkUnits {
-		unit.ScheduledAt.Title = c.taskTextRenderer.RenderWorkUnitEventTitle(task)
+		unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
 
 		for _, user := range relevantUsers {
 			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt)
@@ -563,13 +563,13 @@ func (c *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 }
 
 // DeleteTask deletes all events that are connected to a task
-func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
-	err := c.taskRepository.Delete(ctx, task.ID.Hex(), task.UserID.Hex())
+func (s *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
+	err := s.taskRepository.Delete(ctx, task.ID.Hex(), task.UserID.Hex())
 	if err != nil {
 		return err
 	}
 
-	relevantUsers, err := c.getAllRelevantUsers(ctx, task)
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -578,7 +578,7 @@ func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 
 	// TODO make these parallel
 	for _, user := range relevantUsers {
-		repository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -605,12 +605,12 @@ func (c *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 }
 
 // SyncCalendar triggers a sync on a single calendar
-func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, calendarID string) (*users.User, error) {
+func (s *PlanningService) SyncCalendar(ctx context.Context, user *users.User, calendarID string) (*users.User, error) {
 	eventChannel := make(chan *calendar.Event)
 	errorChannel := make(chan error)
 	userChannel := make(chan *users.User)
 
-	calendarRepository, err := c.calendarRepositoryManager.GetCalendarRepositoryForUserByCalendarID(ctx, user, calendarID)
+	calendarRepository, err := s.calendarRepositoryManager.GetCalendarRepositoryForUserByCalendarID(ctx, user, calendarID)
 	if err != nil {
 		return nil, err
 	}
@@ -626,7 +626,7 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 		case event := <-eventChannel:
 			wg.Add(1)
 			go func(wg *sync.WaitGroup) {
-				c.processTaskEventChange(ctx, event, user.ID.Hex())
+				s.processTaskEventChange(ctx, event, user.ID.Hex())
 				wg.Done()
 			}(&wg)
 		case err := <-errorChannel:
@@ -637,40 +637,46 @@ func (c *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 	}
 }
 
-func (c *PlanningService) processTaskEventChange(ctx context.Context, event *calendar.Event, userID string) {
+// processTaskEventChange processes a single event change and updates the task accordingly
+func (s *PlanningService) processTaskEventChange(ctx context.Context, event *calendar.Event, userID string) {
 	calendarEvent := event.CalendarEvents.FindByUserID(userID)
 	if calendarEvent == nil {
-		c.logger.Error("no persisted event", fmt.Errorf("could not find calendar event for user %s", userID))
+		s.logger.Error("no persisted event", fmt.Errorf("could not find calendar event for user %s", userID))
 		return
 	}
 
-	task, err := c.taskRepository.FindByCalendarEventID(ctx, calendarEvent.CalendarEventID, userID, false)
+	task, err := s.taskRepository.FindByCalendarEventID(ctx, calendarEvent.CalendarEventID, userID, false)
 	if err != nil {
 		if event.Deleted || event.IsOriginal {
+			s.lookForUnscheduledTasks(ctx, userID)
 			return
 		}
-		_ = c.checkForIntersectingWorkUnits(ctx, userID, event, "")
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, "")
+		s.lookForUnscheduledTasks(ctx, userID)
 
 		return
 	}
 
-	lock, err := c.locker.Acquire(ctx, task.ID.Hex(), time.Second*10)
+	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*10)
 	if err != nil {
-		c.logger.Error(fmt.Sprintf("problem acquiring lock for task %s", task.ID.Hex()), err)
+		s.logger.Error(fmt.Sprintf("problem acquiring lock for task %s", task.ID.Hex()), err)
 		return
 	}
 
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			c.logger.Error("problem releasing lock", err)
+			s.logger.Error("problem releasing lock", err)
+			return
 		}
+
+		s.lookForUnscheduledTasks(ctx, userID)
 	}(lock, ctx)
 
 	// Refresh task, after potential change
-	task, err = c.taskRepository.FindUpdatableByID(ctx, task.ID.Hex(), userID, false)
+	task, err = s.taskRepository.FindUpdatableByID(ctx, task.ID.Hex(), userID, false)
 	if err != nil {
-		c.logger.Error("could not refresh already loaded task", err)
+		s.logger.Error("could not refresh already loaded task", err)
 		return
 	}
 
@@ -681,25 +687,27 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			return
 		}
 
+		// If the event is deleted we delete the task
 		if event.Deleted {
-			err := c.DeleteTask(ctx, (*Task)(task))
+			err := s.DeleteTask(ctx, (*Task)(task))
 			if err != nil {
-				c.logger.Error("problem with deleting task", err)
+				s.logger.Error("problem with deleting task", err)
 				return
 			}
 			return
 		}
 
+		// If the event is not deleted, we update the task
 		task.DueAt.Date = event.Date
-		err = c.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &task.DueAt)
+		err = s.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &task.DueAt)
 		if err != nil {
-			c.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
 			return
 		}
 
-		err = c.taskRepository.Update(ctx, task, false)
+		err = s.taskRepository.Update(ctx, task, false)
 		if err != nil {
-			c.logger.Error("problem with updating task", err)
+			s.logger.Error("problem with updating task", err)
 			return
 		}
 
@@ -712,9 +720,9 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		}
 
 		for _, unit := range toReschedule {
-			task, err = c.rescheduleWorkUnitWithoutLock(ctx, task, &unit)
+			task, err = s.rescheduleWorkUnitWithoutLock(ctx, task, &unit)
 			if err != nil {
-				c.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
+				s.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
 				return
 			}
 		}
@@ -724,7 +732,7 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	index, workunit := task.WorkUnits.FindByCalendarID(calendarEvent.CalendarEventID)
 	if workunit == nil {
-		c.logger.Error("there was an event id that could not be found inside a task", nil)
+		s.logger.Error("there was an event id that could not be found inside a task", nil)
 		return
 	}
 
@@ -734,45 +742,50 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	task.WorkloadOverall -= workunit.Workload
 
+	// If the event is deleted we delete the work unit
 	if event.Deleted {
-		relevantUsers, err := c.getAllRelevantUsers(ctx, (*Task)(task))
+		relevantUsers, err := s.getAllRelevantUsers(ctx, (*Task)(task))
 		if err != nil {
-			c.logger.Error(fmt.Sprintf("could not get all relevant users for task %s", task.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("could not get all relevant users for task %s", task.ID.Hex()), err)
 			return
 		}
 
+		// Delete work unit event for all relevant users
 		for _, user := range relevantUsers {
 			if user.ID.Hex() == userID {
 				// We don't need to delete the already deleted event
 				continue
 			}
 
-			calendarRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+			calendarRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 			if err != nil {
-				c.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
+				s.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
 				continue
 			}
 
 			err = calendarRepository.DeleteEvent(&workunit.ScheduledAt)
 			if err != nil {
-				c.logger.Error(fmt.Sprintf("could not delete event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
+				s.logger.Error(fmt.Sprintf("could not delete event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
 				continue
 			}
 		}
 
+		// Delete the work unit
 		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
-		err = c.taskRepository.Update(ctx, task, false)
+		err = s.taskRepository.Update(ctx, task, false)
 		if err != nil {
-			c.logger.Error("problem with updating task", err)
+			s.logger.Error("problem with updating task", err)
 			return
 		}
 		return
 	}
 
+	// If the work unit event is not deleted, we update the work unit
 	workunit.ScheduledAt.Date = event.Date
-	err = c.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &workunit.ScheduledAt)
+	err = s.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &workunit.ScheduledAt)
 	if err != nil {
-		c.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
+		s.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
+		// We don't return here, because we still need to update the task
 	}
 
 	workunit.Workload = workunit.ScheduledAt.Date.Duration()
@@ -784,15 +797,15 @@ func (c *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
 	task.WorkUnits = task.WorkUnits.Add(workunit)
 
-	err = c.taskRepository.Update(ctx, task, false)
+	err = s.taskRepository.Update(ctx, task, false)
 	if err != nil {
-		c.logger.Error("problem with updating task", err)
+		s.logger.Error("problem with updating task", err)
 		return
 	}
 }
 
-func (c *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.Context, task *Task, userID string, event *calendar.Event) error {
-	relevantUsers, err := c.getAllRelevantUsers(ctx, task)
+func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.Context, task *Task, userID string, event *calendar.Event) error {
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -803,15 +816,15 @@ func (c *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 			continue
 		}
 
-		calendarRepository, err := c.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		calendarRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
-			c.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
 			continue
 		}
 
 		err = calendarRepository.UpdateEvent(event)
 		if err != nil {
-			c.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
 			continue
 		}
 	}
@@ -819,10 +832,11 @@ func (c *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 	return nil
 }
 
-func (c *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, workUnitID string) int {
-	intersectingTasks, err := c.taskRepository.FindIntersectingWithEvent(ctx, userID, event, workUnitID, false)
+// checkForIntersectingWorkUnits checks if the given work unit or event intersects with any other work unit
+func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, workUnitID string) int {
+	intersectingTasks, err := s.taskRepository.FindIntersectingWithEvent(ctx, userID, event, workUnitID, false)
 	if err != nil {
-		c.logger.Error("problem while trying to find tasks intersecting with an event", err)
+		s.logger.Error("problem while trying to find tasks intersecting with an event", err)
 		return 0
 	}
 
@@ -854,9 +868,9 @@ func (c *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 
 	for _, intersection := range intersections {
 		for i, unit := range intersection.IntersectingWorkUnits {
-			updatedTask, err := c.RescheduleWorkUnit(ctx, (*TaskUpdate)(&intersection.Task), &unit)
+			updatedTask, err := s.RescheduleWorkUnit(ctx, (*TaskUpdate)(&intersection.Task), &unit)
 			if err != nil {
-				c.logger.Error(fmt.Sprintf(
+				s.logger.Error(fmt.Sprintf(
 					"Could not reschedule work unit %d for task %s",
 					intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
 				continue
@@ -867,4 +881,21 @@ func (c *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 	}
 
 	return len(intersectingTasks)
+}
+
+// lookForUnscheduledTasks looks for tasks that have unscheduled time
+func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID string) {
+	tasks, _, err := s.taskRepository.FindUnscheduledTasks(ctx, userID, 0, 10)
+	if err != nil {
+		s.logger.Error("problem while trying to find unscheduled tasks", err)
+		return
+	}
+
+	for _, task := range tasks {
+		_, err := s.ScheduleTask(ctx, &task)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("problem scheduling task %s", task.ID.Hex()), err)
+			return
+		}
+	}
 }

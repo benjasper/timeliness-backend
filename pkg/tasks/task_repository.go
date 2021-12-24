@@ -23,6 +23,7 @@ type TaskRepositoryInterface interface {
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
 	FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error)
 	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string, isDeleted bool) ([]Task, error)
+	FindUnscheduledTasks(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error)
 	CountTasksBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
 	CountWorkUnitsBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
 	Delete(ctx context.Context, taskID string, userID string) error
@@ -258,6 +259,46 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 	}
 
 	return results[0].AllResults, results[0].TotalCount.Count, nil
+}
+
+// FindUnscheduledTasks finds tasks where task.NotScheduled != 0, paginated
+func (s *MongoDBTaskRepository) FindUnscheduledTasks(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error) {
+	var t []Task
+
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	offset := page * pageSize
+
+	filter := bson.D{
+		{Key: "userId", Value: userObjectID},
+		{Key: "deleted", Value: false},
+		{Key: "notScheduled", Value: bson.M{"$ne": 0}},
+	}
+
+	findOptions := options.Find()
+	findOptions.SetSkip(int64(offset))
+	findOptions.SetLimit(int64(pageSize))
+	findOptions.SetSort(bson.D{{Key: "dueAt.start.date", Value: 1}})
+
+	cursor, err := s.DB.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := s.DB.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = cursor.All(ctx, &t)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return t, int(count), nil
 }
 
 // FindAllByDate finds all task, combining work units and due dates
