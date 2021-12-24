@@ -885,6 +885,20 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 
 // lookForUnscheduledTasks looks for tasks that have unscheduled time
 func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID string) {
+	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("lookForUnscheduledTasks-%s", userID), time.Minute*1)
+	if err != nil {
+		s.logger.Warning("could not acquire lock", errors.Wrap(err, fmt.Sprintf("could not acquire lock for looking for unscheduled tasks for user %s", userID)))
+		return
+	}
+
+	defer func() {
+		err := lock.Release(ctx)
+		if err != nil {
+			s.logger.Error("could not release lock", errors.Wrap(err, fmt.Sprintf("could not release lock for looking for unscheduled tasks for user %s", userID)))
+			return
+		}
+	}()
+
 	tasks, _, err := s.taskRepository.FindUnscheduledTasks(ctx, userID, 0, 10)
 	if err != nil {
 		s.logger.Error("problem while trying to find unscheduled tasks", err)
