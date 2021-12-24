@@ -111,7 +111,7 @@ func maxDuration(a, b time.Duration) time.Duration {
 // and pushes or removes events to and from the calendar
 func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, error) {
 	if !t.ID.IsZero() {
-		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
 		if err != nil {
 			return nil, err
 		}
@@ -308,7 +308,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
 func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
-	lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30)
+	lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
 	if err != nil {
 		return nil, err
 	}
@@ -657,7 +657,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*10)
+	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*10, false)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("problem acquiring lock for task %s", task.ID.Hex()), err)
 		return
@@ -885,9 +885,9 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 
 // lookForUnscheduledTasks looks for tasks that have unscheduled time
 func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID string) {
-	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("lookForUnscheduledTasks-%s", userID), time.Minute*1)
+	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("lookForUnscheduledTasks-%s", userID), time.Minute*1, true)
 	if err != nil {
-		s.logger.Warning("could not acquire lock", errors.Wrap(err, fmt.Sprintf("could not acquire lock for looking for unscheduled tasks for user %s", userID)))
+		s.logger.Warning("could not acquire lock, tried only once", errors.Wrap(err, fmt.Sprintf("could not acquire lock for looking for unscheduled tasks for user %s", userID)))
 		return
 	}
 
@@ -908,7 +908,7 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 	for _, task := range tasks {
 		_, err := s.ScheduleTask(ctx, &task)
 		if err != nil {
-			s.logger.Error(fmt.Sprintf("problem scheduling task %s", task.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("problem scheduling task %s", task.ID.Hex()), errors.Wrap(err, "problem scheduling task while looking for unscheduled tasks"))
 			return
 		}
 	}
