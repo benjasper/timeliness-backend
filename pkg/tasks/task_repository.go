@@ -447,7 +447,17 @@ func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, use
 		return t, err
 	}
 
-	result := s.DB.FindOne(ctx, bson.M{"userId": userObjectID, "_id": taskObjectID, "deleted": isDeleted})
+	result := s.DB.FindOne(ctx, bson.D{
+		{
+			Key: "$or", Value: bson.A{
+				bson.D{
+					{Key: "userId", Value: userObjectID},
+				},
+				bson.D{
+					{Key: "collaborators.userId", Value: userObjectID},
+				},
+			},
+		}, {Key: "_id", Value: taskObjectID}, {Key: "deleted", Value: isDeleted}})
 
 	if result.Err() != nil {
 		return t, result.Err()
@@ -471,7 +481,16 @@ func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calen
 	}
 
 	result := s.DB.FindOne(ctx, bson.D{
-		{Key: "userId", Value: userObjectID},
+		{
+			Key: "$or", Value: bson.A{
+				bson.D{
+					{Key: "userId", Value: userObjectID},
+				},
+				bson.D{
+					{Key: "collaborators.userId", Value: userObjectID},
+				},
+			},
+		},
 		{Key: "deleted", Value: isDeleted},
 		{Key: "$or", Value: bson.A{
 			bson.M{"workUnits.scheduledAt.calendarEvents.calendarEventID": calendarEventID},
@@ -531,7 +550,16 @@ func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, u
 	findOptions.SetSort(bson.M{"dueAt.date.start": 1})
 
 	queryFilter := bson.D{
-		{Key: "userId", Value: userObjectID},
+		{
+			Key: "$or", Value: bson.A{
+				bson.D{
+					{Key: "userId", Value: userObjectID},
+				},
+				bson.D{
+					{Key: "collaborators.userId", Value: userObjectID},
+				},
+			},
+		},
 		{Key: "deleted", Value: isDeleted},
 		{Key: "workUnits", Value: bson.M{
 			"$elemMatch": arrayMatch,
@@ -705,9 +733,18 @@ func (s *MongoDBTaskRepository) DeleteTag(ctx context.Context, tagID string, use
 	}
 
 	_, err = s.DB.UpdateMany(ctx,
-		bson.M{
-			"userId": userObjectID,
-			"tags":   tagObjectID,
+		bson.D{
+			{
+				Key: "$or", Value: bson.A{
+					bson.D{
+						{Key: "userId", Value: userObjectID},
+					},
+					bson.D{
+						{Key: "collaborators.userId", Value: userObjectID},
+					},
+				},
+			},
+			{Key: "tags", Value: tagObjectID},
 		}, bson.M{
 			"$set": bson.M{
 				"lastModifiedAt": time.Now(),
