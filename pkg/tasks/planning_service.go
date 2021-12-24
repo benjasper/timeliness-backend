@@ -899,6 +899,7 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 		}
 	}()
 
+	// We max this to 10 tasks per run for now to not overload the system
 	tasks, _, err := s.taskRepository.FindUnscheduledTasks(ctx, userID, 0, 10)
 	if err != nil {
 		s.logger.Error("problem while trying to find unscheduled tasks", err)

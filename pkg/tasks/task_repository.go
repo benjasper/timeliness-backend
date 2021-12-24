@@ -273,7 +273,16 @@ func (s *MongoDBTaskRepository) FindUnscheduledTasks(ctx context.Context, userID
 	offset := page * pageSize
 
 	filter := bson.D{
-		{Key: "userId", Value: userObjectID},
+		{
+			Key: "$or", Value: bson.A{
+				bson.D{
+					{Key: "userId", Value: userObjectID},
+				},
+				bson.D{
+					{Key: "collaborators.userId", Value: userObjectID},
+				},
+			},
+		},
 		{Key: "deleted", Value: false},
 		{Key: "notScheduled", Value: bson.M{"$ne": 0}},
 	}
