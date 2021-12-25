@@ -573,7 +573,7 @@ Loop:
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 		defer cancel()
 
-		lock, err := handler.Locker.Acquire(ctx, user.ID.Hex(), time.Minute*1)
+		lock, err := handler.Locker.Acquire(ctx, user.ID.Hex(), time.Minute*1, false)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("problem while acquiring lock for user %s", userID), err)
 			return

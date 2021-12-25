@@ -7,7 +7,7 @@ import (
 
 // LockerInterface represents a Locker
 type LockerInterface interface {
-	Acquire(ctx context.Context, key string, ttl time.Duration) (LockInterface, error)
+	Acquire(ctx context.Context, key string, ttl time.Duration, tryOnlyOnce bool) (LockInterface, error)
 }
 
 // LockInterface represents a Lock
