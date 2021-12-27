@@ -353,6 +353,16 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 		}
 	}
 
+	if userSettings.Scheduling.TimingPreference != originalSettings.Scheduling.TimingPreference {
+		if userSettings.Scheduling.TimingPreference != TimingPreferenceEarly &&
+			userSettings.Scheduling.TimingPreference != TimingPreferenceVeryEarly &&
+			userSettings.Scheduling.TimingPreference != TimingPreferenceLate &&
+			userSettings.Scheduling.TimingPreference != TimingPreferenceVeryLate {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("TimingPreference is invalid"), nil)
+			return
+		}
+	}
+
 	v := validator.New()
 	err = v.Struct(userSettings)
 	if err != nil {

@@ -127,12 +127,36 @@ type GoogleCalendarSync struct {
 	Expiration     time.Time `json:"-" bson:"expiration,omitempty"`
 }
 
+// TimingPreferenceVeryEarly is the very early timing preference
+const TimingPreferenceVeryEarly = "veryEarly"
+
+// TimingPreferenceEarly is the early timing preference
+const TimingPreferenceEarly = "early"
+
+// TimingPreferenceLate is the late timing preference
+const TimingPreferenceLate = "late"
+
+// TimingPreferenceVeryLate is the very late timing preference
+const TimingPreferenceVeryLate = "veryLate"
+
+// TimingPreferences represent all possible timing preferences
+var TimingPreferences = []string{
+	TimingPreferenceEarly,
+	TimingPreferenceVeryEarly,
+	TimingPreferenceLate,
+	TimingPreferenceVeryLate,
+}
+
 // UserSettings hold different settings roughly separated by topics
 type UserSettings struct {
-	OnboardingCompleted bool `json:"onboardingCompleted" bson:"onboardingCompleted"`
-	Scheduling          struct {
-		TimeZone         string          `json:"timeZone" bson:"timeZone" validate:"required"`
-		AllowedTimespans []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
-		BusyTimeSpacing  time.Duration   `json:"busyTimeSpacing" bson:"busyTimeSpacing"`
-	} `json:"scheduling" bson:"scheduling"`
+	OnboardingCompleted bool               `json:"onboardingCompleted" bson:"onboardingCompleted"`
+	Scheduling          SchedulingSettings `json:"scheduling" bson:"scheduling"`
+}
+
+// SchedulingSettings holds different settings for scheduling
+type SchedulingSettings struct {
+	TimingPreference string          `json:"timingPreference" bson:"timingPreference"`
+	TimeZone         string          `json:"timeZone" bson:"timeZone" validate:"required"`
+	AllowedTimespans []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
+	BusyTimeSpacing  time.Duration   `json:"busyTimeSpacing" bson:"busyTimeSpacing"`
 }

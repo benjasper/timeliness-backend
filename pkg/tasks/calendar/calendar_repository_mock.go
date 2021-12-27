@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"time"
 )
 
 // MockCalendarRepository is a calendar repository for testing
@@ -99,7 +100,7 @@ func (r *MockCalendarRepository) DeleteEvent(event *Event) error {
 }
 
 // AddBusyToWindow adds busy times
-func (r *MockCalendarRepository) AddBusyToWindow(window *date.TimeWindow) error {
+func (r *MockCalendarRepository) AddBusyToWindow(window *date.TimeWindow, start time.Time, end time.Time) error {
 	for _, event := range r.Events {
 		window.AddToBusy(event.Date)
 	}
