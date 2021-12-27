@@ -696,7 +696,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	index, workunit := task.WorkUnits.FindByCalendarID(calendarEvent.CalendarEventID)
 	if workunit == nil {
-		s.logger.Error("event not found", fmt.Errorf("could not find work unit for calendar event %s", calendarEvent.CalendarEventID))
+		s.logger.Error("event not found", errors.Errorf("could not find work unit for calendar event %s", calendarEvent.CalendarEventID))
 		return
 	}
 
