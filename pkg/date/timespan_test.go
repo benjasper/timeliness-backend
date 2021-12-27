@@ -16,127 +16,127 @@ func getLocation() *time.Location {
 	return loc
 }
 
-var timeWindowTests = []struct {
-	in         *TimeWindow
-	constraint FreeConstraint
-	out        []Timespan
-}{
-	{
-		// Case single busy time
-		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-			Busy: []Timespan{{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)}}},
-		FreeConstraint{},
-		[]Timespan{
-			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
-			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
-	},
-	{
-		// Case 2 busy time
-		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-			Busy: []Timespan{
-				{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
-				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)}}},
-		FreeConstraint{},
-		[]Timespan{
-			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
-			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
-			{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
-	},
-	{
-		// Case 3 busy time
-		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-			Busy: []Timespan{
-				{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
-				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
-				{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
+func TestTimeWindow_ComputeFree(t *testing.T) {
+	var timeWindowTests = []struct {
+		in         *TimeWindow
+		constraint FreeConstraint
+		out        []Timespan
+	}{
+		{
+			// Case single busy time
+			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+				Busy: []Timespan{{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)}}},
+			FreeConstraint{},
+			[]Timespan{
+				{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
+				{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
+		},
+		{
+			// Case 2 busy time
+			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+				Busy: []Timespan{
+					{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
+					{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)}}},
+			FreeConstraint{},
+			[]Timespan{
+				{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
+				{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
+				{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
+		},
+		{
+			// Case 3 busy time
+			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+				Busy: []Timespan{
+					{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
+					{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
+					{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
+				},
 			},
+			FreeConstraint{},
+			[]Timespan{
+				{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
+				{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
+				{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 12, 14, 30, 0)},
+				{Start: timeDate(2020, 6, 13, 15, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
 		},
-		FreeConstraint{},
-		[]Timespan{
-			{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
-			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
-			{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 12, 14, 30, 0)},
-			{Start: timeDate(2020, 6, 13, 15, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
-	},
-	{
-		// Case windows start is in busy time
-		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-			Busy: []Timespan{
-				{Start: timeDate(2020, 6, 10, 12, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
-				{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
-				{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
+		{
+			// Case windows start is in busy time
+			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+				Busy: []Timespan{
+					{Start: timeDate(2020, 6, 10, 12, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
+					{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
+					{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
+				},
 			},
+			FreeConstraint{},
+			[]Timespan{
+				{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
+				{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 12, 14, 30, 0)},
+				{Start: timeDate(2020, 6, 13, 15, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
 		},
-		FreeConstraint{},
-		[]Timespan{
-			{Start: timeDate(2020, 6, 10, 14, 0, 0), End: timeDate(2020, 6, 10, 14, 30, 0)},
-			{Start: timeDate(2020, 6, 10, 15, 0, 0), End: timeDate(2020, 6, 12, 14, 30, 0)},
-			{Start: timeDate(2020, 6, 13, 15, 0, 0), End: timeDate(2020, 6, 18, 12, 30, 0)}},
-	},
-	{
-		// Case busy == 0
-		&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-			Busy: nil,
-		},
-		FreeConstraint{},
-		[]Timespan{{
-			Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-		}},
-	},
-	{
-		// Case with free constraint
-		&TimeWindow{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 7, 17, 00, 0),
-			Busy: []Timespan{
-				{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 4, 23, 59, 0)},
-				{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
-				{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
+		{
+			// Case busy == 0
+			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+				Busy: nil,
 			},
+			FreeConstraint{},
+			[]Timespan{{
+				Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
+			}},
 		},
-		FreeConstraint{
-			Location: getLocation(),
-			AllowedTimeSpans: []Timespan{{
-				Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
-				End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
-			}}},
-		[]Timespan{
-			{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
-			{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
-		},
-	},
-	{
-		// Case with two free constraints
-		&TimeWindow{Start: timeDate(2021, 3, 5, 8, 30, 0), End: timeDate(2021, 3, 7, 18, 00, 0),
-			Busy: []Timespan{
-				{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
-				{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
+		{
+			// Case with free constraint
+			&TimeWindow{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 7, 17, 00, 0),
+				Busy: []Timespan{
+					{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 4, 23, 59, 0)},
+					{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
+					{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
+				},
 			},
-		},
-		FreeConstraint{
-			Location: getLocation(),
-			AllowedTimeSpans: []Timespan{
-				{
+			FreeConstraint{
+				Location: getLocation(),
+				AllowedTimeSpans: []Timespan{{
 					Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
 					End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
-				},
-				{
-					Start: time.Date(0, 0, 0, 17, 0, 0, 0, getLocation()),
-					End:   time.Date(0, 0, 0, 18, 0, 0, 0, getLocation()),
-				},
-			}},
-		[]Timespan{
-			{Start: timeDate(2021, 3, 5, 17, 0, 0), End: timeDate(2021, 3, 5, 18, 0, 0)},
-			{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
-			{Start: timeDate(2021, 3, 6, 17, 0, 0), End: timeDate(2021, 3, 6, 18, 0, 0)},
-			{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
-			{Start: timeDate(2021, 3, 7, 17, 0, 0), End: timeDate(2021, 3, 7, 18, 0, 0)},
+				}}},
+			[]Timespan{
+				{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
+				{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
+			},
 		},
-	},
-}
+		{
+			// Case with two free constraints
+			&TimeWindow{Start: timeDate(2021, 3, 5, 8, 30, 0), End: timeDate(2021, 3, 7, 18, 00, 0),
+				Busy: []Timespan{
+					{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
+					{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
+				},
+			},
+			FreeConstraint{
+				Location: getLocation(),
+				AllowedTimeSpans: []Timespan{
+					{
+						Start: time.Date(0, 0, 0, 8, 0, 0, 0, getLocation()),
+						End:   time.Date(0, 0, 0, 16, 30, 0, 0, getLocation()),
+					},
+					{
+						Start: time.Date(0, 0, 0, 17, 0, 0, 0, getLocation()),
+						End:   time.Date(0, 0, 0, 18, 0, 0, 0, getLocation()),
+					},
+				}},
+			[]Timespan{
+				{Start: timeDate(2021, 3, 5, 17, 0, 0), End: timeDate(2021, 3, 5, 18, 0, 0)},
+				{Start: timeDate(2021, 3, 6, 9, 30, 0), End: timeDate(2021, 3, 6, 16, 30, 0)},
+				{Start: timeDate(2021, 3, 6, 17, 0, 0), End: timeDate(2021, 3, 6, 18, 0, 0)},
+				{Start: timeDate(2021, 3, 7, 8, 0, 0), End: timeDate(2021, 3, 7, 16, 30, 0)},
+				{Start: timeDate(2021, 3, 7, 17, 0, 0), End: timeDate(2021, 3, 7, 18, 0, 0)},
+			},
+		},
+	}
 
-func TestTimeWindow_ComputeFree(t *testing.T) {
 	for index, tt := range timeWindowTests {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
-			free := tt.in.ComputeFree(&tt.constraint)
+			free := tt.in.ComputeFree(&tt.constraint, tt.in.Start, Timespan{Start: tt.in.Start, End: tt.in.End})
 			if !reflect.DeepEqual(free, tt.out) {
 				t.Errorf("got (%d)%q, want (%d)%q", len(free), free, len(tt.out), tt.out)
 			}
@@ -792,7 +792,7 @@ func TestTimespan_OverflowsStart(t *testing.T) {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			tt := tt
 			t.Parallel()
-			result := tt.container.OverflowsStart(tt.contained)
+			result := tt.container.OverflowsStartClock(tt.contained)
 			if result != tt.out {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
@@ -872,7 +872,7 @@ func TestTimespan_OverflowsEnd(t *testing.T) {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			tt := tt
 			t.Parallel()
-			result := tt.container.OverflowsEnd(tt.contained)
+			result := tt.container.OverflowsEndClock(tt.contained)
 			if result != tt.out {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}

@@ -129,39 +129,6 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		return nil, err
 	}
 
-	var spacing time.Duration
-	for _, user := range relevantUsers {
-		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
-	}
-
-	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
-
-	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)
-
-	// TODO make TimeWindow thread safe and make this parallel
-	for _, user := range relevantUsers {
-		taskRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
-		if err != nil {
-			return nil, err
-		}
-
-		taskCalendarRepositories[user.ID.Hex()] = taskRepository
-
-		// Repositories for availability
-		repositories, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, repository := range repositories {
-			err = repository.AddBusyToWindow(&windowTotal)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
 	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
 	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
 	if err != nil {
@@ -174,7 +141,13 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
 	}
 
-	windowTotal.ComputeFree(constraint)
+	var spacing time.Duration
+	for _, user := range relevantUsers {
+		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
+	}
+
+	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+	windowTotal := &date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
 
 	workloadToSchedule := t.WorkloadOverall
 	for _, unit := range t.WorkUnits {
@@ -182,10 +155,38 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 	}
 	t.NotScheduled = 0
 
+	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)
+
+	var availabilityRepositories []calendar.RepositoryInterface
+
+	// TODO make TimeWindow thread safe and make this parallel
+	for _, user := range relevantUsers {
+		taskRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		if err != nil {
+			return nil, err
+		}
+
+		taskCalendarRepositories[user.ID.Hex()] = taskRepository
+
+		// Repositories for availability
+		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		if err != nil {
+			return nil, err
+		}
+
+		availabilityRepositories = append(availabilityRepositories, availabilityRepositoriesForUser...)
+	}
+
+	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint)
+	if err != nil {
+		return nil, err
+	}
+
 	if workloadToSchedule > 0 {
 		workUnits := t.WorkUnits
 
-		foundWorkUnits := findWorkUnitTimes(&windowTotal, workloadToSchedule)
+		foundWorkUnits := s.findWorkUnitTimes(windowTotal, workloadToSchedule)
 
 		for _, workUnit := range foundWorkUnits {
 			workUnit.ScheduledAt.Blocking = true
@@ -343,15 +344,28 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 		return nil, err
 	}
 
+	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
+	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
+	constraint := &date.FreeConstraint{
+		Location:         location,
+		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
+	}
+
 	var spacing time.Duration
 	for _, user := range relevantUsers {
 		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
 	}
 
 	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
+	windowTotal := &date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
 
 	repositories := make(map[string]calendar.RepositoryInterface)
+	var availabilityRepositories []calendar.RepositoryInterface
 
 	// TODO Make parallel
 	for _, user := range relevantUsers {
@@ -368,36 +382,23 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 		}
 
 		// Repositories for availability
-		repositories, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, repository := range repositories {
-			err = repository.AddBusyToWindow(&windowTotal)
-			if err != nil {
-				return nil, err
-			}
-		}
+		availabilityRepositories = append(availabilityRepositories, availabilityRepositoriesForUser...)
 	}
 
-	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
-	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
+	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload, windowTotal, availabilityRepositories, constraint)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
-	constraint := &date.FreeConstraint{
-		Location:         location,
-		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
-	}
-
-	windowTotal.ComputeFree(constraint)
-
 	workloadToSchedule := w.Workload
 
-	for _, workUnit := range findWorkUnitTimes(&windowTotal, workloadToSchedule) {
+	for _, workUnit := range s.findWorkUnitTimes(windowTotal, workloadToSchedule) {
 		workUnit.ScheduledAt.Blocking = true
 		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle((*Task)(t))
 		workUnit.ScheduledAt.Description = ""
@@ -428,70 +429,33 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 	return t, nil
 }
 
-func findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration) WorkUnits {
+func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration) WorkUnits {
 	var workUnits WorkUnits
 	if w.FreeDuration == 0 {
 		return workUnits
 	}
 
-	if w.Duration() < 24*time.Hour*7 {
-		minDuration := 2 * time.Hour
-		if durationToFind < 2*time.Hour {
-			minDuration = durationToFind
-		}
-		maxDuration := 6 * time.Hour
+	minDuration := 1 * time.Hour
+	if durationToFind < 1*time.Hour {
+		minDuration = durationToFind
+	}
+	maxDuration := 6 * time.Hour
 
-		for w.FreeDuration >= minDuration && durationToFind != 0 {
-			if durationToFind < 6*time.Hour {
-				if durationToFind < 2*time.Hour {
-					minDuration = durationToFind
-				}
-				maxDuration = durationToFind
+	for w.FreeDuration >= 0 && durationToFind > 0 {
+		if durationToFind < 6*time.Hour {
+			if durationToFind < 2*time.Hour {
+				minDuration = durationToFind
 			}
+			maxDuration = durationToFind
+		}
 
-			var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-			slot := w.FindTimeSlot(&rules)
-			if slot == nil {
-				break
-			}
-			durationToFind -= slot.Duration()
-			workUnits = append(workUnits, WorkUnit{ScheduledAt: calendar.Event{Date: *slot}, Workload: slot.Duration()})
+		var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
+		slot := w.FindTimeSlot(&rules)
+		if slot == nil {
+			break
 		}
-	}
-
-	durationThird := w.Duration() / 3
-
-	windowMiddle := w.GetPreferredTimeWindow(w.Start.Add(durationThird), w.Start.Add(durationThird*2))
-	if windowMiddle.FreeDuration > 0 && durationToFind != 0 {
-		found := findWorkUnitTimes(windowMiddle, durationToFind)
-		for _, unit := range found {
-			durationToFind -= unit.Workload
-		}
-		if len(found) > 0 {
-			workUnits = append(workUnits, found...)
-		}
-	}
-
-	windowRight := w.GetPreferredTimeWindow(w.Start.Add(durationThird*2), w.End)
-	if windowRight.FreeDuration > 0 && durationToFind != 0 {
-		found := findWorkUnitTimes(windowRight, durationToFind)
-		for _, unit := range found {
-			durationToFind -= unit.Workload
-		}
-		if len(found) > 0 {
-			workUnits = append(workUnits, found...)
-		}
-	}
-
-	windowLeft := w.GetPreferredTimeWindow(w.Start, w.Start.Add(durationThird))
-	if windowLeft.FreeDuration > 0 && durationToFind != 0 {
-		found := findWorkUnitTimes(windowLeft, durationToFind)
-		for _, unit := range found {
-			durationToFind -= unit.Workload
-		}
-		if len(found) > 0 {
-			workUnits = append(workUnits, found...)
-		}
+		durationToFind -= slot.Duration()
+		workUnits = append(workUnits, WorkUnit{ScheduledAt: calendar.Event{Date: *slot}, Workload: slot.Duration()})
 	}
 
 	return workUnits
@@ -732,7 +696,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	index, workunit := task.WorkUnits.FindByCalendarID(calendarEvent.CalendarEventID)
 	if workunit == nil {
-		s.logger.Error("there was an event id that could not be found inside a task", nil)
+		s.logger.Error("event not found", fmt.Errorf("could not find work unit for calendar event %s", calendarEvent.CalendarEventID))
 		return
 	}
 
@@ -913,4 +877,115 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 			return
 		}
 	}
+}
+
+// computeAvailabilityForTimeWindow traverses the given time interval by two weeks and returns when it found enough free time or traversed the whole interval
+func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint) (*date.TimeWindow, error) {
+
+	for _, timespan := range s.generateTimespansBasedOnTargetDate(target, window) {
+		for _, repository := range repositories {
+			err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
+			if err != nil {
+				return nil, errors.Wrap(err, "problem while adding busy time to window")
+			}
+		}
+
+		window.ComputeFree(constraint, target, timespan)
+
+		if window.FreeDuration >= timeToSchedule {
+			return window, nil
+		}
+	}
+
+	return window, nil
+}
+
+func absoluteOfDuration(duration time.Duration) time.Duration {
+	if duration < 0 {
+		return -duration
+	}
+
+	return duration
+}
+
+// generateTimespansBasedOnTargetDate generates a list of timespans based on a target date and expands the list from the target date outwards
+func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, window *date.TimeWindow) []date.Timespan {
+	var timespans []date.Timespan
+
+	leftBoundDone := false
+	rightBoundDone := false
+
+	// TODO Check the time on these to prevent cutting into free time
+	leftPointer := target.AddDate(0, 0, -7)
+	rightPointer := target.AddDate(0, 0, 7)
+
+	if leftPointer.Before(window.Start) || leftPointer.Equal(window.Start) {
+		leftPointer = window.Start
+		leftBoundDone = true
+	}
+
+	if rightPointer.After(window.End) || rightPointer.Equal(window.End) {
+		rightPointer = window.End
+		rightBoundDone = true
+	}
+
+	timespans = append(timespans, date.Timespan{
+		Start: leftPointer,
+		End:   rightPointer,
+	})
+
+	for !leftBoundDone || !rightBoundDone {
+		if !leftBoundDone {
+			lastLeftPointer := leftPointer
+			// TODO Check the time on these to prevent cutting into free time
+			leftPointer = leftPointer.AddDate(0, 0, -14)
+
+			if leftPointer.Before(window.Start) || leftPointer.Equal(window.Start) || absoluteOfDuration(window.Start.Sub(leftPointer)) < time.Hour*24*7 {
+				leftPointer = window.Start
+				leftBoundDone = true
+			}
+
+			timespans = append(timespans, date.Timespan{
+				Start: leftPointer,
+				End:   lastLeftPointer,
+			})
+		}
+
+		if !rightBoundDone {
+			lastRightPointer := rightPointer
+			// TODO Check the time on these to prevent cutting into free time
+			rightPointer = rightPointer.AddDate(0, 0, 14)
+
+			if rightPointer.After(window.End) || rightPointer.Equal(window.End) || absoluteOfDuration(rightPointer.Sub(window.End)) < time.Hour*24*7 {
+				rightPointer = window.End
+				rightBoundDone = true
+			}
+
+			timespans = append(timespans, date.Timespan{
+				Start: lastRightPointer,
+				End:   rightPointer,
+			})
+		}
+	}
+
+	return timespans
+}
+
+func (s *PlanningService) getTargetTimeForUser(user *users.User, window *date.TimeWindow) time.Time {
+	if window.End.Before(now().Add(time.Hour * 24 * 2)) {
+		return window.Start
+	}
+
+	switch user.Settings.Scheduling.TimingPreference {
+	case users.TimingPreferenceVeryEarly:
+		return window.Start.Add(time.Hour * 6)
+	default:
+	case users.TimingPreferenceEarly:
+		return window.Start.Add(time.Hour * 24 * 2)
+	case users.TimingPreferenceLate:
+		return window.End.Add(time.Hour * -24 * 2)
+	case users.TimingPreferenceVeryLate:
+		return window.End.Add(time.Hour * -6)
+	}
+	return window.Start
 }
