@@ -51,6 +51,8 @@ func (s *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task
 	wg, ctx := errgroup.WithContext(ctx)
 
 	for _, collaborator := range task.Collaborators {
+		collaborator := collaborator
+
 		wg.Go(func() error {
 			var collaboratorUser *users.User
 			var err error
