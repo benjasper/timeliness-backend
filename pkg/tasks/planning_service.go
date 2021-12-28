@@ -886,7 +886,7 @@ func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, tim
 
 		for _, repository := range repositories {
 			repository := repository
-			timespan := timespan
+
 			wg.Go(func() error {
 				err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
 				if err != nil {
