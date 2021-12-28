@@ -177,7 +177,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		availabilityRepositories = append(availabilityRepositories, availabilityRepositoriesForUser...)
 	}
 
-	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal)
+	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, workloadToSchedule)
 	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint)
 	if err != nil {
 		return nil, err
@@ -390,7 +390,7 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 		availabilityRepositories = append(availabilityRepositories, availabilityRepositoriesForUser...)
 	}
 
-	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal)
+	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
 	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload, windowTotal, availabilityRepositories, constraint)
 	if err != nil {
 		return nil, err
@@ -883,11 +883,22 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint) (*date.TimeWindow, error) {
 
 	for _, timespan := range s.generateTimespansBasedOnTargetDate(target, window) {
+		wg := errgroup.Group{}
+
 		for _, repository := range repositories {
-			err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
-			if err != nil {
-				return nil, errors.Wrap(err, "problem while adding busy time to window")
-			}
+			wg.Go(func() error {
+				err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
+				if err != nil {
+					return errors.Wrap(err, "problem while adding busy time to window")
+				}
+
+				return nil
+			})
+		}
+
+		err := wg.Wait()
+		if err != nil {
+			return nil, err
 		}
 
 		window.ComputeFree(constraint, target, timespan)
@@ -971,7 +982,7 @@ func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, w
 	return timespans
 }
 
-func (s *PlanningService) getTargetTimeForUser(user *users.User, window *date.TimeWindow) time.Time {
+func (s *PlanningService) getTargetTimeForUser(user *users.User, window *date.TimeWindow, workloadToSchedule time.Duration) time.Time {
 	if window.End.Before(now().Add(time.Hour * 24 * 2)) {
 		return window.Start
 	}
@@ -983,9 +994,14 @@ func (s *PlanningService) getTargetTimeForUser(user *users.User, window *date.Ti
 	case users.TimingPreferenceEarly:
 		return window.Start.Add(time.Hour * 24 * 2)
 	case users.TimingPreferenceLate:
-		return window.End.Add(time.Hour * -24 * 2)
+		offset := time.Hour*24*7 + workloadToSchedule
+		if window.End.Before(now().Add(offset)) {
+			return window.End.Add(time.Hour * -24 * 2)
+		}
+		return window.End.Add(-offset)
 	case users.TimingPreferenceVeryLate:
-		return window.End.Add(time.Hour * -6)
+		offset := time.Hour*6 + workloadToSchedule
+		return window.End.Add(-offset)
 	}
 	return window.Start
 }
