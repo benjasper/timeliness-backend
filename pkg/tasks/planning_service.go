@@ -640,9 +640,9 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	}(lock, ctx)
 
 	// Refresh task, after potential change
-	task, err = s.taskRepository.FindUpdatableByID(ctx, task.ID.Hex(), userID, false)
+	task, err = s.taskRepository.FindByCalendarEventID(ctx, calendarEvent.CalendarEventID, userID, false)
 	if err != nil {
-		s.logger.Error("could not refresh already loaded task", err)
+		s.logger.Info("could not find task with event id after refresh, event id has passed apparently")
 		return
 	}
 
