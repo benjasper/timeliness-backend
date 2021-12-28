@@ -881,11 +881,12 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 
 // computeAvailabilityForTimeWindow traverses the given time interval by two weeks and returns when it found enough free time or traversed the whole interval
 func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint) (*date.TimeWindow, error) {
-
 	for _, timespan := range s.generateTimespansBasedOnTargetDate(target, window) {
 		wg := errgroup.Group{}
 
 		for _, repository := range repositories {
+			repository := repository
+			timespan := timespan
 			wg.Go(func() error {
 				err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
 				if err != nil {
