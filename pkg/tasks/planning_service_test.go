@@ -84,10 +84,13 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 		calendarRepository calendar.RepositoryInterface
 	}
 
+	task5ObjectID := primitive.NewObjectID()
+
 	tests := []struct {
 		name                 string
 		task                 Task
 		calendarRepositories []repoEntry
+		wantTask             *Task
 	}{
 		{
 			name: "Task: 4h, lots of free time",
@@ -271,6 +274,70 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Already once scheduled Task: 16h no time available",
+			task: Task{
+				ID:              task5ObjectID,
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				LastModifiedAt:  time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				Deleted:         false,
+				Name:            "Testtask 5",
+				Description:     "",
+				WorkloadOverall: time.Hour * 16,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 5, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						{
+							"mock_calendar",
+							"due-5",
+							primaryUser.ID,
+						},
+					},
+				},
+			},
+			calendarRepositories: []repoEntry{
+				{
+					userID: primaryUser.ID,
+					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{
+						{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 1, 0, 0, 0, 0, location),
+								End:   time.Date(2021, 3, 25, 18, 0, 0, 0, location),
+							},
+							Blocking: true,
+						},
+					}, User: &primaryUser},
+				},
+			},
+			wantTask: &Task{
+				ID:              task5ObjectID,
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				LastModifiedAt:  time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				Deleted:         false,
+				Name:            "Testtask 5",
+				Description:     "",
+				WorkloadOverall: time.Hour * 16,
+				NotScheduled:    time.Hour * 16,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 5, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						{
+							"mock_calendar",
+							"due-5",
+							primaryUser.ID,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -285,9 +352,11 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 					service.calendarRepositoryManager.overriddenRepos[repo.userID.Hex()] = repo.calendarRepository
 				}
 
-				err := taskRepo.Add(ctx, &tt.task)
-				if err != nil {
-					t.Error(err)
+				if tt.wantTask == nil {
+					err := taskRepo.Add(ctx, &tt.task)
+					if err != nil {
+						t.Error(err)
+					}
 				}
 
 				scheduledTask, err := service.ScheduleTask(ctx, &tt.task)
@@ -295,9 +364,15 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 					t.Error(err)
 				}
 
-				err = testScheduledTask(scheduledTask)
-				if err != nil {
-					t.Error(err)
+				if tt.wantTask != nil {
+					if !reflect.DeepEqual(scheduledTask, tt.wantTask) {
+						t.Errorf("tasks don't equal. scheduled: %v and want: %v", scheduledTask, tt.wantTask)
+					}
+				} else {
+					err = testScheduledTask(scheduledTask)
+					if err != nil {
+						t.Error(err)
+					}
 				}
 			})
 		}
