@@ -10,7 +10,7 @@ func (t *TaskTextRenderer) RenderDueEventTitle(task *Task) string {
 	var icon = "📅"
 
 	if task.IsDone {
-		icon = "✔️"
+		icon += "✅"
 	}
 
 	return fmt.Sprintf("%s %s is due", icon, task.Name)
@@ -18,5 +18,11 @@ func (t *TaskTextRenderer) RenderDueEventTitle(task *Task) string {
 
 // RenderWorkUnitEventTitle renders a title of a work unit event
 func (t *TaskTextRenderer) RenderWorkUnitEventTitle(task *Task) string {
-	return fmt.Sprintf("⚙️ Working on %s", task.Name)
+	var icon = "⚙️"
+
+	if task.IsDone {
+		icon += "✅"
+	}
+
+	return fmt.Sprintf("%s Working on %s", icon, task.Name)
 }
