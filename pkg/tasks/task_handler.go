@@ -53,6 +53,12 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		}
 	}
 
+	err = task.Validate()
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "task invalid", err)
+		return
+	}
+
 	scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
@@ -87,6 +93,12 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	err = json.NewDecoder(request.Body).Decode(&task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		return
+	}
+
+	err = (*Task)(task).Validate()
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "task invalid", err)
 		return
 	}
 

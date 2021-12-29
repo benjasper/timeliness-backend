@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"sort"
@@ -27,7 +28,6 @@ const AgendaDueAt = "DUE_AT"
 
 // Task is the model for a task
 type Task struct {
-	// TODO: More validation
 	ID             primitive.ObjectID   `bson:"_id" json:"id"`
 	UserID         primitive.ObjectID   `json:"userId" bson:"userId" validate:"required"`
 	CreatedAt      time.Time            `json:"createdAt" bson:"createdAt"`
@@ -43,6 +43,22 @@ type Task struct {
 	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
+}
+
+func (t *Task) Validate() error {
+	if t.DueAt.Date.Start.Before(time.Now()) {
+		return errors.New("due date can't be in the past")
+	}
+
+	if t.DueAt.Date.Start.After(time.Now().AddDate(2, 0, 0)) {
+		return errors.New("due date can't be more than two years in the future")
+	}
+
+	if t.WorkloadOverall > time.Hour*24 {
+		return errors.New("workload can't be more than 24 hours")
+	}
+
+	return nil
 }
 
 // TaskAgenda is the model for the agenda task view
@@ -103,7 +119,7 @@ type TaskUpdate struct {
 	Collaborators  Collaborators        `json:"-" bson:"collaborators"`
 
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
-	NotScheduled    time.Duration  `json:"notScheduled" bson:"notScheduled"`
+	NotScheduled    time.Duration  `json:"-" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
 	WorkUnits       WorkUnits      `json:"-" bson:"workUnits"`
 }
