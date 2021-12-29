@@ -292,9 +292,9 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 					},
 					CalendarEvents: calendar.PersistedEvents{
 						{
-							"mock_calendar",
-							"due-5",
-							primaryUser.ID,
+							CalendarType:    "mock_calendar",
+							CalendarEventID: "due-5",
+							UserID:          primaryUser.ID,
 						},
 					},
 				},
@@ -330,9 +330,9 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 					},
 					CalendarEvents: calendar.PersistedEvents{
 						{
-							"mock_calendar",
-							"due-5",
-							primaryUser.ID,
+							CalendarType:    "mock_calendar",
+							CalendarEventID: "due-5",
+							UserID:          primaryUser.ID,
 						},
 					},
 				},
