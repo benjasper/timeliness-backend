@@ -15,13 +15,12 @@ import (
 // TaskRepositoryInterface is an interface for a *MongoDBTaskRepository
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
-	Update(ctx context.Context, task *TaskUpdate, deleted bool) error
+	Update(ctx context.Context, task *Task, deleted bool) error
 	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error)
 	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error)
 	FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error)
-	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error)
-	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error)
-	FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error)
+	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*Task, error)
+	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*Task, error)
 	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string, isDeleted bool) ([]Task, error)
 	FindUnscheduledTasks(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error)
 	CountTasksBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
@@ -73,7 +72,7 @@ func (s *MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 }
 
 // Update updates a task
-func (s *MongoDBTaskRepository) Update(ctx context.Context, task *TaskUpdate, deleted bool) error {
+func (s *MongoDBTaskRepository) Update(ctx context.Context, task *Task, deleted bool) error {
 	task.LastModifiedAt = time.Now()
 
 	for index, unit := range task.WorkUnits {
@@ -435,16 +434,16 @@ func (s *MongoDBTaskRepository) FindAllByDate(ctx context.Context, userID string
 }
 
 // FindByID finds a specific task by ID
-func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (Task, error) {
+func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*Task, error) {
 	t := Task{}
 
 	taskObjectID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return t, err
+		return nil, err
 	}
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return t, err
+		return nil, err
 	}
 
 	result := s.DB.FindOne(ctx, bson.D{
@@ -460,20 +459,20 @@ func (s *MongoDBTaskRepository) FindByID(ctx context.Context, taskID string, use
 		}, {Key: "_id", Value: taskObjectID}, {Key: "deleted", Value: isDeleted}})
 
 	if result.Err() != nil {
-		return t, result.Err()
+		return nil, result.Err()
 	}
 
 	err = result.Decode(&t)
 	if err != nil {
-		return t, err
+		return nil, err
 	}
 
-	return t, nil
+	return &t, nil
 }
 
 // FindByCalendarEventID finds a specific task by a calendar event ID in workUnits or dueAt
-func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error) {
-	t := TaskUpdate{}
+func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*Task, error) {
+	t := Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
@@ -508,16 +507,6 @@ func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calen
 	}
 
 	return &t, nil
-}
-
-// FindUpdatableByID Finds a task and returns the TaskUpdate view of the model
-func (s *MongoDBTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error) {
-	task, err := s.FindByID(ctx, taskID, userID, isDeleted)
-	if err != nil {
-		return nil, err
-	}
-
-	return (*TaskUpdate)(&task), nil
 }
 
 // FindIntersectingWithEvent finds tasks whose WorkUnits are scheduled so that they intersect with a given Event

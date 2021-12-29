@@ -255,7 +255,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		t.WorkUnits = workUnits
 
-		err := s.taskRepository.Update(ctx, (*TaskUpdate)(t), false)
+		err := s.taskRepository.Update(ctx, t, false)
 		if err != nil {
 			return nil, err
 		}
@@ -300,7 +300,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 	}
 
 	if !t.ID.IsZero() {
-		err := s.taskRepository.Update(ctx, (*TaskUpdate)(t), false)
+		err := s.taskRepository.Update(ctx, t, false)
 		if err != nil {
 			return nil, err
 		}
@@ -310,7 +310,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 }
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
+func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *WorkUnit) (*Task, error) {
 	lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
 	if err != nil {
 		return nil, err
@@ -327,9 +327,9 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *TaskUpdate,
 }
 
 // rescheduleWorkUnitWithoutLock takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *TaskUpdate, w *WorkUnit) (*TaskUpdate, error) {
+func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *Task, w *WorkUnit) (*Task, error) {
 	// Refresh task, after potential change
-	t, err := s.taskRepository.FindUpdatableByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
+	t, err := s.taskRepository.FindByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +834,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 
 	for _, intersection := range intersections {
 		for i, unit := range intersection.IntersectingWorkUnits {
-			updatedTask, err := s.RescheduleWorkUnit(ctx, (*TaskUpdate)(&intersection.Task), &unit)
+			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf(
 					"Could not reschedule work unit %d for task %s",

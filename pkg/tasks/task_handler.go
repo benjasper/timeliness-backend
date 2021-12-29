@@ -27,13 +27,15 @@ type Handler struct {
 
 // TaskAdd is the route for adding a task
 func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Request) {
-	task := Task{}
+	parsedTask := TaskUpdate{}
 
-	err := json.NewDecoder(request.Body).Decode(&task)
+	err := json.NewDecoder(request.Body).Decode(&parsedTask)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
 		return
 	}
+
+	task := Task(parsedTask)
 
 	userID, err := primitive.ObjectIDFromHex(request.Context().Value(auth.KeyUserID).(string))
 	if err != nil {
@@ -83,20 +85,22 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 
-	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
+	original, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
 	}
-	original := *task
+	parsedTask := (TaskUpdate)(*original)
 
-	err = json.NewDecoder(request.Body).Decode(&task)
+	err = json.NewDecoder(request.Body).Decode(&parsedTask)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
 		return
 	}
 
-	err = (*Task)(task).Validate()
+	task := (*Task)(&parsedTask)
+
+	err = task.Validate()
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "task invalid", err)
 		return
@@ -111,7 +115,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 			return
 		}
 
-		task = (*TaskUpdate)(scheduledTask)
+		task = scheduledTask
 	}
 
 	if original.DueAt.Date != task.DueAt.Date {
@@ -179,7 +183,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return
@@ -262,7 +266,7 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	err = handler.PlanningService.DeleteTask(request.Context(), &task)
+	err = handler.PlanningService.DeleteTask(request.Context(), task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not delete task events", err)
@@ -652,7 +656,7 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	task, err := handler.TaskRepository.FindUpdatableByID(request.Context(), taskID, userID, false)
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
 		return

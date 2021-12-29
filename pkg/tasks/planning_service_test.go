@@ -865,7 +865,7 @@ func TestPlanningService_processTaskEventChange(t *testing.T) {
 			}
 
 			if tt.wantOnlyValidTask {
-				err = testScheduledTask(&resultTask)
+				err = testScheduledTask(resultTask)
 				if err != nil {
 					t.Errorf("task was not valid %s", err)
 				}
