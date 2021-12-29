@@ -102,9 +102,19 @@ func checkForIsGone(err error) error {
 // CreateCalendar creates a calendar and returns its id
 func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 	newCalendar := gcalendar.Calendar{
-		Summary: "Timeliness tasks",
+		Summary: "Timeliness Tasks",
 	}
 	cal, err := c.Service.Calendars.Insert(&newCalendar).Do()
+	if err != nil {
+		return "", checkForInvalidTokenError(err)
+	}
+
+	calendarList := &gcalendar.CalendarListEntry{
+		BackgroundColor: "#dbe2ff",
+		ForegroundColor: "#000000",
+	}
+
+	_, err = c.Service.CalendarList.Patch(cal.Id, calendarList).ColorRgbFormat(true).Do()
 	if err != nil {
 		return "", checkForInvalidTokenError(err)
 	}
@@ -492,7 +502,7 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event) *gcalendar.Ev
 }
 
 // AddBusyToWindow reads times from a window and fills it with busy timeslots
-func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow) error {
+func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow, start time.Time, end time.Time) error {
 	calList := c.connection.CalendarsOfInterest
 
 	var items = make([]*gcalendar.FreeBusyRequestItem, len(calList))
@@ -501,8 +511,8 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow) erro
 	}
 
 	response, err := c.Service.Freebusy.Query(&gcalendar.FreeBusyRequest{
-		TimeMin: window.Start.Format(time.RFC3339),
-		TimeMax: window.End.Format(time.RFC3339),
+		TimeMin: start.Format(time.RFC3339),
+		TimeMax: end.Format(time.RFC3339),
 		Items:   items}).Do()
 	if err != nil {
 		return checkForInvalidTokenError(err)
@@ -510,17 +520,17 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow) erro
 
 	for _, v := range response.Calendars {
 		for _, period := range v.Busy {
-			start, err := time.Parse(time.RFC3339, period.Start)
+			slotStart, err := time.Parse(time.RFC3339, period.Start)
 			if err != nil {
 				return err
 			}
 
-			end, err := time.Parse(time.RFC3339, period.End)
+			slotEnd, err := time.Parse(time.RFC3339, period.End)
 			if err != nil {
 				return err
 			}
 
-			window.AddToBusy(date.Timespan{Start: start.UTC(), End: end.UTC()})
+			window.AddToBusy(date.Timespan{Start: slotStart.UTC(), End: slotEnd.UTC()})
 		}
 	}
 

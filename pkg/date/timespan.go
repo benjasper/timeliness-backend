@@ -110,8 +110,8 @@ func (t *Timespan) Contains(timespan Timespan) bool {
 	return false
 }
 
-// OverflowsStart checks if the given timespan overflows at end
-func (t *Timespan) OverflowsStart(timespan Timespan) bool {
+// OverflowsStartClock checks if the given timespan overflows at end
+func (t *Timespan) OverflowsStartClock(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())
 	cEnd := calcSecondsFromClock(t.End.Clock())
 
@@ -124,8 +124,8 @@ func (t *Timespan) OverflowsStart(timespan Timespan) bool {
 	return false
 }
 
-// OverflowsEnd checks if the given timespan overflows at start
-func (t *Timespan) OverflowsEnd(timespan Timespan) bool {
+// OverflowsEndClock checks if the given timespan overflows at start
+func (t *Timespan) OverflowsEndClock(timespan Timespan) bool {
 	cStart := calcSecondsFromClock(t.Start.Clock())
 	cEnd := calcSecondsFromClock(t.End.Clock())
 
@@ -233,24 +233,45 @@ func MergeTimespans(timespans []Timespan) []Timespan {
 }
 
 // ComputeFree computes the free times, that are the inverse of busy times in the specified window
-func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
+func (w *TimeWindow) ComputeFree(constraint *FreeConstraint, target time.Time, timeInterval Timespan) []Timespan {
 	w.freeMutex.Lock()
 	defer w.freeMutex.Unlock()
 
-	w.Free = nil
-	w.FreeDuration = 0
+	w.busyMutex.Lock()
+	defer w.busyMutex.Unlock()
 
-	if len(w.Busy) == 0 {
-		w.Free = append(w.Free, constraint.Test(Timespan{Start: w.Start, End: w.End})...)
+	var relevantBusyEntries []Timespan
+
+	for _, busy := range w.Busy {
+		// Check if the busy timespan is in the time interval we are viewing
+		if !timeInterval.Contains(busy) {
+			// If it isn't contained but does intersect we can inspect it further
+			if busy.IntersectsWith(timeInterval) {
+				busy := busy
+				if busy.Start.Before(timeInterval.Start) {
+					busy.Start = timeInterval.Start
+				} else {
+					busy.End = timeInterval.End
+				}
+			} else {
+				continue
+			}
+		}
+
+		relevantBusyEntries = append(relevantBusyEntries, busy)
+	}
+
+	if len(relevantBusyEntries) == 0 {
+		w.Free = append(w.Free, constraint.Test(Timespan{Start: timeInterval.Start, End: timeInterval.End})...)
 		for _, timespan := range w.Free {
 			w.FreeDuration += timespan.Duration()
 		}
 	}
 
-	for index, busy := range w.Busy {
+	for index, busy := range relevantBusyEntries {
 		if index == 0 {
-			if w.Start.Before(busy.Start) {
-				constrained := constraint.Test(Timespan{Start: w.Start, End: busy.Start})
+			if timeInterval.Start.Before(busy.Start) {
+				constrained := constraint.Test(Timespan{Start: timeInterval.Start, End: busy.Start})
 				for _, timespan := range constrained {
 					w.FreeDuration += timespan.Duration()
 				}
@@ -258,8 +279,8 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 			}
 		}
 
-		if index == len(w.Busy)-1 {
-			constrained := constraint.Test(Timespan{Start: busy.End, End: w.End})
+		if index == len(relevantBusyEntries)-1 {
+			constrained := constraint.Test(Timespan{Start: busy.End, End: timeInterval.End})
 			for _, timespan := range constrained {
 				w.FreeDuration += timespan.Duration()
 			}
@@ -267,14 +288,27 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint) []Timespan {
 			continue
 		}
 
-		constrained := constraint.Test(Timespan{Start: busy.End, End: w.Busy[index+1].Start})
+		constrained := constraint.Test(Timespan{Start: busy.End, End: relevantBusyEntries[index+1].Start})
 		for _, timespan := range constrained {
 			w.FreeDuration += timespan.Duration()
 		}
 		w.Free = append(w.Free, constrained...)
 	}
 
+	w.Free = MergeTimespans(w.Free)
+
+	sort.Slice(w.Free, func(i, j int) bool {
+		return absoluteOfDuration(w.Free[i].Start.Sub(target)) < absoluteOfDuration(w.Free[j].Start.Sub(target))
+	})
+
 	return w.Free
+}
+
+func absoluteOfDuration(duration time.Duration) time.Duration {
+	if duration < 0 {
+		return duration * -1
+	}
+	return duration
 }
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules

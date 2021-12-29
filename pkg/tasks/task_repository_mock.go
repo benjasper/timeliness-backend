@@ -30,7 +30,7 @@ func (m *MockTaskRepository) Add(_ context.Context, task *Task) error {
 }
 
 // Update updates a task
-func (m *MockTaskRepository) Update(_ context.Context, task *TaskUpdate, deleted bool) error {
+func (m *MockTaskRepository) Update(_ context.Context, task *Task, deleted bool) error {
 	taskObjectID := task.ID
 	userObjectID := task.UserID
 	for i, t := range m.Tasks {
@@ -80,41 +80,31 @@ func (m *MockTaskRepository) FindAllByWorkUnits(_ context.Context, _ string, _ i
 }
 
 // FindByID finds a task
-func (m *MockTaskRepository) FindByID(_ context.Context, taskID string, userID string, _ bool) (Task, error) {
+func (m *MockTaskRepository) FindByID(_ context.Context, taskID string, userID string, _ bool) (*Task, error) {
 	taskObjectID, _ := primitive.ObjectIDFromHex(taskID)
 	userObjectID, _ := primitive.ObjectIDFromHex(userID)
 	for _, t := range m.Tasks {
 		if t.ID == taskObjectID && (t.UserID == userObjectID || t.Collaborators.IncludesUser(userID)) {
-			return *t, nil
-		}
-	}
-
-	return Task{}, errors.New("no task found")
-}
-
-// FindByCalendarEventID finds a task by its calendar event ID
-func (m *MockTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*TaskUpdate, error) {
-	userObjectID, _ := primitive.ObjectIDFromHex(userID)
-	for _, t := range m.Tasks {
-		calendarEventDue := t.DueAt.CalendarEvents.FindByCalendarID(calendarEventID)
-		_, workUnit := t.WorkUnits.FindByCalendarID(calendarEventID)
-		if (calendarEventDue != nil && calendarEventDue.CalendarEventID == calendarEventID || workUnit != nil) &&
-			(t.UserID == userObjectID || t.Collaborators.IncludesUser(userID)) {
-			return (*TaskUpdate)(t), nil
+			return t, nil
 		}
 	}
 
 	return nil, errors.New("no task found")
 }
 
-// FindUpdatableByID finds a task
-func (m *MockTaskRepository) FindUpdatableByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*TaskUpdate, error) {
-	task, err := m.FindByID(ctx, taskID, userID, isDeleted)
-	if err != nil {
-		return nil, errors.New("no task found")
+// FindByCalendarEventID finds a task by its calendar event ID
+func (m *MockTaskRepository) FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*Task, error) {
+	userObjectID, _ := primitive.ObjectIDFromHex(userID)
+	for _, t := range m.Tasks {
+		calendarEventDue := t.DueAt.CalendarEvents.FindByCalendarID(calendarEventID)
+		_, workUnit := t.WorkUnits.FindByCalendarID(calendarEventID)
+		if (calendarEventDue != nil && calendarEventDue.CalendarEventID == calendarEventID || workUnit != nil) &&
+			(t.UserID == userObjectID || t.Collaborators.IncludesUser(userID)) {
+			return (*Task)(t), nil
+		}
 	}
 
-	return (*TaskUpdate)(&task), nil
+	return nil, errors.New("no task found")
 }
 
 // Delete deletes a task

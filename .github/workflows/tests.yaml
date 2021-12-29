@@ -29,7 +29,7 @@ jobs:
         run: go build -v -o timeliness_server ./cmd
 
       - name: Test services
-        run: go test -v ./...
+        run: go test -race -v ./...
 
   lint:
     name: Static Analysis
