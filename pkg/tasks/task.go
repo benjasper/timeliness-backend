@@ -45,6 +45,7 @@ type Task struct {
 	WorkUnits       WorkUnits      `json:"workUnits" bson:"workUnits"`
 }
 
+// Validate validates the task and checks the bounds of the fields
 func (t *Task) Validate() error {
 	if t.DueAt.Date.Start.Before(time.Now()) {
 		return errors.New("due date can't be in the past")
