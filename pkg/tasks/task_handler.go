@@ -235,11 +235,18 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 				task.IsDone = true
 			}
 		}
+
+		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem with calendar communication", err)
+			return
+		}
 	}
 
 	task.WorkUnits[index] = workUnit
 
-	err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, true)
+	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, &workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Problem with calendar communication", err)

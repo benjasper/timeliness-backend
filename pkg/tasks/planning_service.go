@@ -528,6 +528,33 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	return nil
 }
 
+func (s *PlanningService) UpdateWorkUnitTitle(ctx context.Context, task *Task, unit *WorkUnit) error {
+	unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
+
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	repositories := make(map[string]calendar.RepositoryInterface)
+
+	for _, user := range relevantUsers {
+		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		if err != nil {
+			return err
+		}
+
+		repositories[user.ID.Hex()] = repository
+
+		err = repository.UpdateEvent(&unit.ScheduledAt)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // DeleteTask deletes all events that are connected to a task
 func (s *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 	err := s.taskRepository.Delete(ctx, task.ID.Hex(), task.UserID.Hex())
