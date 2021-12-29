@@ -999,10 +999,13 @@ func Test_generateTimespansBasedOnTargetDate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			service := PlanningService{}
 			var result []date.Timespan
 
-			service := PlanningService{}
-			result = service.generateTimespansBasedOnTargetDate(tt.args.target, tt.args.window)
+			service.generateTimespansBasedOnTargetDate(tt.args.target, tt.args.window, func(timespans []date.Timespan) bool {
+				result = append(result, timespans...)
+				return false
+			})
 
 			for _, timespan := range result {
 				if !timespan.IsStartBeforeEnd() {

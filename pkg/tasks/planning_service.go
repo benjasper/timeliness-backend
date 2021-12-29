@@ -883,33 +883,38 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 
 // computeAvailabilityForTimeWindow traverses the given time interval by two weeks and returns when it found enough free time or traversed the whole interval
 func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint) (*date.TimeWindow, error) {
-	for _, timespan := range s.generateTimespansBasedOnTargetDate(target, window) {
-		wg := errgroup.Group{}
+	s.generateTimespansBasedOnTargetDate(target, window, func(timespans []date.Timespan) bool {
+		for _, timespan := range timespans {
+			wg := errgroup.Group{}
 
-		for _, repository := range repositories {
-			repository := repository
+			for _, repository := range repositories {
+				repository := repository
 
-			wg.Go(func() error {
-				err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
-				if err != nil {
-					return errors.Wrap(err, "problem while adding busy time to window")
-				}
+				wg.Go(func() error {
+					err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
+					if err != nil {
+						return errors.Wrap(err, "problem while adding busy time to window")
+					}
 
-				return nil
-			})
+					return nil
+				})
+			}
+
+			err := wg.Wait()
+			if err != nil {
+				s.logger.Error("problem while adding busy time to window", err)
+				return true
+			}
+
+			window.ComputeFree(constraint, target, timespan)
+
+			if window.FreeDuration >= timeToSchedule {
+				return true
+			}
 		}
 
-		err := wg.Wait()
-		if err != nil {
-			return nil, err
-		}
-
-		window.ComputeFree(constraint, target, timespan)
-
-		if window.FreeDuration >= timeToSchedule {
-			return window, nil
-		}
-	}
+		return false
+	})
 
 	return window, nil
 }
@@ -923,9 +928,8 @@ func absoluteOfDuration(duration time.Duration) time.Duration {
 }
 
 // generateTimespansBasedOnTargetDate generates a list of timespans based on a target date and expands the list from the target date outwards
-func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, window *date.TimeWindow) []date.Timespan {
-	var timespans []date.Timespan
-
+// the yieldFunc is called for each generated timespan and should return true if it should stop generating timespans
+func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, window *date.TimeWindow, yieldFunc func(timespans []date.Timespan) bool) {
 	leftBoundDone := false
 	rightBoundDone := false
 
@@ -943,12 +947,19 @@ func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, w
 		rightBoundDone = true
 	}
 
-	timespans = append(timespans, date.Timespan{
-		Start: leftPointer,
-		End:   rightPointer,
+	stop := yieldFunc([]date.Timespan{
+		{
+			Start: leftPointer,
+			End:   rightPointer,
+		},
 	})
+	if stop {
+		return
+	}
 
 	for !leftBoundDone || !rightBoundDone {
+		var newTimespans []date.Timespan
+
 		if !leftBoundDone {
 			lastLeftPointer := leftPointer
 			// TODO Check the time on these to prevent cutting into free time
@@ -959,7 +970,7 @@ func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, w
 				leftBoundDone = true
 			}
 
-			timespans = append(timespans, date.Timespan{
+			newTimespans = append(newTimespans, date.Timespan{
 				Start: leftPointer,
 				End:   lastLeftPointer,
 			})
@@ -975,14 +986,17 @@ func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, w
 				rightBoundDone = true
 			}
 
-			timespans = append(timespans, date.Timespan{
+			newTimespans = append(newTimespans, date.Timespan{
 				Start: lastRightPointer,
 				End:   rightPointer,
 			})
 		}
-	}
 
-	return timespans
+		stop = yieldFunc(newTimespans)
+		if stop {
+			return
+		}
+	}
 }
 
 func (s *PlanningService) getTargetTimeForUser(user *users.User, window *date.TimeWindow, workloadToSchedule time.Duration) time.Time {
