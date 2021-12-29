@@ -528,6 +528,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	return nil
 }
 
+// UpdateWorkUnitTitle updates the event title of a work unit
 func (s *PlanningService) UpdateWorkUnitTitle(ctx context.Context, task *Task, unit *WorkUnit) error {
 	unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
 
