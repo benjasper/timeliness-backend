@@ -198,7 +198,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 			var workEvent *calendar.Event
 			for _, user := range relevantUsers {
-				workEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt)
+				workEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex())
 				if err != nil {
 					return nil, err
 				}
@@ -272,7 +272,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 
 		for _, user := range relevantUsers {
 			for _, unit := range shouldUpdate {
-				err = taskCalendarRepositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt)
+				err = taskCalendarRepositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, t.ID.Hex())
 				if err != nil {
 					return nil, err
 				}
@@ -291,7 +291,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 			if persistedEvent := t.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
 				continue
 			}
-			dueEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&t.DueAt)
+			dueEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&t.DueAt, t.ID.Hex())
 			if err != nil {
 				return nil, err
 			}
@@ -408,7 +408,7 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 		var workEvent *calendar.Event
 		for _, user := range relevantUsers {
-			workEvent, err = repositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt)
+			workEvent, err = repositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex())
 			if err != nil {
 				return nil, err
 			}
@@ -477,7 +477,7 @@ func (s *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 			return err
 		}
 
-		err = repository.UpdateEvent(event)
+		err = repository.UpdateEvent(event, task.ID.Hex())
 		if err != nil {
 			return err
 		}
@@ -505,7 +505,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 
 		repositories[user.ID.Hex()] = repository
 
-		err = repository.UpdateEvent(&task.DueAt)
+		err = repository.UpdateEvent(&task.DueAt, task.ID.Hex())
 		if err != nil {
 			return err
 		}
@@ -519,7 +519,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 		unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
 
 		for _, user := range relevantUsers {
-			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt)
+			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, task.ID.Hex())
 			if err != nil {
 				return err
 			}
@@ -548,7 +548,7 @@ func (s *PlanningService) UpdateWorkUnitTitle(ctx context.Context, task *Task, u
 
 		repositories[user.ID.Hex()] = repository
 
-		err = repository.UpdateEvent(&unit.ScheduledAt)
+		err = repository.UpdateEvent(&unit.ScheduledAt, task.ID.Hex())
 		if err != nil {
 			return err
 		}
@@ -848,7 +848,7 @@ func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Ta
 					// Try the other action
 				}
 
-				err = calendarRepository.UpdateEvent(&task.WorkUnits[i-1].ScheduledAt)
+				err = calendarRepository.UpdateEvent(&task.WorkUnits[i-1].ScheduledAt, task.ID.Hex())
 				if err != nil {
 					s.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
 					continue
@@ -885,7 +885,7 @@ func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 			continue
 		}
 
-		err = calendarRepository.UpdateEvent(event)
+		err = calendarRepository.UpdateEvent(event, task.ID.Hex())
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
 			continue

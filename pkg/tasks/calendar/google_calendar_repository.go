@@ -186,8 +186,8 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 }
 
 // NewEvent creates a new Event in Google Calendar
-func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
-	googleEvent := c.createGoogleEvent(event)
+func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string) (*Event, error) {
+	googleEvent := c.createGoogleEvent(event, taskID)
 
 	createdEvent, err := c.Service.Events.Insert(c.connection.TaskCalendarID, googleEvent).Do()
 	if err != nil {
@@ -206,8 +206,8 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event) (*Event, error) {
 }
 
 // UpdateEvent updates an existing Google Calendar event
-func (c *GoogleCalendarRepository) UpdateEvent(event *Event) error {
-	googleEvent := c.createGoogleEvent(event)
+func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string) error {
+	googleEvent := c.createGoogleEvent(event, taskID)
 
 	calendarEvent := event.CalendarEvents.FindByUserID(c.userID.Hex())
 
@@ -470,7 +470,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	*userChannel <- user
 }
 
-func (c *GoogleCalendarRepository) createGoogleEvent(event *Event) *gcalendar.Event {
+func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
 		DateTime: event.Date.Start.Format(time.RFC3339),
 	}
@@ -484,7 +484,9 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event) *gcalendar.Ev
 		transparency = "transparent"
 	}
 
-	source := gcalendar.EventSource{Title: "Timeliness", Url: "https://timeliness.app"}
+	frontendURL := os.Getenv("FRONTEND_URL")
+
+	source := gcalendar.EventSource{Title: "Timeliness", Url: fmt.Sprintf("%s/dashboard/task/%s", frontendURL, taskID)}
 
 	googleEvent := gcalendar.Event{
 		Start:        &start,

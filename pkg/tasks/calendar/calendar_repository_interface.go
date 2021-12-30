@@ -9,11 +9,11 @@ import (
 // RepositoryInterface is an interface for every calendar implementation e.g. Google Calendar, Microsoft Calendar,...
 type RepositoryInterface interface {
 	GetAllCalendarsOfInterest() (map[string]*Calendar, error)
-	NewEvent(event *Event) (*Event, error)
+	NewEvent(event *Event, taskID string) (*Event, error)
 	TestTaskCalendarExistence(*users.User) (*users.User, error)
 
 	// UpdateEvent updates an event in a calendar, make sure to persist changes to the event before calling this method
-	UpdateEvent(event *Event) error
+	UpdateEvent(event *Event, taskID string) error
 
 	// DeleteEvent deletes an event in a calendar, make sure to persist the deletion of the event before calling this method
 	DeleteEvent(event *Event) error
