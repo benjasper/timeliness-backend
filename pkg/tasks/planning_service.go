@@ -221,7 +221,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		var workUnits = WorkUnits{}
 		for index := len(t.WorkUnits) - 1; index >= 0; index-- {
 			if index < 0 {
-				return nil, errors.New("workload can't be less than all not done workunits combined")
+				return nil, errors.New("workload can't be less than all not done work units combined")
 			}
 
 			unit := t.WorkUnits[index]
@@ -342,7 +342,7 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
 
-	relevantUsers, err := s.getAllRelevantUsers(ctx, (*Task)(t))
+	relevantUsers, err := s.getAllRelevantUsers(ctx, t)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +403,7 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	for _, workUnit := range s.findWorkUnitTimes(windowTotal, workloadToSchedule) {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle((*Task)(t))
+		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t)
 		workUnit.ScheduledAt.Description = ""
 
 		var workEvent *calendar.Event
@@ -684,7 +684,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 		// If the event is deleted we delete the task
 		if event.Deleted {
-			err := s.DeleteTask(ctx, (*Task)(task))
+			err := s.DeleteTask(ctx, task)
 			if err != nil {
 				s.logger.Error("problem with deleting task", err)
 				return
@@ -694,9 +694,9 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 		// If the event is not deleted, we update the task
 		task.DueAt.Date = event.Date
-		err = s.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &task.DueAt)
+		err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &task.DueAt)
 		if err != nil {
-			s.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("problem updating other collaborators workUnit event %s", task.ID.Hex()), err)
 			return
 		}
 
@@ -725,21 +725,21 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	index, workunit := task.WorkUnits.FindByCalendarID(calendarEvent.CalendarEventID)
-	if workunit == nil {
+	index, workUnit := task.WorkUnits.FindByCalendarID(calendarEvent.CalendarEventID)
+	if workUnit == nil {
 		s.logger.Error("event not found", errors.Errorf("could not find work unit for calendar event %s", calendarEvent.CalendarEventID))
 		return
 	}
 
-	if workunit.ScheduledAt.Date.Start == event.Date.Start && workunit.ScheduledAt.Date.End == event.Date.End {
+	if workUnit.ScheduledAt.Date.Start == event.Date.Start && workUnit.ScheduledAt.Date.End == event.Date.End {
 		return
 	}
 
-	task.WorkloadOverall -= workunit.Workload
+	task.WorkloadOverall -= workUnit.Workload
 
 	// If the event is deleted we delete the work unit
 	if event.Deleted {
-		relevantUsers, err := s.getAllRelevantUsers(ctx, (*Task)(task))
+		relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("could not get all relevant users for task %s", task.ID.Hex()), err)
 			return
@@ -758,7 +758,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 				continue
 			}
 
-			err = calendarRepository.DeleteEvent(&workunit.ScheduledAt)
+			err = calendarRepository.DeleteEvent(&workUnit.ScheduledAt)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("could not delete event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
 				continue
@@ -776,21 +776,21 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	}
 
 	// If the work unit event is not deleted, we update the work unit
-	workunit.ScheduledAt.Date = event.Date
-	err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &workunit.ScheduledAt)
+	workUnit.ScheduledAt.Date = event.Date
+	err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &workUnit.ScheduledAt)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
+		s.logger.Error(fmt.Sprintf("problem updating other collaborators workUnit event %s", task.ID.Hex()), err)
 		// We don't return here, because we still need to update the task
 	}
 
-	workunit.Workload = workunit.ScheduledAt.Date.Duration()
+	workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
 
-	task.WorkloadOverall += workunit.Workload
+	task.WorkloadOverall += workUnit.Workload
 
-	task.WorkUnits[index] = *workunit
+	task.WorkUnits[index] = *workUnit
 
 	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
-	task.WorkUnits = task.WorkUnits.Add(workunit)
+	task.WorkUnits = task.WorkUnits.Add(workUnit)
 
 	task = s.checkForMergingWorkUnits(ctx, task)
 
@@ -939,7 +939,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 				continue
 			}
 
-			intersection.Task = Task(*updatedTask)
+			intersection.Task = *updatedTask
 		}
 	}
 
@@ -1098,7 +1098,11 @@ func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, w
 
 func (s *PlanningService) getTargetTimeForUser(user *users.User, window *date.TimeWindow, workloadToSchedule time.Duration) time.Time {
 	if window.End.Before(now().Add(time.Hour * 24 * 2)) {
-		return window.Start
+		if window.End.Before(now().Add(time.Hour * 24)) {
+			return window.Start
+		}
+
+		return window.Start.Add(time.Hour * 2)
 	}
 
 	switch user.Settings.Scheduling.TimingPreference {
