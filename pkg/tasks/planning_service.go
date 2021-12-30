@@ -805,11 +805,11 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 // checkForMergingWorkUnits looks for work units that are scheduled right after one another and merges them
 func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Task) *Task {
-	lastDate := time.Time{}
+	lastDate := date.Timespan{}
 	var relevantUsers []*users.User
 
 	for i, unit := range task.WorkUnits {
-		if unit.ScheduledAt.Date.Start == lastDate {
+		if unit.ScheduledAt.Date.IntersectsWith(lastDate) || unit.ScheduledAt.Date.Start.Equal(lastDate.End) {
 			if len(relevantUsers) == 0 {
 				relevantUsers, _ = s.getAllRelevantUsers(ctx, task)
 			}
@@ -820,12 +820,20 @@ func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Ta
 			}
 
 			// In case the users consent on no busy padding we don't want to merge them because this could be wanted behaviour
-			if spacing == 0 {
+			if unit.ScheduledAt.Date.Start.Equal(lastDate.End) && spacing == 0 {
 				return task
 			}
 
+			// Reduce of both work units
+			task.WorkloadOverall -= unit.Workload
+			task.WorkloadOverall -= task.WorkUnits[i-1].Workload
+
+			// Recalculate the workload of the merged work unit, based on the new end date
 			task.WorkUnits[i-1].ScheduledAt.Date.End = unit.ScheduledAt.Date.End
-			task.WorkUnits[i-1].Workload += unit.Workload
+			task.WorkUnits[i-1].Workload = task.WorkUnits[i-1].ScheduledAt.Date.Duration()
+
+			// Reapply the workload of the merged work unit
+			task.WorkloadOverall += task.WorkUnits[i-1].Workload
 
 			for _, user := range relevantUsers {
 				calendarRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
@@ -853,7 +861,7 @@ func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Ta
 			break
 		}
 
-		lastDate = unit.ScheduledAt.Date.End
+		lastDate = unit.ScheduledAt.Date
 	}
 
 	return task
