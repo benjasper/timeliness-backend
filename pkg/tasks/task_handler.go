@@ -61,15 +61,6 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), &task)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with creating calendar events", err)
-		return
-	}
-
-	task = *scheduledTask
-
 	err = handler.TaskRepository.Add(request.Context(), &task)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
@@ -77,7 +68,20 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, &task)
+	scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), &task)
+	if err != nil {
+		err = handler.TaskRepository.Delete(request.Context(), task.ID.Hex(), userID.Hex())
+		if err != nil {
+			handler.Logger.Error("Error while deleting task", err)
+			return
+		}
+
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with creating calendar events", err)
+		return
+	}
+
+	handler.ResponseManager.Respond(writer, &scheduledTask)
 }
 
 // TaskUpdate is the route for updating a Task
@@ -108,7 +112,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 	// If the tasks' workload was changed or if we have unscheduled time we want to schedule the task
 	if original.WorkloadOverall != task.WorkloadOverall || task.NotScheduled > 0 {
-		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), (*Task)(task))
+		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), task)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem scheduling task", err)
@@ -121,7 +125,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.DueAt.Date != task.DueAt.Date {
 		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
 
-		err := handler.PlanningService.UpdateEvent(request.Context(), (*Task)(task), &task.DueAt)
+		err := handler.PlanningService.UpdateEvent(request.Context(), task, &task.DueAt)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating the task", err)
@@ -153,7 +157,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.Name != task.Name {
-		err = handler.PlanningService.UpdateTaskTitle(request.Context(), (*Task)(task), true)
+		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, true)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating event", err)
@@ -167,7 +171,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	returnTask := Task(*task)
+	returnTask := *task
 
 	handler.ResponseManager.Respond(writer, &returnTask)
 }
@@ -259,7 +263,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, Task(*task))
+	handler.ResponseManager.Respond(writer, *task)
 }
 
 // TaskDelete deletes a task
@@ -688,5 +692,5 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, Task(*task))
+	handler.ResponseManager.Respond(writer, *task)
 }
