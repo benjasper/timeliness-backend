@@ -9,6 +9,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/sync/errgroup"
 	"sync"
 	"time"
@@ -645,7 +646,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			s.lookForUnscheduledTasks(ctx, userID)
 			return
 		}
-		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, "")
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, nil)
 		s.lookForUnscheduledTasks(ctx, userID)
 
 		return
@@ -776,7 +777,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	// If the work unit event is not deleted, we update the work unit
 	workunit.ScheduledAt.Date = event.Date
-	err = s.updateCalendarEventForOtherCollaborators(ctx, (*Task)(task), userID, &workunit.ScheduledAt)
+	err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &workunit.ScheduledAt)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("problem updating other collaborators workunit event %s", task.ID.Hex()), err)
 		// We don't return here, because we still need to update the task
@@ -791,11 +792,71 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
 	task.WorkUnits = task.WorkUnits.Add(workunit)
 
+	task = s.checkForMergingWorkUnits(ctx, task)
+
 	err = s.taskRepository.Update(ctx, task, false)
 	if err != nil {
 		s.logger.Error("problem with updating task", err)
 		return
 	}
+
+	_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &task.ID)
+}
+
+// checkForMergingWorkUnits looks for work units that are scheduled right after one another and merges them
+func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Task) *Task {
+	lastDate := time.Time{}
+	var relevantUsers []*users.User
+
+	for i, unit := range task.WorkUnits {
+		if unit.ScheduledAt.Date.Start == lastDate {
+			if len(relevantUsers) == 0 {
+				relevantUsers, _ = s.getAllRelevantUsers(ctx, task)
+			}
+
+			var spacing time.Duration
+			for _, user := range relevantUsers {
+				spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
+			}
+
+			// In case the users consent on no busy padding we don't want to merge them because this could be wanted behaviour
+			if spacing == 0 {
+				return task
+			}
+
+			task.WorkUnits[i-1].ScheduledAt.Date.End = unit.ScheduledAt.Date.End
+			task.WorkUnits[i-1].Workload += unit.Workload
+
+			for _, user := range relevantUsers {
+				calendarRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+				if err != nil {
+					s.logger.Error(fmt.Sprintf("could not get calendar repository for user %s", user.ID.Hex()), err)
+					continue
+				}
+
+				err = calendarRepository.DeleteEvent(&unit.ScheduledAt)
+				if err != nil {
+					s.logger.Error(fmt.Sprintf("could not delete event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
+					// Try the other action
+				}
+
+				err = calendarRepository.UpdateEvent(&task.WorkUnits[i-1].ScheduledAt)
+				if err != nil {
+					s.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
+					continue
+				}
+			}
+
+			task.WorkUnits = task.WorkUnits.RemoveByIndex(i)
+
+			// We only want to merge one work unit max
+			break
+		}
+
+		lastDate = unit.ScheduledAt.Date.End
+	}
+
+	return task
 }
 
 func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.Context, task *Task, userID string, event *calendar.Event) error {
@@ -827,8 +888,8 @@ func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 }
 
 // checkForIntersectingWorkUnits checks if the given work unit or event intersects with any other work unit
-func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, workUnitID string) int {
-	intersectingTasks, err := s.taskRepository.FindIntersectingWithEvent(ctx, userID, event, workUnitID, false)
+func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, ignoreTaskID *primitive.ObjectID) int {
+	intersectingTasks, err := s.taskRepository.FindIntersectingWithEvent(ctx, userID, event, ignoreTaskID, false)
 	if err != nil {
 		s.logger.Error("problem while trying to find tasks intersecting with an event", err)
 		return 0
