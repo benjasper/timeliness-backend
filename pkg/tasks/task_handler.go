@@ -734,6 +734,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	handler.ResponseManager.Respond(writer, response)
 }
 
+// OptionalTimespans is the optional body for a rescheduling post request
 type OptionalTimespans struct {
 	chosenTimespans []date.Timespan
 }
@@ -818,6 +819,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		if len(requestBody.chosenTimespans) > 1 {
 			task, err = handler.PlanningService.CreateNewSpecificWorkUnits(request.Context(), task, requestBody.chosenTimespans[1:])
 			if err != nil {
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't create new work units", err)
 				return
 			}
 		}

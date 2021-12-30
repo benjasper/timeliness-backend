@@ -18,11 +18,11 @@ import (
 // now is the current time and is globally available to override it in tests
 var now = time.Now
 
-// WORK_UNIT_DURATION_MIN is the minimum duration of a work unit
-const WORK_UNIT_DURATION_MIN = time.Hour * 2
+// WorkUnitDurationMin is the minimum duration of a work unit
+const WorkUnitDurationMin = time.Hour * 2
 
-// WORK_UNIT_DURATION_MAX is the maximum duration of a work unit
-const WORK_UNIT_DURATION_MAX = time.Hour * 6
+// WorkUnitDurationMax is the maximum duration of a work unit
+const WorkUnitDurationMax = time.Hour * 6
 
 // The PlanningService combines the calendar and task implementations
 type PlanningService struct {
@@ -499,11 +499,11 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 	if durationToFind < 1*time.Hour {
 		minDuration = durationToFind
 	}
-	maxDuration := WORK_UNIT_DURATION_MAX
+	maxDuration := WorkUnitDurationMax
 
 	for w.FreeDuration >= 0 && durationToFind > 0 {
-		if durationToFind < WORK_UNIT_DURATION_MAX {
-			if durationToFind < WORK_UNIT_DURATION_MIN {
+		if durationToFind < WorkUnitDurationMax {
+			if durationToFind < WorkUnitDurationMin {
 				minDuration = durationToFind
 			}
 			maxDuration = durationToFind
@@ -535,13 +535,13 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 		if durationToFind < 1*time.Hour {
 			minDuration = durationToFind
 		}
-		maxDuration := WORK_UNIT_DURATION_MAX
+		maxDuration := WorkUnitDurationMax
 
 		timespanGroup := make([]date.Timespan, 0)
 
 		for w.FreeDuration >= 0 && durationToFind > 0 {
-			if durationToFind < WORK_UNIT_DURATION_MAX {
-				if durationToFind < WORK_UNIT_DURATION_MIN {
+			if durationToFind < WorkUnitDurationMax {
+				if durationToFind < WorkUnitDurationMin {
 					minDuration = durationToFind
 				}
 				maxDuration = durationToFind
