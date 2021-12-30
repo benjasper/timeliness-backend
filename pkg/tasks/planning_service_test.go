@@ -360,7 +360,7 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 					}
 				}
 
-				scheduledTask, err := service.ScheduleTask(ctx, &tt.task)
+				scheduledTask, err := service.ScheduleTask(ctx, &tt.task, false)
 				if err != nil {
 					t.Error(err)
 				}

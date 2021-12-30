@@ -18,6 +18,12 @@ import (
 // now is the current time and is globally available to override it in tests
 var now = time.Now
 
+// WORK_UNIT_DURATION_MIN is the minimum duration of a work unit
+const WORK_UNIT_DURATION_MIN = time.Hour * 2
+
+// WORK_UNIT_DURATION_MAX is the maximum duration of a work unit
+const WORK_UNIT_DURATION_MAX = time.Hour * 6
+
 // The PlanningService combines the calendar and task implementations
 type PlanningService struct {
 	userRepository            users.UserRepositoryInterface
@@ -92,6 +98,28 @@ func (s *PlanningService) getAllRelevantUsersWithOwner(ctx context.Context, task
 	return relevantUsers, nil
 }
 
+func (s *PlanningService) initializeTimeWindow(task *Task, relevantUsers []*users.User) (*date.TimeWindow, *date.FreeConstraint, error) {
+	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
+	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
+	constraint := &date.FreeConstraint{
+		Location:         location,
+		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
+	}
+
+	var spacing time.Duration
+	for _, user := range relevantUsers {
+		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
+	}
+
+	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+	return &date.TimeWindow{Start: nowRound.UTC(), End: task.DueAt.Date.Start.UTC(), BusyPadding: spacing}, constraint, nil
+}
+
 func (s *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) ([]*users.User, error) {
 	var initializeWithOwner *users.User
 
@@ -112,8 +140,8 @@ func maxDuration(a, b time.Duration) time.Duration {
 
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
 // and pushes or removes events to and from the calendar
-func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, error) {
-	if !t.ID.IsZero() {
+func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bool) (*Task, error) {
+	if !t.ID.IsZero() && withLock == true {
 		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
 		if err != nil {
 			return nil, err
@@ -132,25 +160,10 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 		return nil, err
 	}
 
-	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
-	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
+	windowTotal, constraint, err := s.initializeTimeWindow(t, relevantUsers)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
-	constraint := &date.FreeConstraint{
-		Location:         location,
-		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
-	}
-
-	var spacing time.Duration
-	for _, user := range relevantUsers {
-		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
-	}
-
-	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := &date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
 
 	workloadToSchedule := t.WorkloadOverall
 	for _, unit := range t.WorkUnits {
@@ -310,24 +323,21 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 }
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *WorkUnit) (*Task, error) {
-	lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
-	if err != nil {
-		return nil, err
+func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *WorkUnit, withLock bool) (*Task, error) {
+	if withLock == true {
+		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
+		if err != nil {
+			return nil, err
+		}
+
+		defer func(lock locking.LockInterface, ctx context.Context) {
+			err := lock.Release(ctx)
+			if err != nil {
+				s.logger.Error("problem releasing lock", err)
+			}
+		}(lock, ctx)
 	}
 
-	defer func(lock locking.LockInterface, ctx context.Context) {
-		err := lock.Release(ctx)
-		if err != nil {
-			s.logger.Error("problem releasing lock", err)
-		}
-	}(lock, ctx)
-
-	return s.rescheduleWorkUnitWithoutLock(ctx, t, w)
-}
-
-// rescheduleWorkUnitWithoutLock takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *Task, w *WorkUnit) (*Task, error) {
 	// Refresh task, after potential change
 	t, err := s.taskRepository.FindByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
 	if err != nil {
@@ -344,25 +354,10 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 		return nil, err
 	}
 
-	// TODO: This is random(first user) for now, this has to be changed when multi user support is implemented
-	location, err := time.LoadLocation(relevantUsers[0].Settings.Scheduling.TimeZone)
+	windowTotal, constraint, err := s.initializeTimeWindow(t, relevantUsers)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO merge these? or only take owners constraints?; Also move this into its own function, so we can called it when needed
-	constraint := &date.FreeConstraint{
-		Location:         location,
-		AllowedTimeSpans: relevantUsers[0].Settings.Scheduling.AllowedTimespans,
-	}
-
-	var spacing time.Duration
-	for _, user := range relevantUsers {
-		spacing = maxDuration(user.Settings.Scheduling.BusyTimeSpacing, spacing)
-	}
-
-	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	windowTotal := &date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
 
 	taskRepositories := make(map[string]calendar.RepositoryInterface)
 	var availabilityRepositories []calendar.RepositoryInterface
@@ -450,6 +445,50 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 	return t, nil
 }
 
+// SuggestTimespansForWorkUnit returns a list of timespans that can be used to reschedule a work unit
+func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Task, w *WorkUnit) ([][]date.Timespan, error) {
+	relevantUsers, err := s.getAllRelevantUsers(ctx, t)
+	if err != nil {
+		return nil, err
+	}
+
+	windowTotal, constraint, err := s.initializeTimeWindow(t, relevantUsers)
+	if err != nil {
+		return nil, err
+	}
+
+	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)
+	var availabilityRepositories []calendar.RepositoryInterface
+
+	// TODO make this parallel
+	for _, user := range relevantUsers {
+		taskRepository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		if err != nil {
+			return nil, err
+		}
+
+		taskCalendarRepositories[user.ID.Hex()] = taskRepository
+
+		// Repositories for availability
+		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		if err != nil {
+			return nil, err
+		}
+
+		availabilityRepositories = append(availabilityRepositories, availabilityRepositoriesForUser...)
+	}
+
+	var iterations time.Duration = 5
+
+	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.findWorkUnitTimesForExactWorkload(windowTotal, w.Workload, int(iterations)), nil
+}
+
 func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration) WorkUnits {
 	var workUnits WorkUnits
 	if w.FreeDuration == 0 {
@@ -460,11 +499,11 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 	if durationToFind < 1*time.Hour {
 		minDuration = durationToFind
 	}
-	maxDuration := 6 * time.Hour
+	maxDuration := WORK_UNIT_DURATION_MAX
 
 	for w.FreeDuration >= 0 && durationToFind > 0 {
-		if durationToFind < 6*time.Hour {
-			if durationToFind < 2*time.Hour {
+		if durationToFind < WORK_UNIT_DURATION_MAX {
+			if durationToFind < WORK_UNIT_DURATION_MIN {
 				minDuration = durationToFind
 			}
 			maxDuration = durationToFind
@@ -480,6 +519,92 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 	}
 
 	return workUnits
+}
+
+func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, durationToFindPerIteration time.Duration, iterations int) [][]date.Timespan {
+	var timespanGroups [][]date.Timespan
+
+	if w.FreeDuration == 0 || w.FreeDuration < durationToFindPerIteration {
+		return timespanGroups
+	}
+
+	for i := 0; i < iterations; i++ {
+		durationToFind := durationToFindPerIteration
+
+		minDuration := 1 * time.Hour
+		if durationToFind < 1*time.Hour {
+			minDuration = durationToFind
+		}
+		maxDuration := WORK_UNIT_DURATION_MAX
+
+		timespanGroup := make([]date.Timespan, 0)
+
+		for w.FreeDuration >= 0 && durationToFind > 0 {
+			if durationToFind < WORK_UNIT_DURATION_MAX {
+				if durationToFind < WORK_UNIT_DURATION_MIN {
+					minDuration = durationToFind
+				}
+				maxDuration = durationToFind
+			}
+
+			var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
+			slot := w.FindTimeSlot(&rules)
+			if slot == nil {
+				break
+			}
+			durationToFind -= slot.Duration()
+
+			timespanGroup = append(timespanGroup, *slot)
+		}
+
+		if durationToFind != 0 {
+			break
+		}
+
+		timespanGroups = append(timespanGroups, timespanGroup)
+	}
+
+	return timespanGroups
+}
+
+// CreateNewSpecificWorkUnits creates new work units for a specific task and times (won't save the task)
+func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *Task, timespans []date.Timespan) (*Task, error) {
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, user := range relevantUsers {
+		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, timespan := range timespans {
+			workUnit := WorkUnit{
+				ID:       primitive.NewObjectID(),
+				Workload: timespan.Duration(),
+				ScheduledAt: calendar.Event{
+					Title:    s.taskTextRenderer.RenderWorkUnitEventTitle(task),
+					Blocking: true,
+					Date:     timespan,
+				},
+			}
+
+			event, err := repository.NewEvent(&workUnit.ScheduledAt, task.ID.Hex())
+			if err != nil {
+				return nil, err
+			}
+
+			workUnit.ScheduledAt = *event
+
+			task.WorkloadOverall += workUnit.Workload
+			task.WorkUnits.Add(&workUnit)
+		}
+
+	}
+
+	return task, nil
 }
 
 // UpdateEvent updates an any calendar event
@@ -733,7 +858,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		}
 
 		for _, unit := range toReschedule {
-			task, err = s.rescheduleWorkUnitWithoutLock(ctx, task, &unit)
+			task, err = s.RescheduleWorkUnit(ctx, task, &unit, false)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
 				return
@@ -949,7 +1074,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 
 	for _, intersection := range intersections {
 		for i, unit := range intersection.IntersectingWorkUnits {
-			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit)
+			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit, true)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf(
 					"Could not reschedule work unit %d for task %s",
@@ -988,7 +1113,7 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 	}
 
 	for _, task := range tasks {
-		_, err := s.ScheduleTask(ctx, &task)
+		_, err := s.ScheduleTask(ctx, &task, true)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("problem scheduling task %s", task.ID.Hex()), errors.Wrap(err, "problem scheduling task while looking for unscheduled tasks"))
 			return

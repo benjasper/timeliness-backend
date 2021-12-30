@@ -1,12 +1,16 @@
 package tasks
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
+	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -21,6 +25,7 @@ type Handler struct {
 	TaskRepository  TaskRepositoryInterface
 	UserRepository  users.UserRepositoryInterface
 	Logger          logger.Interface
+	Locker          locking.LockerInterface
 	ResponseManager *communication.ResponseManager
 	PlanningService *PlanningService
 }
@@ -68,7 +73,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), &task)
+	scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), &task, false)
 	if err != nil {
 		err = handler.TaskRepository.Delete(request.Context(), task.ID.Hex(), userID.Hex())
 		if err != nil {
@@ -88,6 +93,26 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
+
+	isValid := primitive.IsValidObjectID(taskID)
+	if !isValid {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		return
+	}
+
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		return
+	}
+
+	defer func(lock locking.LockInterface, ctx context.Context) {
+		err := lock.Release(ctx)
+		if err != nil {
+			handler.Logger.Error("problem releasing lock", err)
+		}
+	}(lock, request.Context())
 
 	original, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
@@ -112,7 +137,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 	// If the tasks' workload was changed or if we have unscheduled time we want to schedule the task
 	if original.WorkloadOverall != task.WorkloadOverall || task.NotScheduled > 0 {
-		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), task)
+		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem scheduling task", err)
@@ -141,7 +166,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		}
 
 		for _, unit := range toReschedule {
-			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit)
+			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit, false)
 			if err != nil {
 				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 					fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
@@ -187,6 +212,26 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
+	isValid := primitive.IsValidObjectID(taskID)
+	if !isValid {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		return
+	}
+
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		return
+	}
+
+	defer func(lock locking.LockInterface, ctx context.Context) {
+		err := lock.Release(ctx)
+		if err != nil {
+			handler.Logger.Error("problem releasing lock", err)
+		}
+	}(lock, request.Context())
+
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
@@ -206,22 +251,33 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	if workUnit.ScheduledAt.Date != original.ScheduledAt.Date {
-		// TODO Update the event of the work unit
-
-		workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
-	}
-
-	if workUnit.ScheduledAt.Date == original.ScheduledAt.Date && workUnit.Workload != original.Workload {
-		// TODO Reschedule this work unit
-	}
-
 	if workUnit.Workload != original.Workload {
+		// TODO Reschedule this work unit
 		task.WorkloadOverall -= original.Workload
 		task.WorkloadOverall += workUnit.Workload
+
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify workload", errors.New("Not supported"))
+		return
 	}
 
+	if workUnit.ScheduledAt.Date != original.ScheduledAt.Date {
+		if original.Workload != workUnit.ScheduledAt.Date.Duration() {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify workload", errors.New("Not supported"))
+			return
+		}
+
+		err = handler.PlanningService.UpdateEvent(request.Context(), task, &workUnit.ScheduledAt)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem updating the task", err)
+			return
+		}
+	}
+
+	shouldUpdateTitle := false
+
 	if original.IsDone != workUnit.IsDone {
+		shouldUpdateTitle = true
 		if !workUnit.IsDone {
 			if original.IsDone {
 				task.IsDone = false
@@ -250,11 +306,13 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	task.WorkUnits[index] = workUnit
 
-	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, &workUnit)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
-		return
+	if shouldUpdateTitle {
+		err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, &workUnit)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem with calendar communication", err)
+			return
+		}
 	}
 
 	err = handler.TaskRepository.Update(request.Context(), task, false)
@@ -270,6 +328,26 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
+
+	isValid := primitive.IsValidObjectID(taskID)
+	if !isValid {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		return
+	}
+
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		return
+	}
+
+	defer func(lock locking.LockInterface, ctx context.Context) {
+		err := lock.Release(ctx)
+		if err != nil {
+			handler.Logger.Error("problem releasing lock", err)
+		}
+	}(lock, request.Context())
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
@@ -656,8 +734,112 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	handler.ResponseManager.Respond(writer, response)
 }
 
-// RescheduleWorkUnit is the endpoint implementation for rescheduling workunits
-func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *http.Request) {
+type OptionalTimespans struct {
+	chosenTimespans []date.Timespan
+}
+
+// RescheduleWorkUnitPost is the endpoint implementation for rescheduling workunits
+func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+	indexString := mux.Vars(request)["index"]
+	index, err := strconv.Atoi(indexString)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
+		return
+	}
+
+	isValid := primitive.IsValidObjectID(taskID)
+	if !isValid {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		return
+	}
+
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		return
+	}
+
+	defer func(lock locking.LockInterface, ctx context.Context) {
+		err := lock.Release(ctx)
+		if err != nil {
+			handler.Logger.Error("problem releasing lock", err)
+		}
+	}(lock, request.Context())
+
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		return
+	}
+
+	if index > len(task.WorkUnits)-1 || index < 0 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+		return
+	}
+
+	requestBody := &OptionalTimespans{}
+	err = json.NewDecoder(request.Body).Decode(&requestBody)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err)
+		return
+	}
+
+	workUnit := task.WorkUnits[index]
+	if len(requestBody.chosenTimespans) > 0 {
+		var summedDuration time.Duration = 0
+		for _, timespan := range requestBody.chosenTimespans {
+			summedDuration += timespan.Duration()
+		}
+
+		if summedDuration != workUnit.Workload {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Sum of chosen timespans does not match workunit duration"), err)
+			return
+		}
+
+		// Reduce the workload of the og work unit
+		task.WorkloadOverall -= workUnit.Workload
+
+		// Override the old work unit's specifications
+		task.WorkUnits[index].ScheduledAt.Date = requestBody.chosenTimespans[0]
+		task.WorkUnits[index].Workload = requestBody.chosenTimespans[0].Duration()
+
+		// Add the new work unit's workload back in
+		task.WorkloadOverall += requestBody.chosenTimespans[0].Duration()
+
+		err := handler.PlanningService.UpdateEvent(request.Context(), task, &task.WorkUnits[index].ScheduledAt)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't update event", err)
+			return
+		}
+
+		if len(requestBody.chosenTimespans) > 1 {
+			task, err = handler.PlanningService.CreateNewSpecificWorkUnits(request.Context(), task, requestBody.chosenTimespans[1:])
+			if err != nil {
+				return
+			}
+		}
+
+		err = handler.TaskRepository.Update(request.Context(), task, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't update task", err)
+			return
+		}
+	} else {
+		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
+			return
+		}
+	}
+
+	handler.ResponseManager.Respond(writer, *task)
+}
+
+// RescheduleWorkUnitGet is the endpoint for requesting time suggestions when rescheduling a work unit
+func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
 	indexString := mux.Vars(request)["index"]
@@ -680,17 +862,15 @@ func (handler *Handler) RescheduleWorkUnit(writer http.ResponseWriter, request *
 
 	workUnit := task.WorkUnits[index]
 
-	err = json.NewDecoder(request.Body).Decode(&workUnit)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
-		return
-	}
-
-	task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit)
+	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, &workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, *task)
+	response := map[string]interface{}{
+		"results": timespans,
+	}
+
+	handler.ResponseManager.Respond(writer, response)
 }
