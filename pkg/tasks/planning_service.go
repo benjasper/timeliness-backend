@@ -159,7 +159,6 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task) (*Task, err
 	t.NotScheduled = 0
 
 	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)
-
 	var availabilityRepositories []calendar.RepositoryInterface
 
 	// TODO make TimeWindow thread safe and make this parallel
@@ -340,8 +339,6 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 		return nil, fmt.Errorf("could not find workunit %s in task %s", w.ID.Hex(), t.ID.Hex())
 	}
 
-	t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
-
 	relevantUsers, err := s.getAllRelevantUsers(ctx, t)
 	if err != nil {
 		return nil, err
@@ -367,7 +364,7 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
 	windowTotal := &date.TimeWindow{Start: nowRound.UTC(), End: t.DueAt.Date.Start.UTC(), BusyPadding: spacing}
 
-	repositories := make(map[string]calendar.RepositoryInterface)
+	taskRepositories := make(map[string]calendar.RepositoryInterface)
 	var availabilityRepositories []calendar.RepositoryInterface
 
 	// TODO Make parallel
@@ -377,12 +374,7 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 			return nil, err
 		}
 
-		repositories[user.ID.Hex()] = taskRepository
-
-		err = taskRepository.DeleteEvent(&w.ScheduledAt)
-		if err != nil {
-			return nil, err
-		}
+		taskRepositories[user.ID.Hex()] = taskRepository
 
 		// Repositories for availability
 		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
@@ -401,14 +393,40 @@ func (s *PlanningService) rescheduleWorkUnitWithoutLock(ctx context.Context, t *
 
 	workloadToSchedule := w.Workload
 
-	for _, workUnit := range s.findWorkUnitTimes(windowTotal, workloadToSchedule) {
+	foundWorkUnits := s.findWorkUnitTimes(windowTotal, workloadToSchedule)
+
+	if len(foundWorkUnits) == 0 {
+		t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
+
+		for _, user := range relevantUsers {
+			err = taskRepositories[user.ID.Hex()].DeleteEvent(&w.ScheduledAt)
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else if len(foundWorkUnits) > 0 {
+		t.WorkUnits[index].ScheduledAt.Date = foundWorkUnits[0].ScheduledAt.Date
+		t.WorkUnits[index].Workload = foundWorkUnits[0].Workload
+
+		for _, user := range relevantUsers {
+			err = taskRepositories[user.ID.Hex()].UpdateEvent(&t.WorkUnits[index].ScheduledAt, t.ID.Hex())
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		foundWorkUnits = foundWorkUnits.RemoveByIndex(0)
+		workloadToSchedule -= workloadToSchedule
+	}
+
+	for _, workUnit := range foundWorkUnits {
 		workUnit.ScheduledAt.Blocking = true
 		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t)
 		workUnit.ScheduledAt.Description = ""
 
 		var workEvent *calendar.Event
 		for _, user := range relevantUsers {
-			workEvent, err = repositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex())
+			workEvent, err = taskRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex())
 			if err != nil {
 				return nil, err
 			}
