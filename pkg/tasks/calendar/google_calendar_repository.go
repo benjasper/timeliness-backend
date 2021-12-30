@@ -484,7 +484,7 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string
 		transparency = "transparent"
 	}
 
-	frontendURL := os.Getenv("FRONTEND_URL")
+	frontendURL := os.Getenv("FRONTEND_BASE_URL")
 
 	source := gcalendar.EventSource{Title: "Timeliness", Url: fmt.Sprintf("%s/dashboard/task/%s", frontendURL, taskID)}
 
