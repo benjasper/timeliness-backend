@@ -11,6 +11,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/sync/errgroup"
+	"sort"
 	"sync"
 	"time"
 )
@@ -561,8 +562,16 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 			break
 		}
 
+		sort.Slice(timespanGroup, func(i, j int) bool {
+			return timespanGroup[i].Start.Before(timespanGroup[j].Start)
+		})
+
 		timespanGroups = append(timespanGroups, timespanGroup)
 	}
+
+	sort.Slice(timespanGroups, func(i, j int) bool {
+		return timespanGroups[i][0].Start.Before(timespanGroups[j][0].Start)
+	})
 
 	return timespanGroups
 }
