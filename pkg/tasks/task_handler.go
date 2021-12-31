@@ -870,9 +870,5 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 		return
 	}
 
-	response := map[string]interface{}{
-		"results": timespans,
-	}
-
-	handler.ResponseManager.Respond(writer, response)
+	handler.ResponseManager.Respond(writer, timespans)
 }
