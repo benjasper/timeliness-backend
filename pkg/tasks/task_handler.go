@@ -736,7 +736,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 
 // OptionalTimespans is the optional body for a rescheduling post request
 type OptionalTimespans struct {
-	chosenTimespans []date.Timespan
+	ChosenTimespans []date.Timespan `json:"chosenTimespans"`
 }
 
 // RescheduleWorkUnitPost is the endpoint implementation for rescheduling workunits
@@ -789,9 +789,9 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 	}
 
 	workUnit := task.WorkUnits[index]
-	if len(requestBody.chosenTimespans) > 0 {
+	if len(requestBody.ChosenTimespans) > 0 {
 		var summedDuration time.Duration = 0
-		for _, timespan := range requestBody.chosenTimespans {
+		for _, timespan := range requestBody.ChosenTimespans {
 			summedDuration += timespan.Duration()
 		}
 
@@ -804,22 +804,20 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		task.WorkloadOverall -= workUnit.Workload
 
 		// Override the old work unit's specifications
-		task.WorkUnits[index].ScheduledAt.Date = requestBody.chosenTimespans[0]
-		task.WorkUnits[index].Workload = requestBody.chosenTimespans[0].Duration()
-
-		// TODO: Sort the work units
+		task.WorkUnits[index].ScheduledAt.Date = requestBody.ChosenTimespans[0]
+		task.WorkUnits[index].Workload = requestBody.ChosenTimespans[0].Duration()
 
 		// Add the new work unit's workload back in
-		task.WorkloadOverall += requestBody.chosenTimespans[0].Duration()
+		task.WorkloadOverall += requestBody.ChosenTimespans[0].Duration()
 
-		err := handler.PlanningService.UpdateEvent(request.Context(), task, &task.WorkUnits[index].ScheduledAt)
+		err = handler.PlanningService.UpdateEvent(request.Context(), task, &task.WorkUnits[index].ScheduledAt)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't update event", err)
 			return
 		}
 
-		if len(requestBody.chosenTimespans) > 1 {
-			task, err = handler.PlanningService.CreateNewSpecificWorkUnits(request.Context(), task, requestBody.chosenTimespans[1:])
+		if len(requestBody.ChosenTimespans) > 1 {
+			task, err = handler.PlanningService.CreateNewSpecificWorkUnits(request.Context(), task, requestBody.ChosenTimespans[1:])
 			if err != nil {
 				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't create new work units", err)
 				return
