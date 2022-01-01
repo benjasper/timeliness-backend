@@ -585,21 +585,21 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 		return nil, err
 	}
 
-	for _, user := range relevantUsers {
-		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
-		if err != nil {
-			return nil, err
+	for _, timespan := range timespans {
+		workUnit := WorkUnit{
+			ID:       primitive.NewObjectID(),
+			Workload: timespan.Duration(),
+			ScheduledAt: calendar.Event{
+				Title:    s.taskTextRenderer.RenderWorkUnitEventTitle(task),
+				Blocking: true,
+				Date:     timespan,
+			},
 		}
 
-		for _, timespan := range timespans {
-			workUnit := WorkUnit{
-				ID:       primitive.NewObjectID(),
-				Workload: timespan.Duration(),
-				ScheduledAt: calendar.Event{
-					Title:    s.taskTextRenderer.RenderWorkUnitEventTitle(task),
-					Blocking: true,
-					Date:     timespan,
-				},
+		for _, user := range relevantUsers {
+			repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+			if err != nil {
+				return nil, err
 			}
 
 			event, err := repository.NewEvent(&workUnit.ScheduledAt, task.ID.Hex())
@@ -608,11 +608,10 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 			}
 
 			workUnit.ScheduledAt = *event
-
-			task.WorkloadOverall += workUnit.Workload
-			task.WorkUnits.Add(&workUnit)
 		}
 
+		task.WorkloadOverall += workUnit.Workload
+		task.WorkUnits = task.WorkUnits.Add(&workUnit)
 	}
 
 	return task, nil

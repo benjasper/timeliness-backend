@@ -816,6 +816,8 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 			return
 		}
 
+		task.WorkUnits.Sort()
+
 		if len(requestBody.ChosenTimespans) > 1 {
 			task, err = handler.PlanningService.CreateNewSpecificWorkUnits(request.Context(), task, requestBody.ChosenTimespans[1:])
 			if err != nil {
@@ -823,8 +825,6 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 				return
 			}
 		}
-
-		task.WorkUnits.Sort()
 
 		err = handler.TaskRepository.Update(request.Context(), task, false)
 		if err != nil {
