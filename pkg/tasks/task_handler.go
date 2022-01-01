@@ -807,6 +807,8 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		task.WorkUnits[index].ScheduledAt.Date = requestBody.chosenTimespans[0]
 		task.WorkUnits[index].Workload = requestBody.chosenTimespans[0].Duration()
 
+		// TODO: Sort the work units
+
 		// Add the new work unit's workload back in
 		task.WorkloadOverall += requestBody.chosenTimespans[0].Duration()
 
@@ -823,6 +825,8 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 				return
 			}
 		}
+
+		task.WorkUnits.Sort()
 
 		err = handler.TaskRepository.Update(request.Context(), task, false)
 		if err != nil {

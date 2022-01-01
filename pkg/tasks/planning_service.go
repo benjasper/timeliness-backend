@@ -411,6 +411,8 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 			}
 		}
 
+		t.WorkUnits.Sort()
+
 		foundWorkUnits = foundWorkUnits.RemoveByIndex(0)
 		workloadToSchedule -= workloadToSchedule
 	}
