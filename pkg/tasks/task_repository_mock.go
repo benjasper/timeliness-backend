@@ -134,8 +134,8 @@ func (m *MockTaskRepository) FindUnscheduledTasks(ctx context.Context, userID st
 }
 
 // FindIntersectingWithEvent is not implemented yet
-func (m *MockTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitByID string, isDeleted bool) ([]Task, error) {
-	panic("implement me")
+func (m *MockTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreTaskID *primitive.ObjectID, isDeleted bool) ([]Task, error) {
+	return []Task{}, nil
 }
 
 // DeleteFinally is not implemented yet

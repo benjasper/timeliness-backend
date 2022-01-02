@@ -209,6 +209,13 @@ func (w WorkUnits) FindByEventIntersection(event *calendar.Event) ([]int, []Work
 	return indices, workUnits
 }
 
+// Sort sorts the WorkUnits by their scheduledAt date
+func (w WorkUnits) Sort() {
+	sort.Slice(w, func(i, j int) bool {
+		return w[i].ScheduledAt.Date.Start.Before(w[j].ScheduledAt.Date.Start)
+	})
+}
+
 // Tags is an array of ObjectIDs
 type Tags []primitive.ObjectID
 

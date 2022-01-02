@@ -42,6 +42,7 @@ var primaryUser = users.User{
 					End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
 				},
 			},
+			BusyTimeSpacing: time.Minute * 15,
 		},
 	},
 }
@@ -359,7 +360,7 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 					}
 				}
 
-				scheduledTask, err := service.ScheduleTask(ctx, &tt.task)
+				scheduledTask, err := service.ScheduleTask(ctx, &tt.task, false)
 				if err != nil {
 					t.Error(err)
 				}
@@ -1016,6 +1017,592 @@ func Test_generateTimespansBasedOnTargetDate(t *testing.T) {
 			result = date.MergeTimespans(result)
 			if !reflect.DeepEqual(result, []date.Timespan{{Start: tt.args.window.Start, End: tt.args.window.End}}) {
 				t.Errorf("result: %v doesnt equal: %v", result, []date.Timespan{{Start: tt.args.window.Start, End: tt.args.window.End}})
+			}
+		})
+	}
+}
+
+func TestPlanningService_checkForMergingWorkUnits(t *testing.T) {
+	now = func() time.Time { return time.Date(2021, 1, 1, 12, 0, 0, 0, location) }
+
+	taskRepo := &MockTaskRepository{Tasks: []*Task{}}
+
+	var calendarRepositoryManager = CalendarRepositoryManager{
+		userRepository:  &userRepo,
+		logger:          log,
+		overriddenRepos: make(map[string]calendar.RepositoryInterface),
+	}
+
+	calendarRepositoryManager.overriddenRepos[primaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 18, 15, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-234",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 18, 15, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-234",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-2341",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-2345",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-3",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 17, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 19, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-4",
+					UserID:          primaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+	}, User: &primaryUser}
+	calendarRepositoryManager.overriddenRepos[secondaryUser.ID.Hex()] = &calendar.MockCalendarRepository{Events: []*calendar.Event{
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-234",
+					UserID:          secondaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-234",
+					UserID:          secondaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-2341",
+					UserID:          secondaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-2345",
+					UserID:          secondaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-3",
+					UserID:          secondaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+		{
+			Date: date.Timespan{
+				Start: time.Date(2021, 1, 15, 17, 0, 0, 0, location),
+				End:   time.Date(2021, 1, 15, 19, 0, 0, 0, location),
+			},
+			CalendarEvents: calendar.PersistedEvents{
+				calendar.PersistedEvent{
+					CalendarEventID: "test-4",
+					UserID:          secondaryUser.ID,
+					CalendarType:    "mock_calendar",
+				},
+			},
+		},
+	}, User: &secondaryUser}
+
+	service := PlanningService{
+		userRepository:            &userRepo,
+		taskRepository:            taskRepo,
+		calendarRepositoryManager: &calendarRepositoryManager,
+		logger:                    log,
+		locker:                    locker,
+	}
+
+	taskID := primitive.NewObjectID()
+	workUnitID1 := primitive.NewObjectID()
+	workUnitID2 := primitive.NewObjectID()
+
+	tests := []struct {
+		name  string
+		input *Task
+		want  *Task
+	}{
+		{
+			name: "task with no date following work units",
+			input: &Task{
+				ID:              taskID,
+				UserID:          primaryUser.ID,
+				Deleted:         false,
+				Name:            "Testtask",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          secondaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						Workload: time.Hour * 4,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-234",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-234",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+				Collaborators: []Collaborator{
+					{
+						UserID: secondaryUser.ID,
+						Role:   RoleEditor,
+					},
+				},
+			},
+			want: &Task{
+				ID:              taskID,
+				UserID:          primaryUser.ID,
+				Deleted:         false,
+				Name:            "Testtask",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          secondaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						Workload: time.Hour * 4,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-234",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-234",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+				Collaborators: []Collaborator{
+					{
+						UserID: secondaryUser.ID,
+						Role:   RoleEditor,
+					},
+				},
+			},
+		},
+		{
+			name: "task with 1 following work units",
+			input: &Task{
+				ID:              taskID,
+				UserID:          primaryUser.ID,
+				Deleted:         false,
+				Name:            "Testtask",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          secondaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						ID:       workUnitID1,
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2341",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2341",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+					{
+						ID:       workUnitID2,
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2345",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2345",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+				Collaborators: []Collaborator{
+					{
+						UserID: secondaryUser.ID,
+						Role:   RoleEditor,
+					},
+				},
+			},
+			want: &Task{
+				ID:              taskID,
+				UserID:          primaryUser.ID,
+				Deleted:         false,
+				Name:            "Testtask",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          secondaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						ID:       workUnitID1,
+						Workload: time.Hour * 4,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 20, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2341",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-2341",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+				Collaborators: []Collaborator{
+					{
+						UserID: secondaryUser.ID,
+						Role:   RoleEditor,
+					},
+				},
+			},
+		},
+		{
+			name: "task with 1 overlapping work unit",
+			input: &Task{
+				ID:              taskID,
+				UserID:          primaryUser.ID,
+				Deleted:         false,
+				Name:            "Testtask",
+				Description:     "",
+				WorkloadOverall: time.Hour * 4,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          secondaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						ID:       workUnitID1,
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 18, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-3",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-3",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+					{
+						ID:       workUnitID2,
+						Workload: time.Hour * 2,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 17, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 19, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-4",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-4",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+				Collaborators: []Collaborator{
+					{
+						UserID: secondaryUser.ID,
+						Role:   RoleEditor,
+					},
+				},
+			},
+			want: &Task{
+				ID:              taskID,
+				UserID:          primaryUser.ID,
+				Deleted:         false,
+				Name:            "Testtask",
+				Description:     "",
+				WorkloadOverall: time.Hour * 3,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 1, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 1, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          primaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+						calendar.PersistedEvent{
+							CalendarEventID: "test-123",
+							UserID:          secondaryUser.ID,
+							CalendarType:    "mock_calendar",
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					{
+						ID:       workUnitID1,
+						Workload: time.Hour * 3,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 15, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 15, 19, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "test-3",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+								calendar.PersistedEvent{
+									CalendarEventID: "test-3",
+									UserID:          secondaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+				Collaborators: []Collaborator{
+					{
+						UserID: secondaryUser.ID,
+						Role:   RoleEditor,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := service.checkForMergingWorkUnits(context.TODO(), tt.input); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("checkForMergingWorkUnits() = %v, want %v", got, tt.want)
 			}
 		})
 	}

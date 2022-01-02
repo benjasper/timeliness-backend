@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 )
@@ -164,6 +165,7 @@ func main() {
 	taskHandler := tasks.Handler{
 		TaskRepository:  &taskRepository,
 		Logger:          logging,
+		Locker:          locker,
 		ResponseManager: &responseManager,
 		UserRepository:  &userRepository,
 		PlanningService: planningService}
@@ -222,7 +224,8 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskDelete).Methods(http.MethodDelete)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}").HandlerFunc(taskHandler.WorkUnitUpdate).Methods(http.MethodPatch)
-	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnit).Methods(http.MethodPost)
+	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnitGet).Methods(http.MethodGet)
+	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnitPost).Methods(http.MethodPost)
 
 	authenticatedAPI.Path("/tags").HandlerFunc(tagHandler.TagAdd).Methods(http.MethodPost)
 	authenticatedAPI.Path("/tags").HandlerFunc(tagHandler.GetAllTags).Methods(http.MethodGet)
@@ -250,5 +253,32 @@ func main() {
 	})
 
 	http.Handle("/", r)
-	logging.Fatal(http.ListenAndServe(":"+port, r))
+	server := http.Server{Addr: ":" + port, Handler: r}
+
+	go func() {
+		if err = server.ListenAndServe(); err != nil {
+			if err == http.ErrServerClosed {
+				logging.Info("Server was shutdown")
+				return
+			}
+			logging.Fatal(err)
+		}
+	}()
+
+	logging.Info("Server started on port " + port)
+
+	// Setting up signal capturing
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+
+	// Waiting for SIGINT (kill -2)
+	<-stop
+
+	logging.Info("Shutting down server...")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		logging.Error("Error shutting down server: ", err)
+	}
 }
