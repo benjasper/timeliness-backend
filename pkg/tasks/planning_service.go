@@ -154,6 +154,11 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 				s.logger.Error("problem releasing lock", err)
 			}
 		}(lock, ctx)
+
+		t, err = s.taskRepository.FindByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	relevantUsers, err := s.getAllRelevantUsers(ctx, t)
@@ -337,12 +342,12 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 				s.logger.Error("problem releasing lock", err)
 			}
 		}(lock, ctx)
-	}
 
-	// Refresh task, after potential change
-	t, err := s.taskRepository.FindByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
-	if err != nil {
-		return nil, err
+		// Refresh task, after potential change
+		t, err = s.taskRepository.FindByID(ctx, t.ID.Hex(), t.UserID.Hex(), false)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	index, _ := t.WorkUnits.FindByID(w.ID.Hex())

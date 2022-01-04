@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // ReadGoogleConfig reads and parses the json file where google credentials are stored
@@ -84,15 +85,15 @@ func GetUserID(ctx context.Context, token *oauth2.Token) (string, error) {
 		return "", err
 	}
 
-	if userinfo.Email == "" {
-		if userinfo.Id == "" {
-			return "", errors.Errorf("neither email nor user ID exists")
-		}
-
+	if strings.Trim(userinfo.Email, " ") != "" {
 		return userinfo.Email, nil
 	}
 
-	return userinfo.Id, nil
+	if strings.Trim(userinfo.Id, " ") != "" {
+		return userinfo.Id, nil
+	}
+
+	return "", errors.Errorf("neither email nor user ID exists")
 }
 
 // RevokeToken revokes a google access token

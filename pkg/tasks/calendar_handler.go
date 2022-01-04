@@ -477,7 +477,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 
 	for i, connection := range usr.GoogleCalendarConnections {
 		if connection.ID == userID && i != foundConnectionIndex {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Account is already connected", fmt.Errorf("account already connected"))
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Account is already connected", fmt.Errorf("account %s is already connected", userID))
 			return
 		}
 	}
