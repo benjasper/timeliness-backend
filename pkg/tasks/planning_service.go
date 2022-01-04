@@ -783,7 +783,7 @@ func (s *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 				wg.Done()
 			}(&wg)
 		case err := <-errorChannel:
-			return nil, err
+			return nil, errors.WithStack(err)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}

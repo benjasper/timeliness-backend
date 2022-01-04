@@ -82,8 +82,10 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 func checkForInvalidTokenError(err error) error {
 	if e, ok := err.(*googleapi.Error); ok {
 		if e.Code == 401 {
-			return communication.ErrCalendarAuthInvalid
+			return errors.Wrap(e, communication.ErrCalendarAuthInvalid.Error())
 		}
+
+		return errors.Wrap(e, "google calendar api error")
 	}
 
 	return err
@@ -443,7 +445,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 
 			event, err := c.googleEventToEvent(item, location)
 			if err != nil {
-				*errorChannel <- err
+				*errorChannel <- errors.WithStack(err)
 				return
 			}
 
