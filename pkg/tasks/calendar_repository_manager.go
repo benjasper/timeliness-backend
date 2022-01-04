@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
@@ -135,13 +136,13 @@ func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u
 
 	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not create google calendar repository")
 	}
 
 	if oldAccessToken != connection.Token.AccessToken {
 		u.GoogleCalendarConnections[connectionIndex] = *connection
 
-		err := m.userRepository.Update(ctx, u)
+		err = m.userRepository.Update(ctx, u)
 		if err != nil {
 			return nil, err
 		}
