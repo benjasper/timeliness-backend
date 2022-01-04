@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
@@ -590,7 +589,7 @@ Loop:
 
 		user, err = handler.PlanningService.SyncCalendar(ctx, user, calendarID)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), errors.Wrap(err, "calendar sync failed"))
+			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
 			return
 		}
 
