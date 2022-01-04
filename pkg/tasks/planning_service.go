@@ -862,7 +862,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		// Also check if we need to reschedule work units
 		var toReschedule []WorkUnit
 		for _, unit := range task.WorkUnits {
-			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) {
+			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) && unit.IsDone == false {
 				toReschedule = append(toReschedule, unit)
 			}
 		}
