@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gcalendar "google.golang.org/api/calendar/v3"
@@ -13,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // ReadGoogleConfig reads and parses the json file where google credentials are stored
@@ -83,15 +85,15 @@ func GetUserID(ctx context.Context, token *oauth2.Token) (string, error) {
 		return "", err
 	}
 
-	if userinfo.Id == "" {
-		if userinfo.Email == "" {
-			return "", fmt.Errorf("neither user ID nor email exists")
-		}
-
+	if strings.Trim(userinfo.Email, " ") != "" {
 		return userinfo.Email, nil
 	}
 
-	return userinfo.Id, nil
+	if strings.Trim(userinfo.Id, " ") != "" {
+		return userinfo.Id, nil
+	}
+
+	return "", errors.Errorf("neither email nor user ID exists")
 }
 
 // RevokeToken revokes a google access token

@@ -75,9 +75,9 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 
 	scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), &task, false)
 	if err != nil {
-		err = handler.TaskRepository.Delete(request.Context(), task.ID.Hex(), userID.Hex())
-		if err != nil {
-			handler.Logger.Error("Error while deleting task", err)
+		err2 := handler.TaskRepository.Delete(request.Context(), task.ID.Hex(), userID.Hex())
+		if err2 != nil {
+			handler.Logger.Error("Error while deleting task", err2)
 			return
 		}
 
@@ -137,20 +137,18 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 	// If the tasks' workload was changed or if we have unscheduled time we want to schedule the task
 	if original.WorkloadOverall != task.WorkloadOverall || task.NotScheduled > 0 {
-		scheduledTask, err := handler.PlanningService.ScheduleTask(request.Context(), task, false)
+		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem scheduling task", err)
+				fmt.Sprintf("Problem scheduling task %s", taskID), err)
 			return
 		}
-
-		task = scheduledTask
 	}
 
 	if original.DueAt.Date != task.DueAt.Date {
 		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
 
-		err := handler.PlanningService.UpdateEvent(request.Context(), task, &task.DueAt)
+		err = handler.PlanningService.UpdateEvent(request.Context(), task, &task.DueAt)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating the task", err)
@@ -160,7 +158,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		// In case there are work units now after the deadline
 		var toReschedule []WorkUnit
 		for _, unit := range task.WorkUnits {
-			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) {
+			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) && unit.IsDone == false {
 				toReschedule = append(toReschedule, unit)
 			}
 		}
@@ -196,9 +194,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	returnTask := *task
-
-	handler.ResponseManager.Respond(writer, &returnTask)
+	handler.ResponseManager.Respond(writer, task)
 }
 
 // WorkUnitUpdate updates a WorkUnit inside a task
