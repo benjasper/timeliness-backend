@@ -421,7 +421,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 				return
 			}
 
-			*errorChannel <- err
+			*errorChannel <- errors.WithStack(err)
 			return
 		}
 
