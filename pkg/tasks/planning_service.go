@@ -822,8 +822,6 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			s.logger.Error("problem releasing lock", err)
 			return
 		}
-
-		s.lookForUnscheduledTasks(ctx, userID)
 	}(lock, ctx)
 
 	// Refresh task, after potential change
@@ -847,6 +845,8 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 				s.logger.Error("problem with deleting task", err)
 				return
 			}
+
+			s.lookForUnscheduledTasks(ctx, userID)
 			return
 		}
 
@@ -880,6 +880,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			}
 		}
 
+		s.lookForUnscheduledTasks(ctx, userID)
 		return
 	}
 
@@ -930,6 +931,8 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			s.logger.Error("problem with updating task", err)
 			return
 		}
+
+		s.lookForUnscheduledTasks(ctx, userID)
 		return
 	}
 
@@ -959,6 +962,8 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	}
 
 	_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &task.ID)
+
+	s.lookForUnscheduledTasks(ctx, userID)
 }
 
 // checkForMergingWorkUnits looks for work units that are scheduled right after one another and merges them
@@ -1108,7 +1113,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID string) {
 	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("lookForUnscheduledTasks-%s", userID), time.Minute*1, true)
 	if err != nil {
-		s.logger.Warning("could not acquire lock, tried only once", errors.Wrap(err, fmt.Sprintf("could not acquire lock for looking for unscheduled tasks for user %s", userID)))
+		// This is fine, and we don't want to spam the logs
 		return
 	}
 
