@@ -136,6 +136,9 @@ func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u
 
 	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger)
 	if err != nil {
+		u.GoogleCalendarConnections[connectionIndex].Status = users.CalendarConnectionStatusExpired
+		_ = m.userRepository.Update(ctx, u)
+
 		return nil, errors.Wrap(err, "could not create google calendar repository")
 	}
 
