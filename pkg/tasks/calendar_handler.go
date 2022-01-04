@@ -590,7 +590,7 @@ Loop:
 
 		user, err = handler.PlanningService.SyncCalendar(ctx, user, calendarID)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), errors.WithMessage(err, "calendar sync"))
+			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), errors.Wrap(err, "calendar sync failed"))
 			return
 		}
 
