@@ -291,6 +291,7 @@ type MarkWorkUnitAsDoneRequest struct {
 	TimeLeft time.Duration `json:"timeLeft"`
 }
 
+// MarkWorkUnitAsDone marks a work unit as done
 func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
