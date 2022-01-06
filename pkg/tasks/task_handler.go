@@ -286,6 +286,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 	handler.ResponseManager.Respond(writer, *task)
 }
 
+// MarkWorkUnitAsDoneRequest is the request body for marking a work unit as done
 type MarkWorkUnitAsDoneRequest struct {
 	IsDone   bool          `json:"isDone"`
 	TimeLeft time.Duration `json:"timeLeft"`
