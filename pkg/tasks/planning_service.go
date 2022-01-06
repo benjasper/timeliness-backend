@@ -140,7 +140,7 @@ func maxDuration(a, b time.Duration) time.Duration {
 }
 
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
-// and pushes or removes events to and from the calendar
+// and pushes or removes events to and from the calendar. Also updates the task.
 func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bool) (*Task, error) {
 	if !t.ID.IsZero() && withLock == true {
 		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
@@ -319,7 +319,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 	}
 
 	if !t.ID.IsZero() {
-		err := s.taskRepository.Update(ctx, t, false)
+		err = s.taskRepository.Update(ctx, t, false)
 		if err != nil {
 			return nil, err
 		}
