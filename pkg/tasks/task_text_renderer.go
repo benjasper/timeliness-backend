@@ -17,10 +17,10 @@ func (t *TaskTextRenderer) RenderDueEventTitle(task *Task) string {
 }
 
 // RenderWorkUnitEventTitle renders a title of a work unit event
-func (t *TaskTextRenderer) RenderWorkUnitEventTitle(task *Task) string {
+func (t *TaskTextRenderer) RenderWorkUnitEventTitle(task *Task, workUnit *WorkUnit) string {
 	var icon = "⚙️"
 
-	if task.IsDone {
+	if workUnit.IsDone {
 		icon += "✅"
 	}
 

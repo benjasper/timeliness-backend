@@ -211,7 +211,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 		for _, workUnit := range foundWorkUnits {
 			workUnit.ScheduledAt.Blocking = true
-			workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t)
+			workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit)
 			workUnit.ScheduledAt.Description = ""
 
 			var workEvent *calendar.Event
@@ -424,7 +424,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 
 	for _, workUnit := range foundWorkUnits {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t)
+		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit)
 		workUnit.ScheduledAt.Description = ""
 
 		var workEvent *calendar.Event
@@ -595,11 +595,12 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 			ID:       primitive.NewObjectID(),
 			Workload: timespan.Duration(),
 			ScheduledAt: calendar.Event{
-				Title:    s.taskTextRenderer.RenderWorkUnitEventTitle(task),
 				Blocking: true,
 				Date:     timespan,
 			},
 		}
+
+		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, &workUnit)
 
 		for _, user := range relevantUsers {
 			repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
@@ -674,7 +675,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	}
 
 	for _, unit := range task.WorkUnits {
-		unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
+		unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, &unit)
 
 		for _, user := range relevantUsers {
 			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, task.ID.Hex())
@@ -689,7 +690,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 
 // UpdateWorkUnitTitle updates the event title of a work unit
 func (s *PlanningService) UpdateWorkUnitTitle(ctx context.Context, task *Task, unit *WorkUnit) error {
-	unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
+	unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, unit)
 
 	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
