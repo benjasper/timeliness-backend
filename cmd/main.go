@@ -225,6 +225,7 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskUpdate).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}").HandlerFunc(taskHandler.TaskDelete).Methods(http.MethodDelete)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}").HandlerFunc(taskHandler.WorkUnitUpdate).Methods(http.MethodPatch)
+	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/done").HandlerFunc(taskHandler.MarkWorkUnitAsDone).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnitGet).Methods(http.MethodGet)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{index}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnitPost).Methods(http.MethodPost)
 

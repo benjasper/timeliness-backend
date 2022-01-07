@@ -140,7 +140,7 @@ func maxDuration(a, b time.Duration) time.Duration {
 }
 
 // ScheduleTask takes a task and schedules it according to workloadOverall by creating or removing WorkUnits
-// and pushes or removes events to and from the calendar
+// and pushes or removes events to and from the calendar. Also updates the task.
 func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bool) (*Task, error) {
 	if !t.ID.IsZero() && withLock == true {
 		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
@@ -211,7 +211,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 		for _, workUnit := range foundWorkUnits {
 			workUnit.ScheduledAt.Blocking = true
-			workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t)
+			workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit)
 			workUnit.ScheduledAt.Description = ""
 
 			var workEvent *calendar.Event
@@ -274,7 +274,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 		t.WorkUnits = workUnits
 
-		err := s.taskRepository.Update(ctx, t, false)
+		err = s.taskRepository.Update(ctx, t, false)
 		if err != nil {
 			return nil, err
 		}
@@ -319,7 +319,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 	}
 
 	if !t.ID.IsZero() {
-		err := s.taskRepository.Update(ctx, t, false)
+		err = s.taskRepository.Update(ctx, t, false)
 		if err != nil {
 			return nil, err
 		}
@@ -424,7 +424,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 
 	for _, workUnit := range foundWorkUnits {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t)
+		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit)
 		workUnit.ScheduledAt.Description = ""
 
 		var workEvent *calendar.Event
@@ -595,11 +595,12 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 			ID:       primitive.NewObjectID(),
 			Workload: timespan.Duration(),
 			ScheduledAt: calendar.Event{
-				Title:    s.taskTextRenderer.RenderWorkUnitEventTitle(task),
 				Blocking: true,
 				Date:     timespan,
 			},
 		}
+
+		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, &workUnit)
 
 		for _, user := range relevantUsers {
 			repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
@@ -674,7 +675,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	}
 
 	for _, unit := range task.WorkUnits {
-		unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
+		unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, &unit)
 
 		for _, user := range relevantUsers {
 			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, task.ID.Hex())
@@ -689,7 +690,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 
 // UpdateWorkUnitTitle updates the event title of a work unit
 func (s *PlanningService) UpdateWorkUnitTitle(ctx context.Context, task *Task, unit *WorkUnit) error {
-	unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task)
+	unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, unit)
 
 	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
@@ -944,6 +945,8 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		// We don't return here, because we still need to update the task
 	}
 
+	workUnitIsOutOfBounds := workUnit.ScheduledAt.Date.End.After(task.DueAt.Date.Start)
+
 	workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
 
 	task.WorkloadOverall += workUnit.Workload
@@ -961,9 +964,22 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &task.ID)
+	if !workUnitIsOutOfBounds {
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &task.ID)
+	}
 
 	s.lookForUnscheduledTasks(ctx, userID)
+
+	// Maybe the user wanted to make place for another task, so we first accept the wrong work unit and reschedule
+	// after we looked for unscheduled tasks
+	if workUnitIsOutOfBounds {
+		_, err = s.RescheduleWorkUnit(ctx, task, workUnit, false)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", workUnit.ID.Hex()), errors.Wrap(err, "could not reschedule work unit"))
+			return
+		}
+		return
+	}
 }
 
 // checkForMergingWorkUnits looks for work units that are scheduled right after one another and merges them

@@ -258,7 +258,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	if workUnit.ScheduledAt.Date != original.ScheduledAt.Date {
 		if original.Workload != workUnit.ScheduledAt.Date.Duration() {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify workload", errors.New("Not supported"))
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify scheduledAt", errors.New("Not supported"))
 			return
 		}
 
@@ -270,44 +270,131 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		}
 	}
 
-	shouldUpdateTitle := false
-
 	if original.IsDone != workUnit.IsDone {
-		shouldUpdateTitle = true
-		if !workUnit.IsDone {
-			if original.IsDone {
-				task.IsDone = false
-			}
-		} else {
-			allAreDone := true
-			for _, unit := range task.WorkUnits {
-				if !unit.IsDone && unit.ID != workUnit.ID {
-					allAreDone = false
-					break
-				}
-			}
-
-			if allAreDone {
-				task.IsDone = true
-			}
-		}
-
-		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, false)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem with calendar communication", err)
-			return
-		}
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify isDone", errors.New("Not supported"))
+		return
 	}
 
 	task.WorkUnits[index] = workUnit
 
-	if shouldUpdateTitle {
-		err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, &workUnit)
+	err = handler.TaskRepository.Update(request.Context(), task, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
+		return
+	}
+
+	handler.ResponseManager.Respond(writer, *task)
+}
+
+// MarkWorkUnitAsDoneRequest is the request body for marking a work unit as done
+type MarkWorkUnitAsDoneRequest struct {
+	IsDone   bool          `json:"isDone"`
+	TimeLeft time.Duration `json:"timeLeft"`
+}
+
+// MarkWorkUnitAsDone marks a work unit as done
+func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+	indexString := mux.Vars(request)["index"]
+	index, err := strconv.Atoi(indexString)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
+		return
+	}
+
+	isValid := primitive.IsValidObjectID(taskID)
+	if !isValid {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		return
+	}
+
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		return
+	}
+
+	defer func(lock locking.LockInterface, ctx context.Context) {
+		err := lock.Release(ctx)
+		if err != nil {
+			handler.Logger.Error("problem releasing lock", err)
+		}
+	}(lock, request.Context())
+
+	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		return
+	}
+
+	if index > len(task.WorkUnits)-1 || index < 0 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+		return
+	}
+
+	workUnit := &task.WorkUnits[index]
+
+	requestBody := MarkWorkUnitAsDoneRequest{
+		IsDone: true,
+	}
+
+	err = json.NewDecoder(request.Body).Decode(&requestBody)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		return
+	}
+
+	if requestBody.TimeLeft < 0 || requestBody.TimeLeft == workUnit.Workload {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Time left must be positive and not equal to units workload", errors.New("Invalid time left"))
+		return
+	}
+
+	if requestBody.TimeLeft > task.WorkUnits[index].Workload {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Time left must be smaller than the scheduled time", errors.New("Invalid time left"))
+		return
+	}
+
+	// No need to update because, it's already set correctly
+	if requestBody.IsDone == workUnit.IsDone && requestBody.TimeLeft == 0 {
+		handler.ResponseManager.Respond(writer, task)
+		return
+	}
+
+	workUnit.IsDone = requestBody.IsDone
+
+	if workUnit.IsDone && requestBody.TimeLeft > 0 {
+		workUnit.ScheduledAt.Date.End = workUnit.ScheduledAt.Date.End.Add(requestBody.TimeLeft * -1)
+		workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
+
+		// We let the planning service create new work units at its own discretion
+		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem with calendar communication", err)
+				"Problem scheduling the task", err)
 			return
+		}
+	}
+
+	taskDoneChanged := false
+
+	// Check if we should mark the task as done
+	if !workUnit.IsDone {
+		task.IsDone = false
+		taskDoneChanged = true
+	} else {
+		allAreDone := true
+		for _, unit := range task.WorkUnits {
+			if !unit.IsDone && unit.ID != workUnit.ID {
+				allAreDone = false
+				break
+			}
+		}
+
+		if allAreDone {
+			task.IsDone = true
+			taskDoneChanged = true
 		}
 	}
 
@@ -317,7 +404,23 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	handler.ResponseManager.Respond(writer, *task)
+	if taskDoneChanged {
+		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"Problem with calendar communication", err)
+			return
+		}
+	}
+
+	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, workUnit)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Problem with calendar communication", err)
+		return
+	}
+
+	handler.ResponseManager.Respond(writer, task)
 }
 
 // TaskDelete deletes a task
