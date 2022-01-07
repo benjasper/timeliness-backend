@@ -274,7 +274,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 		t.WorkUnits = workUnits
 
-		err := s.taskRepository.Update(ctx, t, false)
+		err = s.taskRepository.Update(ctx, t, false)
 		if err != nil {
 			return nil, err
 		}
@@ -944,6 +944,8 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		// We don't return here, because we still need to update the task
 	}
 
+	workUnitIsOutOfBounds := workUnit.ScheduledAt.Date.End.After(task.DueAt.Date.Start)
+
 	workUnit.Workload = workUnit.ScheduledAt.Date.Duration()
 
 	task.WorkloadOverall += workUnit.Workload
@@ -961,9 +963,22 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &task.ID)
+	if !workUnitIsOutOfBounds {
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &task.ID)
+	}
 
 	s.lookForUnscheduledTasks(ctx, userID)
+
+	// Maybe the user wanted to make place for another task, so we first accept the wrong work unit and reschedule
+	// after we looked for unscheduled tasks
+	if workUnitIsOutOfBounds {
+		_, err = s.RescheduleWorkUnit(ctx, task, workUnit, false)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", workUnit.ID.Hex()), errors.Wrap(err, "could not reschedule work unit"))
+			return
+		}
+		return
+	}
 }
 
 // checkForMergingWorkUnits looks for work units that are scheduled right after one another and merges them
