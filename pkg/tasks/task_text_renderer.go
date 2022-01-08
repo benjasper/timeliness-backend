@@ -24,5 +24,5 @@ func (t *TaskTextRenderer) RenderWorkUnitEventTitle(task *Task, workUnit *WorkUn
 		icon += "✅"
 	}
 
-	return fmt.Sprintf("%s Working on %s", icon, task.Name)
+	return fmt.Sprintf("%s %s", icon, task.Name)
 }
