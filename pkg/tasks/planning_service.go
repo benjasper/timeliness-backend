@@ -530,7 +530,7 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 }
 
 func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, durationToFindPerIteration time.Duration, iterations int) [][]date.Timespan {
-	var timespanGroups [][]date.Timespan
+	var timespanGroups = make([][]date.Timespan, 0)
 
 	if w.FreeDuration == 0 || w.FreeDuration < durationToFindPerIteration {
 		return timespanGroups
