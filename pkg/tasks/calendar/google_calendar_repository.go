@@ -165,6 +165,17 @@ func (c *GoogleCalendarRepository) TestTaskCalendarExistence(u *users.User) (*us
 				u.GoogleCalendarConnections[i] = *c.connection
 			}
 		}
+	} else {
+		if !c.connection.CalendarsOfInterest.HasCalendarWithID(c.connection.TaskCalendarID) {
+			c.connection.CalendarsOfInterest = append(c.connection.CalendarsOfInterest,
+				users.GoogleCalendarSync{CalendarID: c.connection.TaskCalendarID})
+
+			for i, connection := range u.GoogleCalendarConnections {
+				if connection.ID == c.connection.ID {
+					u.GoogleCalendarConnections[i] = *c.connection
+				}
+			}
+		}
 	}
 
 	return u, nil
