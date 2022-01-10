@@ -172,6 +172,16 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 				return err
 			}
 		}
+
+		if connection.IsTaskCalendarConnection {
+			u, err = calendarRepository.WatchCalendar(connection.TaskCalendarID, u)
+			if err != nil {
+				_ = handler.UserRepository.Update(request.Context(), u)
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+					"Problem with calendar notification registration", err)
+				return err
+			}
+		}
 	}
 
 	err = handler.UserRepository.Update(request.Context(), u)
