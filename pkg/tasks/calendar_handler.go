@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
@@ -142,7 +143,6 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 	err = handler.syncGoogleCalendars(writer, request, u)
 	if err != nil {
 		// We don't have to print error messages because the sub routine already took care of it
-		return
 	}
 
 	writer.WriteHeader(http.StatusAccepted)
@@ -154,6 +154,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 	for i, connection := range u.GoogleCalendarConnections {
 		u, err = handler.CalendarRepositoryManager.CheckIfGoogleTaskCalendarIsSet(request.Context(), u, &connection, i)
 		if err != nil {
+			handler.Logger.Error("Could not check if Google Task Calendar is set", errors.Wrap(err, "could not check if Google Task Calendar is set"))
 			return err
 		}
 
