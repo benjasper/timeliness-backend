@@ -404,7 +404,6 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 			return
 		}
 
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem with calendar connection", err)
 		return
 	}
 
@@ -419,7 +418,6 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 	err = google.RevokeToken(request.Context(), &connection.Token)
 	if err != nil {
 		handler.Logger.Info(fmt.Sprintf("Could not revoke token: %s", err))
-		return
 	}
 
 	u.GoogleCalendarConnections = u.GoogleCalendarConnections.RemoveConnection(connectionID)
