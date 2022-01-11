@@ -516,7 +516,6 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 	err = handler.syncGoogleCalendars(writer, request, usr)
 	if err != nil {
 		// We don't have to print error messages because the sub routine already took care of it
-		return
 	}
 
 	http.Redirect(writer, request, fmt.Sprintf("%s/static/google-connected", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
