@@ -111,19 +111,15 @@ func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 		return "", checkForInvalidTokenError(err)
 	}
 
-	/*
-		// This requires the https://www.googleapis.com/auth/calendar scope, which we don't want to include because it would give us access to all calendars
+	calendarList := &gcalendar.CalendarListEntry{
+		BackgroundColor: "#dbe2ff",
+		ForegroundColor: "#000000",
+	}
 
-		calendarList := &gcalendar.CalendarListEntry{
-			BackgroundColor: "#dbe2ff",
-			ForegroundColor: "#000000",
-		}
-
-		_, err = c.Service.CalendarList.Patch(cal.Id, calendarList).ColorRgbFormat(true).Do()
-		if err != nil {
-			return "", checkForInvalidTokenError(err)
-		}
-	*/
+	_, err = c.Service.CalendarList.Patch(cal.Id, calendarList).ColorRgbFormat(true).Do()
+	if err != nil {
+		return "", checkForInvalidTokenError(err)
+	}
 
 	return cal.Id, nil
 }
