@@ -10,6 +10,7 @@ import (
 type Mailer interface {
 	SendEmail(ctx context.Context, mail *Email) error
 	AddToList(ctx context.Context, email string, list string) error
+	IsInList(ctx context.Context, email string, list string) bool
 }
 
 // Email is a struct that contains information to send an email
@@ -36,6 +37,9 @@ const UnconfirmedListID = "2"
 
 // AppUsersListID is the list ID for app users
 const AppUsersListID = "5"
+
+// EarlyAccessUsersListID is the list ID for app users
+const EarlyAccessUsersListID = "6"
 
 // NewSendInBlueService constructs a new SendInBlueService
 func NewSendInBlueService(apiKey string) *SendInBlueService {
@@ -87,15 +91,62 @@ func (s *SendInBlueService) AddToList(ctx context.Context, email string, list st
 		return err
 	}
 
-	_, _, err = s.mailer.ContactsApi.CreateContact(ctx, sendinblue.CreateContact{
-		Email: email,
-		ListIds: []int64{
-			int64(templateID),
-		},
-	})
+	info, _, err := s.mailer.ContactsApi.GetContactInfo(ctx, email)
 	if err != nil {
+		_, _, err = s.mailer.ContactsApi.CreateContact(ctx, sendinblue.CreateContact{
+			Email: email,
+			ListIds: []int64{
+				int64(templateID),
+			},
+		})
+		if err != nil {
+			return err
+		}
+
 		return err
 	}
 
+	isInList := false
+	for _, id := range info.ListIds {
+		if id == int64(templateID) {
+			isInList = true
+			break
+		}
+	}
+
+	if !isInList {
+		_, _, err = s.mailer.ContactsApi.AddContactToList(ctx, sendinblue.AddContactToList{
+			Emails: []string{
+				email,
+			},
+		}, int64(templateID))
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// IsInList checks if a user is in a list
+func (s *SendInBlueService) IsInList(ctx context.Context, email string, list string) bool {
+	templateID, err := strconv.Atoi(list)
+	if err != nil {
+		return false
+	}
+
+	info, _, err := s.mailer.ContactsApi.GetContactInfo(ctx, email)
+	if err != nil {
+		return false
+	}
+
+	isInList := false
+	for _, id := range info.ListIds {
+		if id == int64(templateID) {
+			isInList = true
+			break
+		}
+	}
+
+	return isInList
 }
