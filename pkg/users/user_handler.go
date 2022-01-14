@@ -13,7 +13,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
-	"io"
 	"net/http"
 	"os"
 	"reflect"
@@ -98,6 +97,17 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 			"Could not send registration confirmation mail", err)
 		return
+	}
+
+	if !handler.EmailService.IsInList(request.Context(), user.Email, email.EarlyAccessUsersListID) {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"No access to beta", err)
+		return
+	}
+
+	err = handler.EmailService.AddToList(request.Context(), user.Email, email.AppUsersListID)
+	if err != nil {
+		handler.Logger.Error("Could not add user to app users list", err)
 	}
 
 	handler.generateAndRespondWithTokens(&user, writer)
@@ -470,27 +480,34 @@ func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, reques
 	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=%t", os.Getenv("FRONTEND_BASE_URL"), success), http.StatusFound)
 }
 
+// NewsletterRegistration is the request body for the newsletter registration endpoint
+type NewsletterRegistration struct {
+	Email string `json:"email"`
+}
+
 // RegisterForNewsletter proxies a request to mailchimp and return mail chimps response
 func (handler *Handler) RegisterForNewsletter(writer http.ResponseWriter, request *http.Request) {
-	err := request.ParseMultipartForm(1024)
+	body := NewsletterRegistration{}
+
+	err := json.NewDecoder(request.Body).Decode(&body)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, 400, "Problem with request formatting", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Wrong format", err)
 		return
 	}
 
-	response, err := http.PostForm(
-		"https://app.us5.list-manage.com/subscribe/post-json?u=bec104d5be09114f39fb57f93&amp;id=cf885e3667",
-		request.PostForm)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, 500, "Problem with MailChimp request", err)
+	if body.Email == "" {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"No email specified", err)
 		return
 	}
 
-	body, err := io.ReadAll(response.Body)
+	err = handler.EmailService.AddToList(request.Context(), body.Email, email.UnconfirmedListID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, 500, "Could not unmarshal MailChimp response", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Bad email", err)
 		return
 	}
 
-	handler.ResponseManager.RespondWithBinary(writer, body, "application/json")
+	handler.ResponseManager.RespondWithNoContent(writer)
 }
