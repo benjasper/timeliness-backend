@@ -480,6 +480,7 @@ func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, reques
 	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=%t", os.Getenv("FRONTEND_BASE_URL"), success), http.StatusFound)
 }
 
+// NewsletterRegistration is the request body for the newsletter registration endpoint
 type NewsletterRegistration struct {
 	Email string `json:"email"`
 }
