@@ -211,12 +211,10 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 		for _, workUnit := range foundWorkUnits {
 			workUnit.ScheduledAt.Blocking = true
-			workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit)
-			workUnit.ScheduledAt.Description = ""
 
 			var workEvent *calendar.Event
 			for _, user := range relevantUsers {
-				workEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex())
+				workEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex(), s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit), "", s.taskTextRenderer.HasReminder(&workUnit))
 				if err != nil {
 					return nil, err
 				}
@@ -290,7 +288,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 		for _, user := range relevantUsers {
 			for _, unit := range shouldUpdate {
-				err = taskCalendarRepositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, t.ID.Hex())
+				err = taskCalendarRepositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, t.ID.Hex(), s.taskTextRenderer.RenderWorkUnitEventTitle(t, &unit), "", s.taskTextRenderer.HasReminder(&unit))
 				if err != nil {
 					return nil, err
 				}
@@ -300,16 +298,14 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 	if len(t.DueAt.CalendarEvents) != len(relevantUsers) {
 		t.DueAt.Blocking = false
-		t.DueAt.Title = s.taskTextRenderer.RenderDueEventTitle(t)
 		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
-		t.DueAt.Description = ""
 
 		var dueEvent *calendar.Event
 		for _, user := range relevantUsers {
 			if persistedEvent := t.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
 				continue
 			}
-			dueEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&t.DueAt, t.ID.Hex())
+			dueEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&t.DueAt, t.ID.Hex(), s.taskTextRenderer.RenderDueEventTitle(t), "", s.taskTextRenderer.HasReminder(t))
 			if err != nil {
 				return nil, err
 			}
@@ -410,7 +406,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		t.WorkUnits[index].Workload = foundWorkUnits[0].Workload
 
 		for _, user := range relevantUsers {
-			err = taskRepositories[user.ID.Hex()].UpdateEvent(&t.WorkUnits[index].ScheduledAt, t.ID.Hex())
+			err = taskRepositories[user.ID.Hex()].UpdateEvent(&t.WorkUnits[index].ScheduledAt, t.ID.Hex(), s.taskTextRenderer.RenderWorkUnitEventTitle(t, &t.WorkUnits[index]), "", s.taskTextRenderer.HasReminder(&t.WorkUnits[index]))
 			if err != nil {
 				return nil, err
 			}
@@ -424,12 +420,10 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 
 	for _, workUnit := range foundWorkUnits {
 		workUnit.ScheduledAt.Blocking = true
-		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit)
-		workUnit.ScheduledAt.Description = ""
 
 		var workEvent *calendar.Event
 		for _, user := range relevantUsers {
-			workEvent, err = taskRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex())
+			workEvent, err = taskRepositories[user.ID.Hex()].NewEvent(&workUnit.ScheduledAt, t.ID.Hex(), s.taskTextRenderer.RenderWorkUnitEventTitle(t, &workUnit), "", s.taskTextRenderer.HasReminder(&workUnit))
 			if err != nil {
 				return nil, err
 			}
@@ -600,7 +594,7 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 			},
 		}
 
-		workUnit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, &workUnit)
+		title := s.taskTextRenderer.RenderWorkUnitEventTitle(task, &workUnit)
 
 		for _, user := range relevantUsers {
 			repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
@@ -608,7 +602,7 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 				return nil, err
 			}
 
-			event, err := repository.NewEvent(&workUnit.ScheduledAt, task.ID.Hex())
+			event, err := repository.NewEvent(&workUnit.ScheduledAt, task.ID.Hex(), title, "", s.taskTextRenderer.HasReminder(&workUnit))
 			if err != nil {
 				return nil, err
 			}
@@ -623,8 +617,8 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 	return task, nil
 }
 
-// UpdateEvent updates an any calendar event
-func (s *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *calendar.Event) error {
+// UpdateDueAtEvent updates a due at event
+func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task) error {
 	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
 		return err
@@ -636,7 +630,29 @@ func (s *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 			return err
 		}
 
-		err = repository.UpdateEvent(event, task.ID.Hex())
+		err = repository.UpdateEvent(&task.DueAt, task.ID.Hex(), s.taskTextRenderer.RenderDueEventTitle(task), "", s.taskTextRenderer.HasReminder(task))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// UpdateWorkUnitEvent updates a work unit event
+func (s *PlanningService) UpdateWorkUnitEvent(ctx context.Context, task *Task, unit *WorkUnit) error {
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range relevantUsers {
+		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		if err != nil {
+			return err
+		}
+
+		err = repository.UpdateEvent(&unit.ScheduledAt, task.ID.Hex(), s.taskTextRenderer.RenderWorkUnitEventTitle(task, unit), "", s.taskTextRenderer.HasReminder(unit))
 		if err != nil {
 			return err
 		}
@@ -647,7 +663,7 @@ func (s *PlanningService) UpdateEvent(ctx context.Context, task *Task, event *ca
 
 // UpdateTaskTitle updates the events of the tasks and work units
 func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updateWorkUnits bool) error {
-	task.DueAt.Title = s.taskTextRenderer.RenderDueEventTitle(task)
+	dueAtTitle := s.taskTextRenderer.RenderDueEventTitle(task)
 
 	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
@@ -664,7 +680,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 
 		repositories[user.ID.Hex()] = repository
 
-		err = repository.UpdateEvent(&task.DueAt, task.ID.Hex())
+		err = repository.UpdateEvent(&task.DueAt, task.ID.Hex(), dueAtTitle, "", s.taskTextRenderer.HasReminder(task))
 		if err != nil {
 			return err
 		}
@@ -675,10 +691,10 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 	}
 
 	for _, unit := range task.WorkUnits {
-		unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, &unit)
+		unitTitle := s.taskTextRenderer.RenderWorkUnitEventTitle(task, &unit)
 
 		for _, user := range relevantUsers {
-			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, task.ID.Hex())
+			err = repositories[user.ID.Hex()].UpdateEvent(&unit.ScheduledAt, task.ID.Hex(), unitTitle, "", s.taskTextRenderer.HasReminder(&unit))
 			if err != nil {
 				return err
 			}
@@ -690,7 +706,7 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 
 // UpdateWorkUnitTitle updates the event title of a work unit
 func (s *PlanningService) UpdateWorkUnitTitle(ctx context.Context, task *Task, unit *WorkUnit) error {
-	unit.ScheduledAt.Title = s.taskTextRenderer.RenderWorkUnitEventTitle(task, unit)
+	title := s.taskTextRenderer.RenderWorkUnitEventTitle(task, unit)
 
 	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
@@ -707,7 +723,7 @@ func (s *PlanningService) UpdateWorkUnitTitle(ctx context.Context, task *Task, u
 
 		repositories[user.ID.Hex()] = repository
 
-		err = repository.UpdateEvent(&unit.ScheduledAt, task.ID.Hex())
+		err = repository.UpdateEvent(&unit.ScheduledAt, task.ID.Hex(), title, "", s.taskTextRenderer.HasReminder(unit))
 		if err != nil {
 			return err
 		}
@@ -853,7 +869,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 		// If the event is not deleted, we update the task
 		task.DueAt.Date = event.Date
-		err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &task.DueAt)
+		err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &task.DueAt, s.taskTextRenderer.RenderDueEventTitle(task), s.taskTextRenderer.HasReminder(task))
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("problem updating other collaborators workUnit event %s", task.ID.Hex()), err)
 			return
@@ -939,7 +955,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	// If the work unit event is not deleted, we update the work unit
 	workUnit.ScheduledAt.Date = event.Date
-	err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &workUnit.ScheduledAt)
+	err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &workUnit.ScheduledAt, s.taskTextRenderer.RenderWorkUnitEventTitle(task, workUnit), s.taskTextRenderer.HasReminder(workUnit))
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("problem updating other collaborators workUnit event %s", task.ID.Hex()), err)
 		// We don't return here, because we still need to update the task
@@ -1027,7 +1043,7 @@ func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Ta
 					// Try the other action
 				}
 
-				err = calendarRepository.UpdateEvent(&task.WorkUnits[i-1].ScheduledAt, task.ID.Hex())
+				err = calendarRepository.UpdateEvent(&task.WorkUnits[i-1].ScheduledAt, task.ID.Hex(), s.taskTextRenderer.RenderWorkUnitEventTitle(task, &unit), "", s.taskTextRenderer.HasReminder(&task.WorkUnits[i-1]))
 				if err != nil {
 					s.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
 					continue
@@ -1046,7 +1062,7 @@ func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Ta
 	return task
 }
 
-func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.Context, task *Task, userID string, event *calendar.Event) error {
+func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.Context, task *Task, userID string, event *calendar.Event, title string, withReminder bool) error {
 	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
 		return err
@@ -1064,7 +1080,7 @@ func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 			continue
 		}
 
-		err = calendarRepository.UpdateEvent(event, task.ID.Hex())
+		err = calendarRepository.UpdateEvent(event, task.ID.Hex(), title, "", withReminder)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("could not update event for user %s in task %s", user.ID.Hex(), task.ID.Hex()), err)
 			continue

@@ -148,7 +148,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.DueAt.Date != task.DueAt.Date {
 		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
 
-		err = handler.PlanningService.UpdateEvent(request.Context(), task, &task.DueAt)
+		err = handler.PlanningService.UpdateDueAtEvent(request.Context(), task)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating the task", err)
@@ -262,7 +262,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 			return
 		}
 
-		err = handler.PlanningService.UpdateEvent(request.Context(), task, &workUnit.ScheduledAt)
+		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &workUnit)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem updating the task", err)
@@ -764,7 +764,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryDate := request.URL.Query().Get("date")
 	querySort := request.URL.Query().Get("sort")
-	date := time.Time{}
+	d := time.Time{}
 	sort := 1
 
 	var filters []Filter
@@ -802,13 +802,13 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 		}
 	}
 
-	date, err = time.Parse(time.RFC3339, queryDate)
+	d, err = time.Parse(time.RFC3339, queryDate)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
 		return
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, filters, date, sort)
+	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, filters, d, sort)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
 		return
@@ -909,7 +909,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		// Add the new work unit's workload back in
 		task.WorkloadOverall += requestBody.ChosenTimespans[0].Duration()
 
-		err = handler.PlanningService.UpdateEvent(request.Context(), task, &task.WorkUnits[index].ScheduledAt)
+		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &task.WorkUnits[index])
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't update event", err)
 			return
