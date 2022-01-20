@@ -511,6 +511,9 @@ func (c *GoogleCalendarRepository) eventToGoogleEvent(event *Event, taskID strin
 			Overrides: []*gcalendar.EventReminder{
 				{
 					Minutes: 0,
+					ForceSendFields: []string{
+						"Minutes",
+					},
 				},
 			},
 			ForceSendFields: []string{"UseDefault", "Overrides"},
