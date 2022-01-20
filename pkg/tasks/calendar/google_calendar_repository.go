@@ -114,11 +114,6 @@ func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 	calendarList := &gcalendar.CalendarListEntry{
 		BackgroundColor: "#dbe2ff",
 		ForegroundColor: "#000000",
-		DefaultReminders: []*gcalendar.EventReminder{
-			{
-				Minutes: 0,
-			},
-		},
 	}
 
 	_, err = c.Service.CalendarList.Patch(cal.Id, calendarList).ColorRgbFormat(true).Do()
@@ -205,7 +200,7 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 
 // NewEvent creates a new Event in Google Calendar
 func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string, title string, description string, withReminder bool) (*Event, error) {
-	googleEvent := c.createGoogleEvent(event, taskID, title, description, withReminder)
+	googleEvent := c.eventToGoogleEvent(event, taskID, title, description, withReminder)
 
 	createdEvent, err := c.Service.Events.Insert(c.connection.TaskCalendarID, googleEvent).Do()
 	if err != nil {
@@ -225,7 +220,7 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string, title s
 
 // UpdateEvent updates an existing Google Calendar event
 func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string, title string, description string, withReminder bool) error {
-	googleEvent := c.createGoogleEvent(event, taskID, title, description, withReminder)
+	googleEvent := c.eventToGoogleEvent(event, taskID, title, description, withReminder)
 
 	calendarEvent := event.CalendarEvents.FindByUserID(c.userID.Hex())
 
@@ -486,7 +481,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	*userChannel <- user
 }
 
-func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string, title string, description string, withReminder bool) *gcalendar.Event {
+func (c *GoogleCalendarRepository) eventToGoogleEvent(event *Event, taskID string, title string, description string, withReminder bool) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
 		DateTime: event.Date.Start.Format(time.RFC3339),
 	}
@@ -512,12 +507,16 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string
 		Transparency: transparency,
 		Source:       &source,
 		Reminders: &gcalendar.EventReminders{
-			UseDefault: true,
+			UseDefault: false,
+			Overrides: []*gcalendar.EventReminder{
+				{
+					Minutes: 0,
+				},
+			},
 		},
 	}
 
 	if !withReminder {
-		googleEvent.Reminders.UseDefault = false
 		googleEvent.Reminders.Overrides = []*gcalendar.EventReminder{}
 	}
 
