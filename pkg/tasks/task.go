@@ -26,6 +26,11 @@ const AgendaWorkUnit = "WORK_UNIT"
 // AgendaDueAt is a type to keep apart dates
 const AgendaDueAt = "DUE_AT"
 
+// Done is an interface that allows to check the done status of a Task or WorkUnit
+type Done interface {
+	CheckDone() bool
+}
+
 // Task is the model for a task
 type Task struct {
 	ID             primitive.ObjectID   `bson:"_id" json:"id"`
@@ -60,6 +65,11 @@ func (t *Task) Validate() error {
 	}
 
 	return nil
+}
+
+// CheckDone checks if the task is done
+func (t *Task) CheckDone() bool {
+	return t.IsDone
 }
 
 // TaskAgenda is the model for the agenda task view

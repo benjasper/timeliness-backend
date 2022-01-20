@@ -204,8 +204,8 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 }
 
 // NewEvent creates a new Event in Google Calendar
-func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string, title string, description string) (*Event, error) {
-	googleEvent := c.createGoogleEvent(event, taskID, title, description)
+func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string, title string, description string, withReminder bool) (*Event, error) {
+	googleEvent := c.createGoogleEvent(event, taskID, title, description, withReminder)
 
 	createdEvent, err := c.Service.Events.Insert(c.connection.TaskCalendarID, googleEvent).Do()
 	if err != nil {
@@ -224,8 +224,8 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string, title s
 }
 
 // UpdateEvent updates an existing Google Calendar event
-func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string, title string, description string) error {
-	googleEvent := c.createGoogleEvent(event, taskID, title, description)
+func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string, title string, description string, withReminder bool) error {
+	googleEvent := c.createGoogleEvent(event, taskID, title, description, withReminder)
 
 	calendarEvent := event.CalendarEvents.FindByUserID(c.userID.Hex())
 
@@ -486,7 +486,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	*userChannel <- user
 }
 
-func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string, title string, description string) *gcalendar.Event {
+func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string, title string, description string, withReminder bool) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
 		DateTime: event.Date.Start.Format(time.RFC3339),
 	}
@@ -514,6 +514,11 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string
 		Reminders: &gcalendar.EventReminders{
 			UseDefault: true,
 		},
+	}
+
+	if !withReminder {
+		googleEvent.Reminders.UseDefault = false
+		googleEvent.Reminders.Overrides = []*gcalendar.EventReminder{}
 	}
 
 	return &googleEvent

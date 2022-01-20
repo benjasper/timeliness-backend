@@ -49,7 +49,7 @@ func (r *MockCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Calend
 }
 
 // NewEvent adds a new event
-func (r *MockCalendarRepository) NewEvent(event *Event, taskID string, title string, description string) (*Event, error) {
+func (r *MockCalendarRepository) NewEvent(event *Event, taskID string, title string, description string, withReminder bool) (*Event, error) {
 	id := ([]byte)(event.Date.Start.String() + title)
 
 	calendarEvent := PersistedEvent{
@@ -65,7 +65,7 @@ func (r *MockCalendarRepository) NewEvent(event *Event, taskID string, title str
 }
 
 // UpdateEvent updates an existing event
-func (r *MockCalendarRepository) UpdateEvent(event *Event, taskID string, title string, description string) error {
+func (r *MockCalendarRepository) UpdateEvent(event *Event, taskID string, title string, description string, withReminder bool) error {
 	calendarEvent := event.CalendarEvents.FindByUserID(r.User.ID.Hex())
 
 	if calendarEvent == nil {

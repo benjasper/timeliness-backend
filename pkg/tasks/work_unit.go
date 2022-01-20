@@ -16,3 +16,8 @@ type WorkUnit struct {
 	ScheduledAt calendar.Event `json:"scheduledAt" bson:"scheduledAt"`
 	Workload    time.Duration  `json:"workload" bson:"workload"`
 }
+
+// CheckDone checks if the task is done
+func (w *WorkUnit) CheckDone() bool {
+	return w.IsDone
+}

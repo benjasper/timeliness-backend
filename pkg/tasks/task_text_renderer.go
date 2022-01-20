@@ -26,3 +26,8 @@ func (t *TaskTextRenderer) RenderWorkUnitEventTitle(task *Task, workUnit *WorkUn
 
 	return fmt.Sprintf("%s %s", icon, task.Name)
 }
+
+// HasReminder returns true if the Task or WorkUnit implementing Done is done
+func (t *TaskTextRenderer) HasReminder(element Done) bool {
+	return !element.CheckDone()
+}
