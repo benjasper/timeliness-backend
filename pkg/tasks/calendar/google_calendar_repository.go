@@ -114,6 +114,11 @@ func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 	calendarList := &gcalendar.CalendarListEntry{
 		BackgroundColor: "#dbe2ff",
 		ForegroundColor: "#000000",
+		DefaultReminders: []*gcalendar.EventReminder{
+			{
+				Minutes: 0,
+			},
+		},
 	}
 
 	_, err = c.Service.CalendarList.Patch(cal.Id, calendarList).ColorRgbFormat(true).Do()
@@ -199,8 +204,8 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 }
 
 // NewEvent creates a new Event in Google Calendar
-func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string) (*Event, error) {
-	googleEvent := c.createGoogleEvent(event, taskID)
+func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string, title string, description string) (*Event, error) {
+	googleEvent := c.createGoogleEvent(event, taskID, title, description)
 
 	createdEvent, err := c.Service.Events.Insert(c.connection.TaskCalendarID, googleEvent).Do()
 	if err != nil {
@@ -219,8 +224,8 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string) (*Event
 }
 
 // UpdateEvent updates an existing Google Calendar event
-func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string) error {
-	googleEvent := c.createGoogleEvent(event, taskID)
+func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string, title string, description string) error {
+	googleEvent := c.createGoogleEvent(event, taskID, title, description)
 
 	calendarEvent := event.CalendarEvents.FindByUserID(c.userID.Hex())
 
@@ -333,8 +338,6 @@ func findSyncByID(connection *users.GoogleCalendarConnection, ID string) int {
 
 func (c *GoogleCalendarRepository) googleEventToEvent(event *gcalendar.Event, loc *time.Location) (*Event, error) {
 	newEvent := &Event{
-		Title:       event.Summary,
-		Description: event.Description,
 		CalendarEvents: []PersistedEvent{
 			{
 				CalendarEventID: event.Id,
@@ -483,7 +486,7 @@ func (c *GoogleCalendarRepository) SyncEvents(calendarID string, user *users.Use
 	*userChannel <- user
 }
 
-func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string) *gcalendar.Event {
+func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string, title string, description string) *gcalendar.Event {
 	start := gcalendar.EventDateTime{
 		DateTime: event.Date.Start.Format(time.RFC3339),
 	}
@@ -504,8 +507,8 @@ func (c *GoogleCalendarRepository) createGoogleEvent(event *Event, taskID string
 	googleEvent := gcalendar.Event{
 		Start:        &start,
 		End:          &end,
-		Summary:      event.Title,
-		Description:  event.Description,
+		Summary:      title,
+		Description:  description,
 		Transparency: transparency,
 		Source:       &source,
 		Reminders: &gcalendar.EventReminders{
