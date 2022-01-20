@@ -510,6 +510,7 @@ func (c *GoogleCalendarRepository) eventToGoogleEvent(event *Event, taskID strin
 			UseDefault: false,
 			Overrides: []*gcalendar.EventReminder{
 				{
+					Method:  "popup",
 					Minutes: 0,
 					ForceSendFields: []string{
 						"Minutes",
