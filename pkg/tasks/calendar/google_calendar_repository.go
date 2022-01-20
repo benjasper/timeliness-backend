@@ -513,6 +513,7 @@ func (c *GoogleCalendarRepository) eventToGoogleEvent(event *Event, taskID strin
 					Minutes: 0,
 				},
 			},
+			ForceSendFields: []string{"UseDefault", "Overrides"},
 		},
 	}
 
