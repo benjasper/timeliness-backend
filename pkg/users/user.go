@@ -29,6 +29,7 @@ type User struct {
 	Email          string             `json:"email" validate:"required,email"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt" validate:"isdefault"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
+	LastRefreshAt  time.Time          `json:"-" bson:"lastRefreshAt" validate:"isdefault"`
 	DeviceTokens   []DeviceToken      `json:"-" bson:"deviceTokens" validate:"isdefault"`
 	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
 	Contacts       []Contact          `json:"contacts" bson:"contacts"`

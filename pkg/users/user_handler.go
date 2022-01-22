@@ -110,7 +110,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		handler.Logger.Error("Could not add user to app users list", err)
 	}
 
-	handler.generateAndRespondWithTokens(&user, writer)
+	handler.generateAndRespondWithTokens(&user, request, writer)
 }
 
 // UserAddDevice upserts a DeviceToken
@@ -275,10 +275,10 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	handler.generateAndRespondWithTokens(user, writer)
+	handler.generateAndRespondWithTokens(user, request, writer)
 }
 
-func (handler *Handler) generateAndRespondWithTokens(user *User, writer http.ResponseWriter) {
+func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.Request, writer http.ResponseWriter) {
 	accessClaims := jwt.Claims{
 		Subject:        user.ID.Hex(),
 		Issuer:         "timeliness",
@@ -307,6 +307,14 @@ func (handler *Handler) generateAndRespondWithTokens(user *User, writer http.Res
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Problem signing refresh token", err)
+		return
+	}
+
+	user.LastRefreshAt = time.Now()
+	err = handler.UserRepository.Update(request.Context(), user)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+			"Could not update user", err)
 		return
 	}
 
