@@ -19,7 +19,7 @@ import (
 )
 
 // AllScopes is a list of all scopes that will be requested
-var AllScopes = []string{gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/calendar.calendarlist"}
+var AllScopes = []string{gcalendar.CalendarReadonlyScope, oauth22.UserinfoProfileScope, oauth22.UserinfoEmailScope, "https://www.googleapis.com/auth/calendar.app.created", "https://www.googleapis.com/auth/calendar.calendarlist"}
 
 // UserInfo is the sign in information about the user
 type UserInfo struct {
