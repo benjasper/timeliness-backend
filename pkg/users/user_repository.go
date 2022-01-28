@@ -19,6 +19,7 @@ type UserRepositoryInterface interface {
 	FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error)
 	FindByVerificationToken(ctx context.Context, token string) (*User, error)
 	FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error)
+	FindByIdentityProvider(ctx context.Context, email string, ID string) (*User, error)
 	Update(ctx context.Context, user *User) error
 	UpdateSettings(ctx context.Context, user *User) error
 	Remove(ctx context.Context, id string) error
@@ -96,6 +97,26 @@ func (s *UserRepository) FindByVerificationToken(ctx context.Context, token stri
 	var u = User{}
 
 	result := s.DB.FindOne(ctx, bson.M{"emailVerificationToken": token})
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	err := result.Decode(&u)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// FindByIdentityProvider finds a by either email or google ID
+func (s *UserRepository) FindByIdentityProvider(ctx context.Context, email string, ID string) (*User, error) {
+	var u = User{}
+
+	// Either look for email and emailVerified == true or googleCalendarConnections.id == ID
+	result := s.DB.FindOne(ctx, bson.M{"$or": []bson.M{
+		{"email": email},
+		{"googleCalendarConnections._id": ID},
+	}})
 	if result.Err() != nil {
 		return nil, result.Err()
 	}

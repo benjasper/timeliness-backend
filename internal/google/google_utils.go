@@ -8,6 +8,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gcalendar "google.golang.org/api/calendar/v3"
+	"google.golang.org/api/idtoken"
 	oauth22 "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 	"io"
@@ -17,30 +18,36 @@ import (
 	"strings"
 )
 
+var AllScopes = []string{gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/calendar.calendarlist"}
+
+type UserInfo struct {
+	Email         string `json:"email"`
+	Firstname     string `json:"firstname"`
+	Lastname      string `json:"lastname"`
+	ID            string `json:"id"`
+	EmailVerified bool   `json:"emailVerified"`
+}
+
 // ReadGoogleConfig reads and parses the json file where google credentials are stored
-func ReadGoogleConfig() (*oauth2.Config, error) {
+func ReadGoogleConfig(withCustomScopes bool) (*oauth2.Config, error) {
 	b := []byte(os.Getenv("GCP_AUTH_CREDENTIALS"))
 
 	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, gcalendar.CalendarReadonlyScope, "https://www.googleapis.com/auth/calendar.app.created", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/calendar.calendarlist")
+	config, err := google.ConfigFromJSON(b)
 	if err != nil {
 		return nil, err
 	}
 
-	apiBaseURL := "http://localhost"
-	envBaseURL, ok := os.LookupEnv("BASE_URL")
-	if ok {
-		apiBaseURL = envBaseURL
+	if withCustomScopes {
+		config.Scopes = AllScopes
 	}
-
-	config.RedirectURL = fmt.Sprintf("%s/v1/auth/google", apiBaseURL)
 
 	return config, nil
 }
 
 // GetGoogleToken gets a Google OAuth Token with an auth code
 func GetGoogleToken(context context.Context, authCode string) (*oauth2.Token, error) {
-	config, err := ReadGoogleConfig()
+	config, err := ReadGoogleConfig(true)
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +61,18 @@ func GetGoogleToken(context context.Context, authCode string) (*oauth2.Token, er
 
 // GetGoogleAuthURL returns the URL where the user can allow Timeliness access to the calendar
 func GetGoogleAuthURL() (string, string, error) {
-	config, err := ReadGoogleConfig()
+	config, err := ReadGoogleConfig(true)
 	if err != nil {
 		return "", "", err
 	}
+
+	apiBaseURL := "http://localhost"
+	envBaseURL, ok := os.LookupEnv("BASE_URL")
+	if ok {
+		apiBaseURL = envBaseURL
+	}
+
+	config.RedirectURL = fmt.Sprintf("%s/v1/auth/google", apiBaseURL)
 
 	stateToken := uuid.New().String()
 
@@ -66,34 +81,79 @@ func GetGoogleAuthURL() (string, string, error) {
 	return url, stateToken, nil
 }
 
-// GetUserID gets the matching user id to a token from the Google API
-func GetUserID(ctx context.Context, token *oauth2.Token) (string, error) {
-	config, err := ReadGoogleConfig()
+// GetUserInfo gets the matching user id to a token from the Google API
+func GetUserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error) {
+	config, err := ReadGoogleConfig(false)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	client := config.Client(ctx, token)
 
 	service, err := oauth22.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	userinfo, err := service.Userinfo.Get().Do()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	if strings.Trim(userinfo.Email, " ") != "" {
-		return userinfo.Email, nil
+	return &UserInfo{
+		Email:         userinfo.Email,
+		Firstname:     userinfo.GivenName,
+		Lastname:      userinfo.FamilyName,
+		ID:            userinfo.Id,
+		EmailVerified: *userinfo.VerifiedEmail,
+	}, nil
+}
+
+// GetUserInfoFromIDToken validates a Google ID Token and returns the user info
+func GetUserInfoFromIDToken(ctx context.Context, idToken string) (*UserInfo, error) {
+	validate, err := idtoken.Validate(ctx, idToken, "")
+	if err != nil {
+		return nil, err
 	}
 
-	if strings.Trim(userinfo.Id, " ") != "" {
-		return userinfo.Id, nil
+	return &UserInfo{
+		Email:         validate.Claims["email"].(string),
+		Firstname:     validate.Claims["given_name"].(string),
+		Lastname:      validate.Claims["family_name"].(string),
+		ID:            validate.Subject,
+		EmailVerified: validate.Claims["email_verified"].(bool),
+	}, nil
+}
+
+// CheckTokenForCorrectScopes checks if the token is valid and has the correct scopes
+func CheckTokenForCorrectScopes(ctx context.Context, token *oauth2.Token) (bool, error) {
+	config, err := ReadGoogleConfig(false)
+	if err != nil {
+		return false, err
 	}
 
-	return "", errors.Errorf("neither email nor user ID exists")
+	client := config.Client(ctx, token)
+
+	service, err := oauth22.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return false, err
+	}
+
+	result, err := service.Tokeninfo().Do()
+	if err != nil {
+		return false, err
+	}
+
+	scopes := strings.Trim(result.Scope, " ")
+
+	// Check if AllScopes are in the scopes
+	for _, scope := range AllScopes {
+		if !strings.Contains(scopes, scope) {
+			return false, errors.Errorf("missing scope %s", scope)
+		}
+	}
+
+	return true, nil
 }
 
 // RevokeToken revokes a google access token

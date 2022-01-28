@@ -193,10 +193,11 @@ func main() {
 
 	unauthenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
 
-	unauthenticatedAPI.Path("/auth/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
+	//unauthenticatedAPI.Path("/auth/register").HandlerFunc(userHandler.UserRegister).Methods(http.MethodPost)
 	unauthenticatedAPI.Path("/auth/register/verify").HandlerFunc(userHandler.VerifyRegistrationGet).Methods(http.MethodGet)
 	unauthenticatedAPI.Path("/auth/refresh").HandlerFunc(userHandler.UserRefresh).Methods(http.MethodPost)
-	unauthenticatedAPI.Path("/auth/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
+	//unauthenticatedAPI.Path("/auth/login").HandlerFunc(userHandler.UserLogin).Methods(http.MethodPost)
+	unauthenticatedAPI.Path("/auth/login/google").HandlerFunc(userHandler.UserLoginWithGoogle).Methods(http.MethodPost)
 	unauthenticatedAPI.Path("/auth/google").HandlerFunc(calendarHandler.GoogleCalendarAuthCallback).Methods(http.MethodGet)
 
 	unauthenticatedAPI.Path("/calendar/google/notifications").

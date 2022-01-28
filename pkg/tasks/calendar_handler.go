@@ -468,22 +468,22 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 		return
 	}
 
-	userID, err := google.GetUserID(request.Context(), token)
+	userInfo, err := google.GetUserInfo(request.Context(), token)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem getting user id", err)
 		return
 	}
 
 	for i, connection := range usr.GoogleCalendarConnections {
-		if connection.ID == userID && i != foundConnectionIndex {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Account is already connected", fmt.Errorf("account %s is already connected", userID))
+		if connection.ID == userInfo.ID && i != foundConnectionIndex {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Account is already connected", fmt.Errorf("account %s is already connected", userInfo.ID))
 			return
 		}
 	}
 
 	// Edge case: This checks the case when a user updates a connection, but the new user account is different.
 	// Then we want to remove all previous calendars of interest and rebuild them later
-	if usr.GoogleCalendarConnections[foundConnectionIndex].ID != "" && usr.GoogleCalendarConnections[foundConnectionIndex].ID != userID {
+	if usr.GoogleCalendarConnections[foundConnectionIndex].ID != "" && usr.GoogleCalendarConnections[foundConnectionIndex].ID != userInfo.ID {
 		// The following line will probably fail as the user access is probably already gone, but we try anyways
 		repo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), usr, usr.GoogleCalendarConnections[foundConnectionIndex].ID)
 		if err == nil {
@@ -497,7 +497,8 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 		usr.GoogleCalendarConnections[foundConnectionIndex].CalendarsOfInterest = users.GoogleCalendarSyncs{}
 	}
 
-	usr.GoogleCalendarConnections[foundConnectionIndex].ID = userID
+	usr.GoogleCalendarConnections[foundConnectionIndex].ID = userInfo.ID
+	usr.GoogleCalendarConnections[foundConnectionIndex].Email = userInfo.Email
 	usr.GoogleCalendarConnections[foundConnectionIndex].Token = *token
 	usr.GoogleCalendarConnections[foundConnectionIndex].StateToken = ""
 	usr.GoogleCalendarConnections[foundConnectionIndex].Status = users.CalendarConnectionStatusActive

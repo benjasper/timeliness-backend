@@ -38,7 +38,7 @@ type GoogleCalendarRepository struct {
 func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID, connection *users.GoogleCalendarConnection, logger logger.Interface) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
-	config, err := google.ReadGoogleConfig()
+	config, err := google.ReadGoogleConfig(false)
 	if err != nil {
 		return nil, err
 	}

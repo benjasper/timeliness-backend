@@ -25,7 +25,7 @@ type User struct {
 	ID             primitive.ObjectID `json:"id" bson:"_id"`
 	Firstname      string             `json:"firstname" validate:"required"`
 	Lastname       string             `json:"lastname" validate:"required"`
-	Password       string             `json:"-" bson:"password" validate:"required"`
+	Password       string             `json:"-" bson:"password"`
 	Email          string             `json:"email" validate:"required,email"`
 	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt" validate:"isdefault"`
 	LastModifiedAt time.Time          `json:"lastModifiedAt" bson:"lastModifiedAt" validate:"isdefault"`
@@ -44,6 +44,11 @@ type User struct {
 type UserLogin struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" bson:"password" validate:"required"`
+}
+
+//UserLoginGoogle is the view for users logging in with google
+type UserLoginGoogle struct {
+	Token string `json:"token" validate:"required"`
 }
 
 // Contact is a reference to another User
@@ -86,6 +91,7 @@ func (g GoogleCalendarConnections) RemoveConnection(connectionID string) GoogleC
 // GoogleCalendarConnection stores everything related to Google Calendar
 type GoogleCalendarConnection struct {
 	ID                       string              `json:"id" bson:"_id"`
+	Email                    string              `json:"email" bson:"email"`
 	IsTaskCalendarConnection bool                `json:"isTaskCalendarConnection" bson:"isTaskCalendarConnection"`
 	Status                   string              `json:"status" bson:"status"`
 	Token                    oauth2.Token        `json:"-" bson:"token,omitempty"`
