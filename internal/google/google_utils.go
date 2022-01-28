@@ -44,6 +44,14 @@ func ReadGoogleConfig(withCustomScopes bool) (*oauth2.Config, error) {
 		config.Scopes = AllScopes
 	}
 
+	apiBaseURL := "http://localhost"
+	envBaseURL, ok := os.LookupEnv("BASE_URL")
+	if ok {
+		apiBaseURL = envBaseURL
+	}
+
+	config.RedirectURL = fmt.Sprintf("%s/v1/auth/google", apiBaseURL)
+
 	return config, nil
 }
 
@@ -68,14 +76,6 @@ func GetGoogleAuthURL() (string, string, error) {
 		return "", "", err
 	}
 
-	apiBaseURL := "http://localhost"
-	envBaseURL, ok := os.LookupEnv("BASE_URL")
-	if ok {
-		apiBaseURL = envBaseURL
-	}
-
-	config.RedirectURL = fmt.Sprintf("%s/v1/auth/google", apiBaseURL)
-
 	stateToken := uuid.New().String()
 
 	url := config.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
@@ -85,7 +85,7 @@ func GetGoogleAuthURL() (string, string, error) {
 
 // GetUserInfo gets the matching user id to a token from the Google API
 func GetUserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error) {
-	config, err := ReadGoogleConfig(false)
+	config, err := ReadGoogleConfig(true)
 	if err != nil {
 		return nil, err
 	}
