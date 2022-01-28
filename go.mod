@@ -14,7 +14,6 @@ require (
 	github.com/envoyproxy/go-control-plane v0.10.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v0.6.2 // indirect
 	github.com/go-playground/validator/v10 v10.9.0
-	github.com/go-redis/cache/v8 v8.4.3
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -22,15 +21,12 @@ require (
 	github.com/google/pprof v0.0.0-20211204230040-2007db6d4f53 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/hashicorp/golang-lru v0.5.4
-	github.com/joho/godotenv v1.4.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
+	github.com/joho/godotenv v1.4.0
+	github.com/pkg/errors v0.9.1
 	github.com/sendinblue/APIv3-go-library v2.0.0+incompatible
-	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
 	go.mongodb.org/mongo-driver v1.8.1
 	golang.org/x/crypto v0.0.0-20211209193657-4570a0811e8b
-	golang.org/x/exp v0.0.0-20211213173848-79cd87713b62 // indirect
 	golang.org/x/net v0.0.0-20211209124913-491a49abca63 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
