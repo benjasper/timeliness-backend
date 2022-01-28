@@ -6,6 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
@@ -273,6 +274,120 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
 			"Wrong credentials", err)
 		return
+	}
+
+	handler.generateAndRespondWithTokens(user, request, writer)
+}
+
+// UserLoginWithGoogle is the endpoint that gets called when a user signs in with a Google token
+func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request *http.Request) {
+	userLogin := UserLoginGoogle{}
+	err := json.NewDecoder(request.Body).Decode(&userLogin)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Wrong format", err)
+		return
+	}
+
+	v := validator.New()
+	err = v.Struct(userLogin)
+	if err != nil {
+		for _, e := range err.(validator.ValidationErrors) {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			return
+		}
+	}
+
+	userInfo, err := google.GetUserInfoFromIDToken(request.Context(), userLogin.Token)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+			"Invalid Google ID Token", err)
+		return
+	}
+
+	// Check if user exists, or if we have to register them
+	user, err := handler.UserRepository.FindByIdentityProvider(request.Context(), userInfo.Email, userInfo.ID)
+	if err != nil || user == nil {
+		// Create a new user
+		user = &User{}
+
+		user.Firstname = userInfo.Firstname
+		user.Lastname = userInfo.Lastname
+		user.Email = userInfo.Email
+		user.Settings.Scheduling.TimeZone = "Europe/Berlin"
+		user.Settings.Scheduling.BusyTimeSpacing = time.Minute * 15
+		user.Settings.Scheduling.TimingPreference = TimingPreferenceEarly
+
+		presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
+		if presentUser != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusConflict,
+				"User with email "+presentUser.Email+" already exists", err)
+			return
+		}
+
+		v := validator.New()
+		err = v.Struct(user)
+		if err != nil {
+			for _, e := range err.(validator.ValidationErrors) {
+				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+				return
+			}
+		}
+
+		user.EmailVerificationToken = uuid.New().String()
+
+		err = handler.UserRepository.Add(request.Context(), user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+				"User couldn't be persisted in the database", err)
+			return
+		}
+
+		if !userInfo.EmailVerified {
+			err = handler.EmailService.SendEmail(request.Context(), &email.Email{
+				ReceiverName:    fmt.Sprintf("%s %s", user.Firstname, user.Lastname),
+				ReceiverAddress: user.Email,
+				Template:        "1",
+				Parameters: map[string]interface{}{
+					"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", os.Getenv("BASE_URL"), user.EmailVerificationToken),
+				},
+			})
+			if err != nil {
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+					"Could not send registration confirmation mail", err)
+				return
+			}
+		}
+
+		if !handler.EmailService.IsInList(request.Context(), user.Email, email.EarlyAccessUsersListID) {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"No access to beta", err)
+			return
+		}
+
+		err = handler.EmailService.AddToList(request.Context(), user.Email, email.AppUsersListID)
+		if err != nil {
+			handler.Logger.Error("Could not add user to app users list", err)
+		}
+
+		user.GoogleCalendarConnections = append(user.GoogleCalendarConnections, GoogleCalendarConnection{
+			ID:                       userInfo.ID,
+			Email:                    userInfo.Email,
+			IsTaskCalendarConnection: true,
+			Status:                   CalendarConnectionStatusInactive,
+		})
+	} else {
+		// Check if the user already has this Google calendar connection
+		_, _, err = user.GoogleCalendarConnections.FindByConnectionID(userInfo.ID)
+		if err != nil {
+			// If they don't, add it
+			user.GoogleCalendarConnections = append(user.GoogleCalendarConnections, GoogleCalendarConnection{
+				ID:                       userInfo.ID,
+				Email:                    userInfo.Email,
+				IsTaskCalendarConnection: true,
+				Status:                   CalendarConnectionStatusInactive,
+			})
+		}
 	}
 
 	handler.generateAndRespondWithTokens(user, request, writer)

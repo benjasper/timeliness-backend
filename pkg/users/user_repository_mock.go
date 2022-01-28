@@ -39,6 +39,17 @@ func (r *MockUserRepository) FindByEmail(ctx context.Context, email string) (*Us
 	return nil, errors.New("user not found")
 }
 
+// FindByIdentityProvider finds a by either email or google ID
+func (r *MockUserRepository) FindByIdentityProvider(ctx context.Context, email string, ID string) (*User, error) {
+	for _, user := range r.Users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+
+	return nil, errors.New("user not found")
+}
+
 // FindByGoogleStateToken finds a user by a GoogleStateToken
 func (r *MockUserRepository) FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error) {
 	for _, user := range r.Users {
