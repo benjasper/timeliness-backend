@@ -334,7 +334,14 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 			}
 		}
 
+		if !handler.EmailService.IsInList(request.Context(), user.Email, email.EarlyAccessUsersListID) {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
+				"No access to beta", err)
+			return
+		}
+
 		user.EmailVerificationToken = uuid.New().String()
+		user.EmailVerified = userInfo.EmailVerified
 
 		err = handler.UserRepository.Add(request.Context(), user)
 		if err != nil {
@@ -357,12 +364,6 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 					"Could not send registration confirmation mail", err)
 				return
 			}
-		}
-
-		if !handler.EmailService.IsInList(request.Context(), user.Email, email.EarlyAccessUsersListID) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"No access to beta", err)
-			return
 		}
 
 		err = handler.EmailService.AddToList(request.Context(), user.Email, email.AppUsersListID)
