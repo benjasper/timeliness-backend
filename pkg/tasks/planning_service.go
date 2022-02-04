@@ -151,7 +151,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				s.logger.Error("problem releasing lock", err)
+				s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
 			}
 		}(lock, ctx)
 
@@ -335,7 +335,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				s.logger.Error("problem releasing lock", err)
+				s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
 			}
 		}(lock, ctx)
 
@@ -836,7 +836,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			s.logger.Error("problem releasing lock", err)
+			s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
 			return
 		}
 	}(lock, ctx)
