@@ -188,7 +188,8 @@ func main() {
 		})
 
 	r.Path("/").HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = writer.Write([]byte("Welcome to the Timeliness API 🚀"))
+		writer.Header().Set("Content-Type", "text/html")
+		_, _ = writer.Write([]byte("Welcome to the Timeliness API! 🚀"))
 	})
 
 	unauthenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()

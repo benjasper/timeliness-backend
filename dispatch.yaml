@@ -1,0 +1,5 @@
+dispatch:
+  - url: "api.timeliness.app/*"
+    service: default
+  - url: "staging.api.timeliness.app/*"
+    service: staging
