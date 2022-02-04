@@ -1129,8 +1129,8 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit, true)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf(
-					"Could not reschedule work unit %d for task %s",
-					intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
+					"Could not reschedule work unit %s for task %s",
+					intersection.IntersectingWorkUnits[i].ID.Hex(), intersection.Task.ID.Hex()), err)
 				continue
 			}
 
