@@ -1111,7 +1111,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 	var intersections []Intersection
 
 	for _, intersectingTask := range intersectingTasks {
-		_, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event)
+		_, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event, ignoreWorkUnitID)
 		if len(workUnits) == 0 {
 			continue
 		}
