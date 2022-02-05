@@ -827,7 +827,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*10, false)
+	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*30, false)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("problem acquiring lock for task %s", task.ID.Hex()), err)
 		return
@@ -977,6 +977,15 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	err = s.taskRepository.Update(ctx, task, false)
 	if err != nil {
 		s.logger.Error("problem with updating task", err)
+		return
+	}
+
+	_, workUnit = task.WorkUnits.FindByID(workUnit.ID.Hex())
+	if workUnit == nil || workUnit.ScheduledAt.Date != event.Date {
+		// The work unit was either merged and therefore does not exist anymore or
+		// the work unit was merged and exists but now has a different date
+		// We don't need to check for intersecting work units anymore
+		s.lookForUnscheduledTasks(ctx, userID)
 		return
 	}
 
