@@ -86,9 +86,9 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 
 func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 	isInvalid := false
-	apiError, isApiError := err.(*googleapi.Error)
+	apiError, isAPIError := err.(*googleapi.Error)
 
-	if isApiError {
+	if isAPIError {
 		if apiError.Code == 401 || apiError.Code == 403 {
 			isInvalid = true
 		} else {
