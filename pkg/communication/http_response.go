@@ -32,6 +32,7 @@ func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status in
 	errorType := Other
 
 	if errors.Cause(err) == ErrCalendarAuthInvalid {
+		err = errors.Cause(err)
 		errorType = Calendar
 		return
 	}

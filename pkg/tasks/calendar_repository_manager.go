@@ -152,7 +152,7 @@ func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u
 		m.logger.Info(fmt.Sprintf("user with id %s updated connection %s because of an expired token ", u.ID.Hex(), connection.ID))
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "could not create google calendar repository")
+		return nil, errors.WithStack(err)
 	}
 
 	if oldAccessToken != connection.Token.AccessToken {
