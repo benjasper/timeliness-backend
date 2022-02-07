@@ -57,7 +57,7 @@ func (handler *CalendarHandler) GetCalendarsFromConnection(writer http.ResponseW
 			continue
 		}
 
-		googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u.ID, &connection, handler.Logger, nil)
+		googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
 				"Problem with Google Calendar connection", err)
@@ -116,7 +116,7 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 	}
 
 	// TODO: check which sources have a connection
-	googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u.ID, connection, handler.Logger, nil)
+	googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connectionID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusServiceUnavailable,
 			"Problem with Google Calendar connection", err)

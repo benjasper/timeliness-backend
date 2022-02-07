@@ -38,7 +38,7 @@ type GoogleCalendarRepository struct {
 // UpdateConnection is triggered by the repository when a user needs to be updated for example if the token is invalid
 type UpdateConnection func(connection *users.GoogleCalendarConnection)
 
-// NewGoogleCalendarRepository constructs a GoogleCalendarRepository, best to use CalendarRepositoryManager for this
+// NewGoogleCalendarRepository constructs a GoogleCalendarRepository, only use CalendarRepositoryManager for this
 func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID, connection *users.GoogleCalendarConnection, logger logger.Interface, updateConnectionFunction UpdateConnection) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
