@@ -57,7 +57,7 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 		source := newRepo.Config.TokenSource(ctx, &connection.Token)
 		newToken, err := source.Token()
 		if err != nil {
-			return nil, err
+			return nil, newRepo.checkForInvalidTokenError(err)
 		}
 		connection.Token = *newToken
 	}
@@ -85,19 +85,27 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 }
 
 func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
-	c.Logger.Debug(err.Error())
+	isInvalid := false
+	apiError, isApiError := err.(*googleapi.Error)
 
-	if e, ok := err.(*googleapi.Error); ok {
-		if e.Code == 401 || (e.Code == 400 && e.Error() == "invalid_grant") {
-			if c.updateConnectionFunction != nil {
-				c.connection.Status = users.CalendarConnectionStatusExpired
-				c.updateConnectionFunction(c.connection)
-			}
-
-			return errors.Wrap(e, communication.ErrCalendarAuthInvalid.Error())
+	if isApiError {
+		if apiError.Code == 401 || apiError.Code == 403 {
+			isInvalid = true
+		} else {
+			return errors.Wrap(apiError, "google calendar api error")
 		}
 
-		return errors.Wrap(e, "google calendar api error")
+	} else if err.Error() == "oauth2: cannot fetch token: 400 Bad Request" {
+		isInvalid = true
+	}
+
+	if isInvalid {
+		if c.updateConnectionFunction != nil {
+			c.connection.Status = users.CalendarConnectionStatusExpired
+			c.updateConnectionFunction(c.connection)
+		}
+
+		return errors.Wrap(apiError, communication.ErrCalendarAuthInvalid.Error())
 	}
 
 	return errors.WithStack(err)

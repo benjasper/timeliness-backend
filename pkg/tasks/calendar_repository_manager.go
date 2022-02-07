@@ -7,7 +7,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
-	"google.golang.org/api/googleapi"
 )
 
 // CalendarRepositoryManager manages calendar repositories. It decided which user needs which repository.
@@ -153,14 +152,6 @@ func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u
 		m.logger.Info(fmt.Sprintf("user with id %s updated connection %s because of an expired token ", u.ID.Hex(), connection.ID))
 	})
 	if err != nil {
-		if e, ok := err.(*googleapi.Error); ok && e.Code == 401 {
-			u.GoogleCalendarConnections[connectionIndex].Status = users.CalendarConnectionStatusExpired
-			err2 := m.userRepository.Update(ctx, u)
-			if err2 != nil {
-				return nil, errors.Wrap(err, err2.Error())
-			}
-		}
-
 		return nil, errors.Wrap(err, "could not create google calendar repository")
 	}
 
