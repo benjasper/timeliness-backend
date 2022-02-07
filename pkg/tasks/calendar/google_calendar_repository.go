@@ -96,7 +96,7 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 
 	apiError, isAPIError := err.(*googleapi.Error)
 
-	if isAPIError {
+	if isAPIError && apiError != nil {
 		if apiError.Code == 401 || apiError.Code == 403 {
 			isInvalid = true
 		} else {
@@ -113,7 +113,7 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 			c.updateConnectionFunction(c.connection)
 		}
 
-		return errors.Wrap(apiError, communication.ErrCalendarAuthInvalid.Error())
+		return errors.WithStack(communication.ErrCalendarAuthInvalid)
 	}
 
 	return errors.WithStack(err)
