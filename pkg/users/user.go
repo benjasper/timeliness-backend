@@ -20,6 +20,9 @@ const CalendarConnectionStatusExpired = "expired"
 // CalendarConnectionStatusUnverified marks a calendar connection in progress
 const CalendarConnectionStatusUnverified = "unverified"
 
+// CalendarConnectionStatusMissingScopes marks that a calendar connection is missing scopes
+const CalendarConnectionStatusMissingScopes = "missing_scopes"
+
 // User represents the user
 type User struct {
 	ID             primitive.ObjectID `json:"id" bson:"_id"`

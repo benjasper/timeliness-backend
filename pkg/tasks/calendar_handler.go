@@ -503,6 +503,10 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 	usr.GoogleCalendarConnections[foundConnectionIndex].StateToken = ""
 	usr.GoogleCalendarConnections[foundConnectionIndex].Status = users.CalendarConnectionStatusActive
 
+	if google.CheckTokenForCorrectScopes(request.Context(), token) != nil {
+		usr.GoogleCalendarConnections[foundConnectionIndex].Status = users.CalendarConnectionStatusMissingScopes
+	}
+
 	// TODO: needs to check for other calendar sources as well
 	if len(usr.GoogleCalendarConnections) == 1 {
 		usr.GoogleCalendarConnections[foundConnectionIndex].IsTaskCalendarConnection = true
