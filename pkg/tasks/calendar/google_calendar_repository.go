@@ -49,6 +49,10 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 	}
 
 	newRepo.Config = config
+	newRepo.Logger = logger
+	newRepo.connection = connection
+	newRepo.userID = userID
+	newRepo.updateConnectionFunction = updateConnectionFunction
 
 	if connection.Token.AccessToken == "" {
 		return nil, communication.ErrCalendarAuthInvalid
@@ -71,10 +75,6 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 	}
 
 	newRepo.Service = srv
-	newRepo.Logger = logger
-	newRepo.connection = connection
-	newRepo.userID = userID
-	newRepo.updateConnectionFunction = updateConnectionFunction
 
 	newRepo.apiBaseURL = "http://localhost"
 	envBaseURL, ok := os.LookupEnv("BASE_URL")
@@ -92,7 +92,7 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 		return err
 	}
 
-	c.Logger.Debug(fmt.Sprintf("Error: %+v", err))
+	c.Logger.Debug(err.Error())
 
 	apiError, isAPIError := err.(*googleapi.Error)
 
