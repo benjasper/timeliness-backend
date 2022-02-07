@@ -41,12 +41,12 @@ func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status in
 
 // RespondWithErrorAndErrorType takes several arguments to return an error to the user and logs the error as well
 func (r *ResponseManager) RespondWithErrorAndErrorType(writer http.ResponseWriter, status int, message string, err error, errorType string) {
-	trackId := uuid.New().String()
+	trackID := uuid.New().String()
 
 	if status >= 500 {
-		r.Logger.Error(fmt.Sprintf("%s - trackId: %s", message, trackId), err)
+		r.Logger.Error(fmt.Sprintf("%s - trackID: %s", message, trackID), err)
 	} else {
-		r.Logger.Warning(fmt.Sprintf("%s - trackId: %s", message, trackId), err)
+		r.Logger.Warning(fmt.Sprintf("%s - trackID: %s", message, trackID), err)
 	}
 
 	writer.WriteHeader(status)
@@ -55,7 +55,7 @@ func (r *ResponseManager) RespondWithErrorAndErrorType(writer http.ResponseWrite
 		"error": map[string]interface{}{
 			"type":    errorType,
 			"message": message,
-			"trackId": trackId,
+			"trackId": trackID,
 		},
 	}
 
