@@ -2,6 +2,8 @@ package communication
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
@@ -17,24 +19,43 @@ type ResponseManager struct {
 // ErrCalendarAuthInvalid is an error thrown if calendar auth is invalid
 var ErrCalendarAuthInvalid = errors.New("calendar auth is invalid")
 
-// RespondWithError takes several arguments to return an error to the user and logs the error as well
+const (
+	// Other is a generic error
+	Other = "other"
+
+	// Calendar is an error thrown if calendar auth is invalid
+	Calendar = "calendar"
+)
+
+// RespondWithError returns an error to the user
 func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status int, message string, err error) {
-	if errors.Is(err, ErrCalendarAuthInvalid) {
-		status = http.StatusUnauthorized
-		message = "Calendar connection authentication is invalid"
+	errorType := Other
+
+	if errors.Cause(err) == ErrCalendarAuthInvalid {
+		errorType = Calendar
+		return
 	}
 
+	r.RespondWithErrorAndErrorType(writer, status, message, err, errorType)
+}
+
+// RespondWithErrorAndErrorType takes several arguments to return an error to the user and logs the error as well
+func (r *ResponseManager) RespondWithErrorAndErrorType(writer http.ResponseWriter, status int, message string, err error, errorType string) {
+	trackId := uuid.New().String()
+
 	if status >= 500 {
-		r.Logger.Error(message, err)
+		r.Logger.Error(fmt.Sprintf("%s - trackId: %s", message, trackId), err)
 	} else {
-		r.Logger.Warning(message, err)
+		r.Logger.Warning(fmt.Sprintf("%s - trackId: %s", message, trackId), err)
 	}
 
 	writer.WriteHeader(status)
 	var response = map[string]interface{}{
 		"status": status,
 		"error": map[string]interface{}{
+			"type":    errorType,
 			"message": message,
+			"trackId": trackId,
 		},
 	}
 

@@ -135,7 +135,23 @@ func (m *CalendarRepositoryManager) CheckIfGoogleTaskCalendarIsSet(ctx context.C
 func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u *users.User, connection *users.GoogleCalendarConnection, connectionIndex int) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := connection.Token.AccessToken
 
-	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger)
+	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger, func(connection *users.GoogleCalendarConnection) {
+		_, i, err := u.GoogleCalendarConnections.FindByConnectionID(connection.ID)
+		if err != nil {
+			m.logger.Error("Could not find connection", err)
+			return
+		}
+
+		u.GoogleCalendarConnections[i] = *connection
+
+		err = m.userRepository.Update(ctx, u)
+		if err != nil {
+			m.logger.Error("Could not update user", errors.Wrap(err, "could not update user trying to update invalid connection"))
+			return
+		}
+
+		m.logger.Info(fmt.Sprintf("user with id %s updated connection %s because of an expired token ", u.ID.Hex(), connection.ID))
+	})
 	if err != nil {
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 401 {
 			u.GoogleCalendarConnections[connectionIndex].Status = users.CalendarConnectionStatusExpired
