@@ -86,7 +86,7 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 
 func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 	if e, ok := err.(*googleapi.Error); ok {
-		if e.Code == 401 {
+		if e.Code == 401 || (e.Code == 400 && e.Error() == "invalid_grant") {
 			if c.updateConnectionFunction != nil {
 				c.connection.Status = users.CalendarConnectionStatusExpired
 				c.updateConnectionFunction(c.connection)
