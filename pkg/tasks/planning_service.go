@@ -151,7 +151,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				s.logger.Error("problem releasing lock", err)
+				s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
 			}
 		}(lock, ctx)
 
@@ -335,7 +335,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				s.logger.Error("problem releasing lock", err)
+				s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
 			}
 		}(lock, ctx)
 
@@ -821,13 +821,13 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			s.lookForUnscheduledTasks(ctx, userID)
 			return
 		}
-		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, nil)
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, nil, nil)
 		s.lookForUnscheduledTasks(ctx, userID)
 
 		return
 	}
 
-	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*10, false)
+	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*30, false)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("problem acquiring lock for task %s", task.ID.Hex()), err)
 		return
@@ -836,7 +836,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			s.logger.Error("problem releasing lock", err)
+			s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
 			return
 		}
 	}(lock, ctx)
@@ -980,8 +980,17 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
+	_, workUnit = task.WorkUnits.FindByID(workUnit.ID.Hex())
+	if workUnit == nil || workUnit.ScheduledAt.Date != event.Date {
+		// The work unit was either merged and therefore does not exist anymore or
+		// the work unit was merged and exists but now has a different date
+		// We don't need to check for intersecting work units anymore
+		s.lookForUnscheduledTasks(ctx, userID)
+		return
+	}
+
 	if !workUnitIsOutOfBounds {
-		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &task.ID)
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &workUnit.ID, &task.ID)
 	}
 
 	s.lookForUnscheduledTasks(ctx, userID)
@@ -1004,7 +1013,7 @@ func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Ta
 	var relevantUsers []*users.User
 
 	for i, unit := range task.WorkUnits {
-		if unit.ScheduledAt.Date.IntersectsWith(lastDate) || unit.ScheduledAt.Date.Start.Equal(lastDate.End) {
+		if (unit.ScheduledAt.Date.IntersectsWith(lastDate) || unit.ScheduledAt.Date.Start.Equal(lastDate.End)) && !unit.ScheduledAt.Date.Contains(lastDate) && !lastDate.Contains(unit.ScheduledAt.Date) {
 			if len(relevantUsers) == 0 {
 				relevantUsers, _ = s.getAllRelevantUsers(ctx, task)
 			}
@@ -1091,8 +1100,8 @@ func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 }
 
 // checkForIntersectingWorkUnits checks if the given work unit or event intersects with any other work unit
-func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, ignoreTaskID *primitive.ObjectID) int {
-	intersectingTasks, err := s.taskRepository.FindIntersectingWithEvent(ctx, userID, event, ignoreTaskID, false)
+func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID *primitive.ObjectID, lockForTaskIDHeld *primitive.ObjectID) int {
+	intersectingTasks, err := s.taskRepository.FindIntersectingWithEvent(ctx, userID, event, ignoreWorkUnitID, false)
 	if err != nil {
 		s.logger.Error("problem while trying to find tasks intersecting with an event", err)
 		return 0
@@ -1111,7 +1120,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 	var intersections []Intersection
 
 	for _, intersectingTask := range intersectingTasks {
-		_, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event)
+		_, workUnits := intersectingTask.WorkUnits.FindByEventIntersection(event, ignoreWorkUnitID)
 		if len(workUnits) == 0 {
 			continue
 		}
@@ -1126,11 +1135,17 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 
 	for _, intersection := range intersections {
 		for i, unit := range intersection.IntersectingWorkUnits {
-			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit, true)
+			// It could be that we already have a lock for the task, because there are overlapping work units of the same task
+			needsLock := true
+			if intersection.Task.ID == *lockForTaskIDHeld {
+				needsLock = false
+			}
+
+			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit, needsLock)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf(
-					"Could not reschedule work unit %d for task %s",
-					intersection.IntersectingWorkUnitIndices[i], intersection.Task.ID.Hex()), err)
+					"Could not reschedule work unit %s for task %s",
+					intersection.IntersectingWorkUnits[i].ID.Hex(), intersection.Task.ID.Hex()), err)
 				continue
 			}
 

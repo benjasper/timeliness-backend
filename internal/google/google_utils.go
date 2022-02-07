@@ -128,22 +128,22 @@ func GetUserInfoFromIDToken(ctx context.Context, idToken string) (*UserInfo, err
 }
 
 // CheckTokenForCorrectScopes checks if the token is valid and has the correct scopes
-func CheckTokenForCorrectScopes(ctx context.Context, token *oauth2.Token) (bool, error) {
+func CheckTokenForCorrectScopes(ctx context.Context, token *oauth2.Token) error {
 	config, err := ReadGoogleConfig(false)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	client := config.Client(ctx, token)
 
 	service, err := oauth22.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	result, err := service.Tokeninfo().Do()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	scopes := strings.Trim(result.Scope, " ")
@@ -151,11 +151,11 @@ func CheckTokenForCorrectScopes(ctx context.Context, token *oauth2.Token) (bool,
 	// Check if AllScopes are in the scopes
 	for _, scope := range AllScopes {
 		if !strings.Contains(scopes, scope) {
-			return false, errors.Errorf("missing scope %s", scope)
+			return errors.Errorf("missing scope %s", scope)
 		}
 	}
 
-	return true, nil
+	return nil
 }
 
 // RevokeToken revokes a google access token
