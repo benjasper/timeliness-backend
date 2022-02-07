@@ -92,7 +92,7 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 		return err
 	}
 
-	c.Logger.Debug(err.Error())
+	c.Logger.Debug(fmt.Sprintf("Error: %+v", err))
 
 	apiError, isAPIError := err.(*googleapi.Error)
 
