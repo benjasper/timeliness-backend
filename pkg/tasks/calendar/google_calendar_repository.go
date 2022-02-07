@@ -87,9 +87,14 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 
 func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 	isInvalid := false
-	apiError, isAPIError := err.(*googleapi.Error)
+
+	if err == nil {
+		return err
+	}
 
 	c.Logger.Debug(err.Error())
+
+	apiError, isAPIError := err.(*googleapi.Error)
 
 	if isAPIError {
 		if apiError.Code == 401 || apiError.Code == 403 {
@@ -98,7 +103,7 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 			return errors.Wrap(apiError, "google calendar api error")
 		}
 
-	} else if strings.Contains(err.Error(), "oauth2: cannot fetch token") {
+	} else if err != nil && strings.Contains(err.Error(), "oauth2: cannot fetch token") {
 		isInvalid = true
 	}
 
