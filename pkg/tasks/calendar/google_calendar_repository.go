@@ -15,6 +15,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -88,6 +89,8 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 	isInvalid := false
 	apiError, isAPIError := err.(*googleapi.Error)
 
+	c.Logger.Debug(err.Error())
+
 	if isAPIError {
 		if apiError.Code == 401 || apiError.Code == 403 {
 			isInvalid = true
@@ -95,7 +98,7 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 			return errors.Wrap(apiError, "google calendar api error")
 		}
 
-	} else if err.Error() == "oauth2: cannot fetch token: 400 Bad Request" {
+	} else if strings.Contains(err.Error(), "oauth2: cannot fetch token") {
 		isInvalid = true
 	}
 
