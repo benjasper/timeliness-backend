@@ -82,7 +82,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 		}
 
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with creating calendar events", err)
+			"Error while creating calendar events", err)
 		return
 	}
 
@@ -110,7 +110,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			handler.Logger.Error("problem releasing lock", err)
+			handler.Logger.Error("error releasing lock", err)
 		}
 	}(lock, request.Context())
 
@@ -140,7 +140,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				fmt.Sprintf("Problem scheduling task %s", taskID), err)
+				fmt.Sprintf("Error scheduling task %s", taskID), err)
 			return
 		}
 	}
@@ -151,7 +151,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		err = handler.PlanningService.UpdateDueAtEvent(request.Context(), task)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem updating the task", err)
+				"Error updating the task", err)
 			return
 		}
 
@@ -167,7 +167,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit, false)
 			if err != nil {
 				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-					fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
+					fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err)
 				return
 			}
 		}
@@ -183,7 +183,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, true)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem updating event", err)
+				"Error updating event", err)
 			return
 		}
 	}
@@ -224,7 +224,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			handler.Logger.Error("problem releasing lock", err)
+			handler.Logger.Error("error releasing lock", err)
 		}
 	}(lock, request.Context())
 
@@ -265,7 +265,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &workUnit)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem updating the task", err)
+				"Error updating the task", err)
 			return
 		}
 	}
@@ -319,7 +319,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			handler.Logger.Error("problem releasing lock", err)
+			handler.Logger.Error("error releasing lock", err)
 		}
 	}(lock, request.Context())
 
@@ -372,7 +372,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem scheduling the task", err)
+				"Error scheduling the task", err)
 			return
 		}
 	}
@@ -408,7 +408,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem with calendar communication", err)
+				"Error while communicating with calendar", err)
 			return
 		}
 	}
@@ -416,7 +416,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem with calendar communication", err)
+			"Error while communicating with calendar", err)
 		return
 	}
 
@@ -444,7 +444,7 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			handler.Logger.Error("problem releasing lock", err)
+			handler.Logger.Error("error releasing lock", err)
 		}
 	}(lock, request.Context())
 
@@ -545,7 +545,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 
 	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, isDoneAndDueAt, includeDeleted)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
 		return
 	}
 
@@ -661,7 +661,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 
 	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, includeDeleted, isDoneAndScheduledAt)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
 		return
 	}
 
@@ -707,7 +707,7 @@ func (handler *Handler) GetTaskBetween(writer http.ResponseWriter, request *http
 
 	count, err := handler.TaskRepository.CountTasksBetween(request.Context(), userID, from, to, true)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem with db connection", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error while db connection", err)
 		return
 	}
 
@@ -741,7 +741,7 @@ func (handler *Handler) GetWorkUnitsBetween(writer http.ResponseWriter, request 
 
 	count, err := handler.TaskRepository.CountWorkUnitsBetween(request.Context(), userID, from, to, true)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem with db connection", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error while db connection", err)
 		return
 	}
 
@@ -810,7 +810,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 
 	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, filters, d, sort)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
 		return
 	}
 
@@ -865,7 +865,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			handler.Logger.Error("problem releasing lock", err)
+			handler.Logger.Error("error releasing lock", err)
 		}
 	}(lock, request.Context())
 
@@ -933,7 +933,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 	} else {
 		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error rescheduling the task", err)
 			return
 		}
 	}
@@ -967,7 +967,7 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 
 	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, &workUnit)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem rescheduling the task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error rescheduling the task", err)
 		return
 	}
 

@@ -151,7 +151,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
+				s.logger.Error("error releasing lock", errors.Wrap(err, "error releasing lock"))
 			}
 		}(lock, ctx)
 
@@ -335,7 +335,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
+				s.logger.Error("error releasing lock", errors.Wrap(err, "error releasing lock"))
 			}
 		}(lock, ctx)
 
@@ -829,14 +829,14 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*30, false)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("problem acquiring lock for task %s", task.ID.Hex()), err)
+		s.logger.Error(fmt.Sprintf("error acquiring lock for task %s", task.ID.Hex()), err)
 		return
 	}
 
 	defer func(lock locking.LockInterface, ctx context.Context) {
 		err := lock.Release(ctx)
 		if err != nil {
-			s.logger.Error("problem releasing lock", errors.Wrap(err, "problem releasing lock"))
+			s.logger.Error("error releasing lock", errors.Wrap(err, "error releasing lock"))
 			return
 		}
 	}(lock, ctx)
@@ -859,7 +859,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		if event.Deleted {
 			err := s.DeleteTask(ctx, task)
 			if err != nil {
-				s.logger.Error("problem with deleting task", err)
+				s.logger.Error("Error while deleting task", err)
 				return
 			}
 
@@ -871,13 +871,13 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		task.DueAt.Date = event.Date
 		err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &task.DueAt, s.taskTextRenderer.RenderDueEventTitle(task), s.taskTextRenderer.HasReminder(task))
 		if err != nil {
-			s.logger.Error(fmt.Sprintf("problem updating other collaborators workUnit event %s", task.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("error updating other collaborators workUnit event %s", task.ID.Hex()), err)
 			return
 		}
 
 		err = s.taskRepository.Update(ctx, task, false)
 		if err != nil {
-			s.logger.Error("problem with updating task", err)
+			s.logger.Error("Error while updating task", err)
 			return
 		}
 
@@ -892,7 +892,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		for _, unit := range toReschedule {
 			task, err = s.RescheduleWorkUnit(ctx, task, &unit, false)
 			if err != nil {
-				s.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", unit.ID.Hex()), err)
+				s.logger.Error(fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err)
 				return
 			}
 		}
@@ -945,7 +945,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
 		err = s.taskRepository.Update(ctx, task, false)
 		if err != nil {
-			s.logger.Error("problem with updating task", err)
+			s.logger.Error("Error while updating task", err)
 			return
 		}
 
@@ -957,7 +957,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	workUnit.ScheduledAt.Date = event.Date
 	err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &workUnit.ScheduledAt, s.taskTextRenderer.RenderWorkUnitEventTitle(task, workUnit), s.taskTextRenderer.HasReminder(workUnit))
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("problem updating other collaborators workUnit event %s", task.ID.Hex()), err)
+		s.logger.Error(fmt.Sprintf("error updating other collaborators workUnit event %s", task.ID.Hex()), err)
 		// We don't return here, because we still need to update the task
 	}
 
@@ -976,7 +976,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	err = s.taskRepository.Update(ctx, task, false)
 	if err != nil {
-		s.logger.Error("problem with updating task", err)
+		s.logger.Error("Error while updating task", err)
 		return
 	}
 
@@ -1000,7 +1000,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	if workUnitIsOutOfBounds {
 		_, err = s.RescheduleWorkUnit(ctx, task, workUnit, false)
 		if err != nil {
-			s.logger.Error(fmt.Sprintf("Problem rescheduling work unit %s", workUnit.ID.Hex()), errors.Wrap(err, "could not reschedule work unit"))
+			s.logger.Error(fmt.Sprintf("Error rescheduling work unit %s", workUnit.ID.Hex()), errors.Wrap(err, "could not reschedule work unit"))
 			return
 		}
 		return
@@ -1103,7 +1103,7 @@ func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID *primitive.ObjectID, lockForTaskIDHeld *primitive.ObjectID) int {
 	intersectingTasks, err := s.taskRepository.FindIntersectingWithEvent(ctx, userID, event, ignoreWorkUnitID, false)
 	if err != nil {
-		s.logger.Error("problem while trying to find tasks intersecting with an event", err)
+		s.logger.Error("error while trying to find tasks intersecting with an event", err)
 		return 0
 	}
 
@@ -1175,14 +1175,14 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 	// We max this to 10 tasks per run for now to not overload the system
 	tasks, _, err := s.taskRepository.FindUnscheduledTasks(ctx, userID, 0, 10)
 	if err != nil {
-		s.logger.Error("problem while trying to find unscheduled tasks", err)
+		s.logger.Error("error while trying to find unscheduled tasks", err)
 		return
 	}
 
 	for _, task := range tasks {
 		_, err := s.ScheduleTask(ctx, &task, true)
 		if err != nil {
-			s.logger.Error(fmt.Sprintf("problem scheduling task %s", task.ID.Hex()), errors.Wrap(err, "problem scheduling task while looking for unscheduled tasks"))
+			s.logger.Error(fmt.Sprintf("error scheduling task %s", task.ID.Hex()), errors.Wrap(err, "error scheduling task while looking for unscheduled tasks"))
 			return
 		}
 	}
@@ -1200,7 +1200,7 @@ func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, tim
 				wg.Go(func() error {
 					err := repository.AddBusyToWindow(window, timespan.Start, timespan.End)
 					if err != nil {
-						return errors.Wrap(err, "problem while adding busy time to window")
+						return errors.Wrap(err, "error while adding busy time to window")
 					}
 
 					return nil
@@ -1209,7 +1209,7 @@ func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, tim
 
 			err := wg.Wait()
 			if err != nil {
-				s.logger.Error("problem while adding busy time to window", err)
+				s.logger.Error("error while adding busy time to window", err)
 				return true
 			}
 

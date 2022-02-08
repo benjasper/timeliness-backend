@@ -79,7 +79,7 @@ func (r ResponseManager) RespondWithBinary(writer http.ResponseWriter, i []byte,
 	_, err := writer.Write(i)
 	if err != nil {
 		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem writing response", err)
+			"Error writing response", err)
 		return
 	}
 
@@ -91,14 +91,14 @@ func (r ResponseManager) Respond(writer http.ResponseWriter, i interface{}) {
 	binary, err := json.Marshal(i)
 	if err != nil {
 		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem while marshalling tasks into json", err)
+			"Error while marshalling tasks into json", err)
 		return
 	}
 
 	_, err = writer.Write(binary)
 	if err != nil {
 		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem writing response", err)
+			"Error writing response", err)
 		return
 	}
 }
@@ -108,7 +108,7 @@ func (r ResponseManager) RespondWithStatus(writer http.ResponseWriter, i interfa
 	binary, err := json.Marshal(i)
 	if err != nil {
 		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem while marshalling tasks into json", err)
+			"Error while marshalling tasks into json", err)
 		return
 	}
 
@@ -116,7 +116,7 @@ func (r ResponseManager) RespondWithStatus(writer http.ResponseWriter, i interfa
 	_, err = writer.Write(binary)
 	if err != nil {
 		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem writing response", err)
+			"Error writing response", err)
 		return
 	}
 }

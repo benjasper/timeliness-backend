@@ -180,7 +180,7 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 
 	tags, count, err := handler.TagRepository.FindAll(request.Context(), userID, page, pageSize, filters, includeDeleted)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
 		return
 	}
 

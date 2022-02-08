@@ -63,7 +63,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Problem hashing password", err)
+			"Error hashing password", err)
 		return
 	}
 	user.Password = string(hashedPassword)
@@ -415,14 +415,14 @@ func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.R
 	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Problem signing access token", err)
+			"Error signing access token", err)
 		return
 	}
 
 	refreshTokenString, err := refreshToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Problem signing refresh token", err)
+			"Error signing refresh token", err)
 		return
 	}
 
@@ -564,7 +564,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Problem signing access refreshToken", err)
+			"Error signing access refreshToken", err)
 		return
 	}
 
@@ -596,7 +596,7 @@ func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, reques
 
 		err = handler.UserRepository.Update(request.Context(), usr)
 		if err != nil {
-			handler.Logger.Error("Problem updating user", err)
+			handler.Logger.Error("Error updating user", err)
 			success = false
 		}
 	}
