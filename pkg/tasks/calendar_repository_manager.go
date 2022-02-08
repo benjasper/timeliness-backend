@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
@@ -133,6 +134,10 @@ func (m *CalendarRepositoryManager) CheckIfGoogleTaskCalendarIsSet(ctx context.C
 // setupGoogleRepository manages token refreshing and calendar creation
 func (m *CalendarRepositoryManager) setupGoogleRepository(ctx context.Context, u *users.User, connection *users.GoogleCalendarConnection, connectionIndex int) (*calendar.GoogleCalendarRepository, error) {
 	oldAccessToken := connection.Token.AccessToken
+
+	if connection.Status != users.CalendarConnectionStatusActive {
+		return nil, communication.ErrCalendarAuthInvalid
+	}
 
 	calendarRepository, err := calendar.NewGoogleCalendarRepository(ctx, u.ID, connection, m.logger, func(connection *users.GoogleCalendarConnection) {
 		_, i, err := u.GoogleCalendarConnections.FindByConnectionID(connection.ID)
