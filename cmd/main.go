@@ -140,7 +140,7 @@ func main() {
 
 	locker := locking.NewLockerRedis(redisClient)
 
-	responseManager := communication.ResponseManager{Logger: logging}
+	responseManager := communication.ResponseManager{Logger: logging, Environment: appEnv}
 	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
 
 	calendarRepositoryManager, err := tasks.NewCalendarRepositoryManager(10, &userRepository, logging)

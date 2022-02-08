@@ -15,6 +15,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -26,16 +27,20 @@ const GoogleNotificationExpirationOffset = time.Hour * 24
 
 // GoogleCalendarRepository provides function for easily editing the users google calendar
 type GoogleCalendarRepository struct {
-	Config     *oauth2.Config
-	Logger     logger.Interface
-	Service    *gcalendar.Service
-	connection *users.GoogleCalendarConnection
-	apiBaseURL string
-	userID     primitive.ObjectID
+	Config                   *oauth2.Config
+	Logger                   logger.Interface
+	Service                  *gcalendar.Service
+	connection               *users.GoogleCalendarConnection
+	apiBaseURL               string
+	userID                   primitive.ObjectID
+	updateConnectionFunction UpdateConnection
 }
 
-// NewGoogleCalendarRepository constructs a GoogleCalendarRepository, best to use CalendarRepositoryManager for this
-func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID, connection *users.GoogleCalendarConnection, logger logger.Interface) (*GoogleCalendarRepository, error) {
+// UpdateConnection is triggered by the repository when a user needs to be updated for example if the token is invalid
+type UpdateConnection func(connection *users.GoogleCalendarConnection)
+
+// NewGoogleCalendarRepository constructs a GoogleCalendarRepository, only use CalendarRepositoryManager for this
+func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID, connection *users.GoogleCalendarConnection, logger logger.Interface, updateConnectionFunction UpdateConnection) (*GoogleCalendarRepository, error) {
 	newRepo := GoogleCalendarRepository{}
 
 	config, err := google.ReadGoogleConfig(true)
@@ -44,6 +49,10 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 	}
 
 	newRepo.Config = config
+	newRepo.Logger = logger
+	newRepo.connection = connection
+	newRepo.userID = userID
+	newRepo.updateConnectionFunction = updateConnectionFunction
 
 	if connection.Token.AccessToken == "" {
 		return nil, communication.ErrCalendarAuthInvalid
@@ -53,7 +62,7 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 		source := newRepo.Config.TokenSource(ctx, &connection.Token)
 		newToken, err := source.Token()
 		if err != nil {
-			return nil, err
+			return nil, newRepo.checkForInvalidTokenError(err)
 		}
 		connection.Token = *newToken
 	}
@@ -66,9 +75,6 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 	}
 
 	newRepo.Service = srv
-	newRepo.Logger = logger
-	newRepo.connection = connection
-	newRepo.userID = userID
 
 	newRepo.apiBaseURL = "http://localhost"
 	envBaseURL, ok := os.LookupEnv("BASE_URL")
@@ -79,16 +85,38 @@ func NewGoogleCalendarRepository(ctx context.Context, userID primitive.ObjectID,
 	return &newRepo, nil
 }
 
-func checkForInvalidTokenError(err error) error {
-	if e, ok := err.(*googleapi.Error); ok {
-		if e.Code == 401 {
-			return errors.Wrap(e, communication.ErrCalendarAuthInvalid.Error())
-		}
+func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
+	isInvalid := false
 
-		return errors.Wrap(e, "google calendar api error")
+	if err == nil {
+		return err
 	}
 
-	return err
+	c.Logger.Debug(err.Error())
+
+	apiError, isAPIError := err.(*googleapi.Error)
+
+	if isAPIError && apiError != nil {
+		if apiError.Code == 401 || apiError.Code == 403 {
+			isInvalid = true
+		} else {
+			return errors.Wrap(apiError, "google calendar api error")
+		}
+
+	} else if err != nil && strings.Contains(err.Error(), "oauth2: cannot fetch token") {
+		isInvalid = true
+	}
+
+	if isInvalid {
+		if c.updateConnectionFunction != nil {
+			c.connection.Status = users.CalendarConnectionStatusExpired
+			c.updateConnectionFunction(c.connection)
+		}
+
+		return errors.WithStack(communication.ErrCalendarAuthInvalid)
+	}
+
+	return errors.WithStack(err)
 }
 
 func checkForIsGone(err error) error {
@@ -108,7 +136,7 @@ func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 	}
 	cal, err := c.Service.Calendars.Insert(&newCalendar).Do()
 	if err != nil {
-		return "", checkForInvalidTokenError(err)
+		return "", c.checkForInvalidTokenError(err)
 	}
 
 	calendarList := &gcalendar.CalendarListEntry{
@@ -118,7 +146,7 @@ func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 
 	_, err = c.Service.CalendarList.Patch(cal.Id, calendarList).ColorRgbFormat(true).Do()
 	if err != nil {
-		return "", checkForInvalidTokenError(err)
+		return "", c.checkForInvalidTokenError(err)
 	}
 
 	return cal.Id, nil
@@ -137,7 +165,7 @@ func (c *GoogleCalendarRepository) TestTaskCalendarExistence(u *users.User) (*us
 	} else {
 		_, err := c.Service.Calendars.Get(c.connection.TaskCalendarID).Do()
 		if err != nil {
-			if checkForInvalidTokenError(err) == communication.ErrCalendarAuthInvalid {
+			if c.checkForInvalidTokenError(err) == communication.ErrCalendarAuthInvalid {
 				return nil, communication.ErrCalendarAuthInvalid
 			}
 
@@ -186,7 +214,7 @@ func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Cale
 	var calendars = make(map[string]*Calendar)
 	calList, err := c.Service.CalendarList.List().Do()
 	if err != nil {
-		return calendars, checkForInvalidTokenError(err)
+		return calendars, c.checkForInvalidTokenError(err)
 	}
 
 	for _, cal := range calList.Items {
@@ -204,7 +232,7 @@ func (c *GoogleCalendarRepository) NewEvent(event *Event, taskID string, title s
 
 	createdEvent, err := c.Service.Events.Insert(c.connection.TaskCalendarID, googleEvent).Do()
 	if err != nil {
-		return nil, checkForInvalidTokenError(err)
+		return nil, c.checkForInvalidTokenError(err)
 	}
 
 	calEvent := PersistedEvent{
@@ -227,7 +255,7 @@ func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string, titl
 	_, err := c.Service.Events.
 		Update(c.connection.TaskCalendarID, calendarEvent.CalendarEventID, googleEvent).Do()
 	if err != nil {
-		return checkForInvalidTokenError(err)
+		return c.checkForInvalidTokenError(err)
 	}
 
 	return nil
@@ -542,7 +570,7 @@ func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow, star
 		TimeMax: end.Format(time.RFC3339),
 		Items:   items}).Do()
 	if err != nil {
-		return checkForInvalidTokenError(err)
+		return c.checkForInvalidTokenError(err)
 	}
 
 	for _, v := range response.Calendars {
@@ -577,7 +605,7 @@ func (c *GoogleCalendarRepository) DeleteEvent(event *Event) error {
 			return nil
 		}
 
-		return checkForInvalidTokenError(err)
+		return c.checkForInvalidTokenError(err)
 	}
 
 	return nil

@@ -57,10 +57,10 @@ func (handler *CalendarHandler) GetCalendarsFromConnection(writer http.ResponseW
 			continue
 		}
 
-		googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u.ID, &connection, handler.Logger)
+		googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Problem with Google Calendar connection", err)
+				"Error while using Google Calendar connection", err)
 			return
 		}
 
@@ -116,10 +116,10 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 	}
 
 	// TODO: check which sources have a connection
-	googleRepo, err := calendar.NewGoogleCalendarRepository(request.Context(), u.ID, connection, handler.Logger)
+	googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connectionID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusServiceUnavailable,
-			"Problem with Google Calendar connection", err)
+			"Error while using Google Calendar connection", err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error trying to persist user", err)
 		return
 	}
 
@@ -160,7 +160,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 
 		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
-			handler.Logger.Error("Problem while processing user for sync renewal", err)
+			handler.Logger.Error("Error while processing user for sync renewal", err)
 			return err
 		}
 
@@ -169,7 +169,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 			if err != nil {
 				_ = handler.UserRepository.Update(request.Context(), u)
 				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-					"Problem with calendar notification registration", err)
+					"Error while registering for calendar notifications", err)
 				return err
 			}
 		}
@@ -177,7 +177,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem trying to persist user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error trying to persist user", err)
 		return err
 	}
 
@@ -251,7 +251,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 
 	_, count, err := handler.UserRepository.FindBySyncExpiration(request.Context(), now, 0, pageSize)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem finding users for renewal", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error finding users for renewal", err)
 		return
 	}
 
@@ -260,7 +260,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 	for i := 0; i < pages; i++ {
 		u, _, err := handler.UserRepository.FindBySyncExpiration(request.Context(), now, i, pageSize)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem finding users for renewal", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error finding users for renewal", err)
 			return
 		}
 
@@ -283,7 +283,7 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 	for _, connection := range user.GoogleCalendarConnections {
 		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(context.Background(), user, connection.ID)
 		if err != nil {
-			handler.Logger.Error("Problem while processing user for sync renewal", err)
+			handler.Logger.Error("Error while processing user for sync renewal", err)
 			return
 		}
 
@@ -295,13 +295,13 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			// TODO: change when multiple repositories are allowed
 			user, err := calendarRepository.WatchCalendar(sync.CalendarID, user)
 			if err != nil {
-				handler.Logger.Error("Problem while trying to renew sync", err)
+				handler.Logger.Error("Error while trying to renew sync", err)
 				return
 			}
 
 			err = handler.UserRepository.Update(context.Background(), user)
 			if err != nil {
-				handler.Logger.Error("Problem while trying to update user", err)
+				handler.Logger.Error("Error while trying to update user", err)
 				return
 			}
 		}
@@ -464,13 +464,13 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 
 	token, err := google.GetGoogleToken(request.Context(), authCode)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Problem getting token", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error getting token", err)
 		return
 	}
 
 	userInfo, err := google.GetUserInfo(request.Context(), token)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem getting user id", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error getting user id", err)
 		return
 	}
 
@@ -514,7 +514,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 
 	err = handler.UserRepository.Update(request.Context(), usr)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Problem updating user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err)
 		return
 	}
 
@@ -554,13 +554,15 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 
 	calendarID := ""
 	calendarIndex := -1
+	connectionIndex := -1
 
 Loop:
-	for _, connection := range user.GoogleCalendarConnections {
+	for cIndex, connection := range user.GoogleCalendarConnections {
 		for i, sync := range connection.CalendarsOfInterest {
 			if sync.SyncResourceID == resourceID {
 				calendarID = sync.CalendarID
 				calendarIndex = i
+				connectionIndex = cIndex
 				break Loop
 			}
 		}
@@ -578,27 +580,33 @@ Loop:
 
 		lock, err := handler.Locker.Acquire(ctx, user.ID.Hex(), time.Minute*1, false)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("problem while acquiring lock for user %s", userID), err)
+			handler.Logger.Error(fmt.Sprintf("error while acquiring lock for user %s", userID), err)
 			return
 		}
 
 		defer func(lock locking.LockInterface, ctx context.Context) {
 			err := lock.Release(ctx)
 			if err != nil {
-				handler.Logger.Error(fmt.Sprintf("problem while releasing lock for user %s", userID), err)
+				handler.Logger.Error(fmt.Sprintf("error while releasing lock for user %s", userID), err)
 				return
 			}
 		}(lock, ctx)
 
+		connection := user.GoogleCalendarConnections[connectionIndex]
+
+		if connection.Status != users.CalendarConnectionStatusActive {
+			return
+		}
+
 		user, err = handler.PlanningService.SyncCalendar(ctx, user, calendarID)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("problem while syncing user %s and calendar ID %s", userID, calendarID), err)
+			handler.Logger.Error(fmt.Sprintf("error while syncing user %s and calendar ID %s", userID, calendarID), err)
 			return
 		}
 
 		err = handler.UserRepository.Update(ctx, user)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("problem updating user %s", userID), err)
+			handler.Logger.Error(fmt.Sprintf("error updating user %s", userID), err)
 			return
 		}
 	}(user, calendarIndex)
