@@ -81,8 +81,8 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 			return
 		}
 
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Error while creating calendar events", err)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+			"Error while creating calendar events", err, communication.Calendar)
 		return
 	}
 
@@ -139,8 +139,8 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.WorkloadOverall != task.WorkloadOverall || task.NotScheduled > 0 {
 		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				fmt.Sprintf("Error scheduling task %s", taskID), err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+				fmt.Sprintf("Error scheduling task %s", taskID), err, communication.Calendar)
 			return
 		}
 	}
@@ -150,8 +150,8 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 		err = handler.PlanningService.UpdateDueAtEvent(request.Context(), task)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Error updating the task", err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+				"Error updating the task", err, communication.Calendar)
 			return
 		}
 
@@ -166,8 +166,8 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		for _, unit := range toReschedule {
 			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit, false)
 			if err != nil {
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-					fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err)
+				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+					fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err, communication.Calendar)
 				return
 			}
 		}
@@ -182,8 +182,8 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.Name != task.Name {
 		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, true)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Error updating event", err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+				"Error updating event", err, communication.Calendar)
 			return
 		}
 	}
@@ -264,8 +264,8 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &workUnit)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Error updating the task", err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+				"Error updating the task", err, communication.Calendar)
 			return
 		}
 	}
@@ -371,8 +371,8 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		// We let the planning service create new work units at its own discretion
 		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Error scheduling the task", err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+				"Error scheduling the task", err, communication.Calendar)
 			return
 		}
 	}
@@ -407,16 +407,16 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 	if taskDoneChanged {
 		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Error while communicating with calendar", err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+				"Error while communicating with calendar", err, communication.Calendar)
 			return
 		}
 	}
 
 	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, workUnit)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Error while communicating with calendar", err)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+			"Error while communicating with calendar", err, communication.Calendar)
 		return
 	}
 
@@ -456,8 +456,8 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 
 	err = handler.PlanningService.DeleteTask(request.Context(), task)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not delete task events", err)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
+			"Could not delete task events", err, communication.Calendar)
 		return
 	}
 
@@ -911,7 +911,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 
 		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &task.WorkUnits[index])
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't update event", err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Couldn't update event", err, communication.Calendar)
 			return
 		}
 
@@ -920,7 +920,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		if len(requestBody.ChosenTimespans) > 1 {
 			task, err = handler.PlanningService.CreateNewSpecificWorkUnits(request.Context(), task, requestBody.ChosenTimespans[1:])
 			if err != nil {
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't create new work units", err)
+				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Couldn't create new work units", err, communication.Calendar)
 				return
 			}
 		}
@@ -933,7 +933,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 	} else {
 		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error rescheduling the task", err)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, communication.Calendar)
 			return
 		}
 	}
@@ -967,7 +967,7 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 
 	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, &workUnit)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error rescheduling the task", err)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, communication.Calendar)
 		return
 	}
 
