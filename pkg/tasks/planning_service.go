@@ -296,6 +296,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		}
 	}
 
+	//  Check if a user is missing the due date event
 	if len(t.DueAt.CalendarEvents) != len(relevantUsers) {
 		t.DueAt.Blocking = false
 		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
@@ -313,6 +314,34 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 
 		t.DueAt = *dueEvent
 	}
+
+	// Check if all work units are done, and mark the task as done if so
+	allDone := true
+	for _, unit := range t.WorkUnits {
+		if !unit.IsDone {
+			allDone = false
+		}
+
+		// Check if a user is missing a work unit event
+		if len(unit.ScheduledAt.CalendarEvents) != len(relevantUsers) {
+			for _, user := range relevantUsers {
+				if persistedEvent := unit.ScheduledAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
+					continue
+				}
+				newEvent, err := taskCalendarRepositories[user.ID.Hex()].NewEvent(&unit.ScheduledAt, t.ID.Hex(), s.taskTextRenderer.RenderWorkUnitEventTitle(t, &unit), "", s.taskTextRenderer.HasReminder(&unit))
+				if err != nil {
+					return nil, err
+				}
+
+				unit.ScheduledAt = *newEvent
+			}
+		}
+	}
+
+	if len(t.WorkUnits) == 0 || t.NotScheduled > 0 {
+		allDone = false
+	}
+	t.IsDone = allDone
 
 	if !t.ID.IsZero() {
 		err = s.taskRepository.Update(ctx, t, false)

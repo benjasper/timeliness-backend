@@ -103,7 +103,7 @@ func (c *GoogleCalendarRepository) checkForInvalidTokenError(err error) error {
 			return errors.Wrap(apiError, "google calendar api error")
 		}
 
-	} else if err != nil && strings.Contains(err.Error(), "oauth2: cannot fetch token") {
+	} else if err != nil && strings.Contains(err.Error(), "token") {
 		isInvalid = true
 	}
 
