@@ -319,7 +319,6 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 	allDone := true
 	for _, unit := range t.WorkUnits {
 		if !unit.IsDone {
-			t.IsDone = false
 			allDone = false
 		}
 
@@ -337,6 +336,10 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 				unit.ScheduledAt = *newEvent
 			}
 		}
+	}
+
+	if len(t.WorkUnits) == 0 || t.NotScheduled > 0 {
+		allDone = false
 	}
 	t.IsDone = allDone
 
