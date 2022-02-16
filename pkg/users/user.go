@@ -135,6 +135,7 @@ type GoogleCalendarSync struct {
 	ChannelID      string    `json:"-" bson:"channelId,omitempty"`
 	SyncToken      string    `json:"-" bson:"syncToken,omitempty"`
 	Expiration     time.Time `json:"-" bson:"expiration,omitempty"`
+	IsNotSyncable  bool      `json:"-" bson:"isNotSyncable,omitempty"`
 }
 
 // TimingPreferenceVeryEarly is the very early timing preference

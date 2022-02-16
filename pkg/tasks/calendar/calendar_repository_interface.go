@@ -1,10 +1,13 @@
 package calendar
 
 import (
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"time"
 )
+
+var NonSyncableError = errors.New("non_syncable_calendar")
 
 // RepositoryInterface is an interface for every calendar implementation e.g. Google Calendar, Microsoft Calendar,...
 type RepositoryInterface interface {

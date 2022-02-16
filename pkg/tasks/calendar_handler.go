@@ -165,12 +165,21 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 		}
 
 		for _, sync := range connection.CalendarsOfInterest {
+			if sync.IsNotSyncable {
+				continue
+			}
+
 			u, err = calendarRepository.WatchCalendar(sync.CalendarID, u)
 			if err != nil {
-				_ = handler.UserRepository.Update(request.Context(), u)
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-					"Error while registering for calendar notifications", err)
-				return err
+				if err.Error() == calendar.NonSyncableError.Error() {
+					sync.IsNotSyncable = true
+				} else {
+
+					_ = handler.UserRepository.Update(request.Context(), u)
+					handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
+						"Error while registering for calendar notifications", err)
+					return err
+				}
 			}
 		}
 	}
@@ -288,7 +297,7 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 		}
 
 		for _, sync := range connection.CalendarsOfInterest {
-			if !sync.Expiration.Before(time) {
+			if !sync.Expiration.Before(time) || sync.IsNotSyncable {
 				continue
 			}
 
@@ -409,6 +418,10 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 	}
 
 	for _, sync := range connection.CalendarsOfInterest {
+		if sync.IsNotSyncable {
+			continue
+		}
+
 		u, err = repository.StopWatchingCalendar(sync.CalendarID, u)
 		if err != nil {
 			handler.Logger.Warning("Calendar notifications could not be stopped", err)

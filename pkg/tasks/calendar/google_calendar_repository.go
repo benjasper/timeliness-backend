@@ -212,7 +212,7 @@ func (c *GoogleCalendarRepository) TestTaskCalendarExistence(u *users.User) (*us
 // GetAllCalendarsOfInterest retrieves all Calendars from Google Calendar
 func (c *GoogleCalendarRepository) GetAllCalendarsOfInterest() (map[string]*Calendar, error) {
 	var calendars = make(map[string]*Calendar)
-	calList, err := c.Service.CalendarList.List().Do()
+	calList, err := c.Service.CalendarList.List().MinAccessRole("freeBusyReader").Do()
 	if err != nil {
 		return calendars, c.checkForInvalidTokenError(err)
 	}
@@ -275,7 +275,7 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 		return nil, errors.New("calendar id could not be found in calendars of interest")
 	}
 
-	if c.connection.CalendarsOfInterest[index].Expiration.After(time.Now().Add(GoogleNotificationExpirationOffset)) {
+	if c.connection.CalendarsOfInterest[index].Expiration.After(time.Now().Add(GoogleNotificationExpirationOffset)) || c.connection.CalendarsOfInterest[index].IsNotSyncable {
 		return user, nil
 	}
 
@@ -293,10 +293,14 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 
 	response, err := c.Service.Events.Watch(calendarID, &channel).Do()
 	if err != nil {
-		c.connection.CalendarsOfInterest = c.connection.CalendarsOfInterest.RemoveCalendar(calendarID)
-		for i, connection := range user.GoogleCalendarConnections {
-			if connection.ID == c.connection.ID {
-				user.GoogleCalendarConnections[i] = *c.connection
+		if strings.Contains(err.Error(), "pushNotSupportedForRequestedResource") {
+			return user, errors.WithStack(NonSyncableError)
+		} else {
+			c.connection.CalendarsOfInterest = c.connection.CalendarsOfInterest.RemoveCalendar(calendarID)
+			for i, connection := range user.GoogleCalendarConnections {
+				if connection.ID == c.connection.ID {
+					user.GoogleCalendarConnections[i] = *c.connection
+				}
 			}
 		}
 
@@ -323,7 +327,7 @@ func (c *GoogleCalendarRepository) StopWatchingCalendar(calendarID string, user 
 		return nil, errors.New("calendar id could not be found in calendars of interest")
 	}
 
-	if c.connection.CalendarsOfInterest[index].ChannelID == "" || c.connection.CalendarsOfInterest[index].SyncResourceID == "" {
+	if c.connection.CalendarsOfInterest[index].ChannelID == "" || c.connection.CalendarsOfInterest[index].SyncResourceID == "" || c.connection.CalendarsOfInterest[index].IsNotSyncable {
 		return user, nil
 	}
 
