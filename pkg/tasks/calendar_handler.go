@@ -171,7 +171,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 
 			u, err = calendarRepository.WatchCalendar(sync.CalendarID, u)
 			if err != nil {
-				if err.Error() == calendar.NonSyncableError.Error() {
+				if err.Error() == calendar.ErrNonSyncable.Error() {
 					sync.IsNotSyncable = true
 				} else {
 

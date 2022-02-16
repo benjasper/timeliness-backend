@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// NonSyncableError is an error that is returned when a calendar doesn't support syncing
-var NonSyncableError = errors.New("non_syncable_calendar")
+// ErrNonSyncable is an error that is returned when a calendar doesn't support syncing
+var ErrNonSyncable = errors.New("non_syncable_calendar")
 
 // RepositoryInterface is an interface for every calendar implementation e.g. Google Calendar, Microsoft Calendar,...
 type RepositoryInterface interface {

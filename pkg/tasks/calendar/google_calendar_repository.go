@@ -294,13 +294,13 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 	response, err := c.Service.Events.Watch(calendarID, &channel).Do()
 	if err != nil {
 		if strings.Contains(err.Error(), "pushNotSupportedForRequestedResource") {
-			return user, errors.WithStack(NonSyncableError)
-		} else {
-			c.connection.CalendarsOfInterest = c.connection.CalendarsOfInterest.RemoveCalendar(calendarID)
-			for i, connection := range user.GoogleCalendarConnections {
-				if connection.ID == c.connection.ID {
-					user.GoogleCalendarConnections[i] = *c.connection
-				}
+			return user, errors.WithStack(ErrNonSyncable)
+		}
+
+		c.connection.CalendarsOfInterest = c.connection.CalendarsOfInterest.RemoveCalendar(calendarID)
+		for i, connection := range user.GoogleCalendarConnections {
+			if connection.ID == c.connection.ID {
+				user.GoogleCalendarConnections[i] = *c.connection
 			}
 		}
 
