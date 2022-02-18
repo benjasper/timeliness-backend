@@ -16,6 +16,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/sync/errgroup"
 	"math"
 	"net/http"
 	"strconv"
@@ -940,15 +941,36 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 		return
 	}
 
-	user, err := handler.UserRepository.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
-		return
-	}
+	w, _ := errgroup.WithContext(request.Context())
 
-	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+	var user *users.User
+	var task *Task
+
+	w.Go(func() error {
+		var err error
+		user, err = handler.UserRepository.FindByID(request.Context(), userID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+			return err
+		}
+
+		return nil
+	})
+
+	w.Go(func() error {
+		var err error
+		task, err = handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+			return err
+		}
+
+		return nil
+	})
+
+	err := w.Wait()
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		// We already responded with an error
 		return
 	}
 
@@ -989,15 +1011,36 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 		return
 	}
 
-	user, err := handler.UserRepository.FindByID(request.Context(), userID)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
-		return
-	}
+	w, _ := errgroup.WithContext(request.Context())
 
-	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+	var user *users.User
+	var task *Task
+
+	w.Go(func() error {
+		var err error
+		user, err = handler.UserRepository.FindByID(request.Context(), userID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+			return err
+		}
+
+		return nil
+	})
+
+	w.Go(func() error {
+		var err error
+		task, err = handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+			return err
+		}
+
+		return nil
+	})
+
+	err := w.Wait()
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		// We already responded with an error
 		return
 	}
 
