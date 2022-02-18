@@ -940,6 +940,12 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 		return
 	}
 
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+		return
+	}
+
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
@@ -956,6 +962,17 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 	if persistedEvent == nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find calendar event data", errors.Errorf("no calendar event for userID %s", userID))
 		return
+	}
+
+	// We need to calculate a custom id for Google Calendar
+	if persistedEvent.CalendarType == calendar.PersistedCalendarTypeGoogleCalendar {
+		customID, err := handler.getGoogleCalendarEventID(persistedEvent, user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err)
+			return
+		}
+
+		persistedEvent.CalendarEventID = customID
 	}
 
 	handler.ResponseManager.Respond(writer, persistedEvent)
