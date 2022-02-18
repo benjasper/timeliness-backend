@@ -233,13 +233,14 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	index, workUnit := task.WorkUnits.FindByID(workUnitID)
+	index, _ := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
 
-	original := *workUnit
+	workUnit := task.WorkUnits[index]
+	original := workUnit
 	err = json.NewDecoder(request.Body).Decode(&workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
@@ -261,7 +262,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 			return
 		}
 
-		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, workUnit)
+		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &workUnit)
 		if err != nil {
 			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
 				"Error updating the task", err, communication.Calendar)
@@ -274,7 +275,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	task.WorkUnits[index] = *workUnit
+	task.WorkUnits[index] = workUnit
 
 	err = handler.TaskRepository.Update(request.Context(), task, false)
 	if err != nil {
@@ -325,11 +326,11 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 
 	index, _ := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
 
-	workUnit := task.WorkUnits[index]
+	workUnit := &task.WorkUnits[index]
 
 	requestBody := MarkWorkUnitAsDoneRequest{
 		IsDone: true,
@@ -408,7 +409,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		}
 	}
 
-	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, &workUnit)
+	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
 			"Error while communicating with calendar", err, communication.Calendar)
