@@ -323,11 +323,13 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		return
 	}
 
-	index, workUnit := task.WorkUnits.FindByID(workUnitID)
+	index, _ := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
+
+	workUnit := task.WorkUnits[index]
 
 	requestBody := MarkWorkUnitAsDoneRequest{
 		IsDone: true,
@@ -406,7 +408,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		}
 	}
 
-	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, workUnit)
+	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, &workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
 			"Error while communicating with calendar", err, communication.Calendar)
@@ -863,11 +865,13 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		return
 	}
 
-	index, workUnit := task.WorkUnits.FindByID(workUnitID)
+	index, _ := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
+
+	workUnit := task.WorkUnits[index]
 
 	requestBody := &OptionalTimespans{}
 	err = json.NewDecoder(request.Body).Decode(&requestBody)
@@ -919,7 +923,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 			return
 		}
 	} else {
-		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, workUnit, false)
+		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, communication.Calendar)
 			return
