@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
@@ -12,11 +13,14 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/sync/errgroup"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -201,12 +205,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
-	indexString := mux.Vars(request)["index"]
-	index, err := strconv.Atoi(indexString)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
-		return
-	}
+	workUnitID := mux.Vars(request)["workUnitID"]
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
@@ -234,8 +233,9 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	if index > len(task.WorkUnits)-1 || index < 0 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+	index, _ := task.WorkUnits.FindByID(workUnitID)
+	if index == -1 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
 
@@ -296,12 +296,7 @@ type MarkWorkUnitAsDoneRequest struct {
 func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
-	indexString := mux.Vars(request)["index"]
-	index, err := strconv.Atoi(indexString)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
-		return
-	}
+	workUnitID := mux.Vars(request)["workUnitID"]
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
@@ -329,8 +324,9 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		return
 	}
 
-	if index > len(task.WorkUnits)-1 || index < 0 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+	index, _ := task.WorkUnits.FindByID(workUnitID)
+	if index == -1 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
 
@@ -842,12 +838,7 @@ type OptionalTimespans struct {
 func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
-	indexString := mux.Vars(request)["index"]
-	index, err := strconv.Atoi(indexString)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
-		return
-	}
+	workUnitID := mux.Vars(request)["workUnitID"]
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
@@ -875,10 +866,13 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		return
 	}
 
-	if index > len(task.WorkUnits)-1 || index < 0 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+	index, _ := task.WorkUnits.FindByID(workUnitID)
+	if index == -1 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
+
+	workUnit := task.WorkUnits[index]
 
 	requestBody := &OptionalTimespans{}
 	err = json.NewDecoder(request.Body).Decode(&requestBody)
@@ -887,7 +881,6 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		return
 	}
 
-	workUnit := task.WorkUnits[index]
 	if len(requestBody.ChosenTimespans) > 0 {
 		var summedDuration time.Duration = 0
 		for _, timespan := range requestBody.ChosenTimespans {
@@ -941,16 +934,173 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 	handler.ResponseManager.Respond(writer, *task)
 }
 
+// GetWorkUnitCalendarData is the endpoint implementation for getting user specific calendar data
+func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+	workUnitID := mux.Vars(request)["workUnitID"]
+
+	isValid := primitive.IsValidObjectID(taskID)
+	if !isValid {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		return
+	}
+
+	w, _ := errgroup.WithContext(request.Context())
+
+	var user *users.User
+	var task *Task
+
+	w.Go(func() error {
+		var err error
+		user, err = handler.UserRepository.FindByID(request.Context(), userID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+			return err
+		}
+
+		return nil
+	})
+
+	w.Go(func() error {
+		var err error
+		task, err = handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+			return err
+		}
+
+		return nil
+	})
+
+	err := w.Wait()
+	if err != nil {
+		// We already responded with an error
+		return
+	}
+
+	index, workUnit := task.WorkUnits.FindByID(workUnitID)
+	if index == -1 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
+		return
+	}
+
+	persistedEvent := workUnit.ScheduledAt.CalendarEvents.FindByUserID(userID)
+	if persistedEvent == nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find calendar event data", errors.Errorf("no calendar event for userID %s", userID))
+		return
+	}
+
+	// We need to calculate a custom id for Google Calendar
+	if persistedEvent.CalendarType == calendar.PersistedCalendarTypeGoogleCalendar {
+		customID, err := handler.getGoogleCalendarEventID(persistedEvent, user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err)
+			return
+		}
+
+		persistedEvent.CalendarEventID = customID
+	}
+
+	handler.ResponseManager.Respond(writer, persistedEvent)
+}
+
+// GetTaskDueDateCalendarData is the endpoint implementation for getting user specific calendar data
+func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	taskID := mux.Vars(request)["taskID"]
+
+	isValid := primitive.IsValidObjectID(taskID)
+	if !isValid {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		return
+	}
+
+	w, _ := errgroup.WithContext(request.Context())
+
+	var user *users.User
+	var task *Task
+
+	w.Go(func() error {
+		var err error
+		user, err = handler.UserRepository.FindByID(request.Context(), userID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+			return err
+		}
+
+		return nil
+	})
+
+	w.Go(func() error {
+		var err error
+		task, err = handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+			return err
+		}
+
+		return nil
+	})
+
+	err := w.Wait()
+	if err != nil {
+		// We already responded with an error
+		return
+	}
+
+	persistedEvent := task.DueAt.CalendarEvents.FindByUserID(userID)
+	if persistedEvent == nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find calendar event data", errors.Errorf("no calendar event for userID %s", userID))
+		return
+	}
+
+	// We need to calculate a custom id for Google Calendar
+	if persistedEvent.CalendarType == calendar.PersistedCalendarTypeGoogleCalendar {
+		customID, err := handler.getGoogleCalendarEventID(persistedEvent, user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err)
+			return
+		}
+
+		persistedEvent.CalendarEventID = customID
+	}
+
+	handler.ResponseManager.Respond(writer, persistedEvent)
+}
+
+func (handler *Handler) getGoogleCalendarEventID(event *calendar.PersistedEvent, user *users.User) (string, error) {
+	connection, _, err := user.GoogleCalendarConnections.GetTaskCalendarConnection()
+	if err != nil {
+		return "", err
+	}
+
+	var calendarID string
+
+	splitString := strings.Split(connection.TaskCalendarID, "@")
+	if splitString == nil || len(splitString) != 2 {
+		return "", errors.New(fmt.Sprintf("Could not split calendar id %s", connection.TaskCalendarID))
+	}
+
+	if strings.Contains(connection.TaskCalendarID, "@group.calendar.google.com") {
+		calendarID = splitString[0] + "@g"
+	} else if strings.Contains(connection.TaskCalendarID, "@gmail.com") {
+		calendarID = splitString[0] + "@m"
+	} else {
+		return "", errors.New(fmt.Sprintf("Could not determine calendar id type for %s", connection.TaskCalendarID))
+	}
+
+	toEncode := fmt.Sprintf("%s %s", event.CalendarEventID, calendarID)
+	result := base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString([]byte(toEncode))
+
+	return result, nil
+}
+
 // RescheduleWorkUnitGet is the endpoint for requesting time suggestions when rescheduling a work unit
 func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 	taskID := mux.Vars(request)["taskID"]
-	indexString := mux.Vars(request)["index"]
-	index, err := strconv.Atoi(indexString)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No int as index", err)
-		return
-	}
+	workUnitID := mux.Vars(request)["workUnitID"]
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
@@ -958,14 +1108,13 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 		return
 	}
 
-	if index > len(task.WorkUnits)-1 || index < 0 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Index %d does not exist", index), err)
+	index, workUnit := task.WorkUnits.FindByID(workUnitID)
+	if index == -1 {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
 		return
 	}
 
-	workUnit := task.WorkUnits[index]
-
-	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, &workUnit)
+	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit)
 	if err != nil {
 		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, communication.Calendar)
 		return

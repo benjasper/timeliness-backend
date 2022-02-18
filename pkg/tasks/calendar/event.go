@@ -36,9 +36,9 @@ type AgendaEvent struct {
 
 // PersistedEvent represents an event persistent in a users calendar
 type PersistedEvent struct {
-	CalendarType    Type               `json:"-" bson:"calendarType"`
-	CalendarEventID string             `json:"-" bson:"calendarEventID"`
-	UserID          primitive.ObjectID `json:"-" bson:"userID"`
+	CalendarType    Type               `json:"calendarType" bson:"calendarType"`
+	CalendarEventID string             `json:"calendarEventId" bson:"calendarEventID"`
+	UserID          primitive.ObjectID `json:"userId" bson:"userID"`
 }
 
 // PersistedEvents is a slice of PersistedEvents

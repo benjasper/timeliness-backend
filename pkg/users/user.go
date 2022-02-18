@@ -2,6 +2,7 @@ package users
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/oauth2"
@@ -78,6 +79,17 @@ func (g GoogleCalendarConnections) FindByConnectionID(connectionID string) (*Goo
 	}
 
 	return nil, 0, fmt.Errorf("could not find connection with id %s", connectionID)
+}
+
+// GetTaskCalendarConnection finds a connection if its a task calendar connection
+func (g GoogleCalendarConnections) GetTaskCalendarConnection() (*GoogleCalendarConnection, int, error) {
+	for i, connection := range g {
+		if connection.IsTaskCalendarConnection && connection.TaskCalendarID != "" {
+			return &connection, i, nil
+		}
+	}
+
+	return nil, 0, errors.Errorf("could not find task calendar connection")
 }
 
 // RemoveConnection removes a connection
