@@ -992,19 +992,19 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 
 	// We need to calculate a custom id for Google Calendar
 	if persistedEvent.CalendarType == calendar.PersistedCalendarTypeGoogleCalendar {
-		customId, err := handler.getGoogleCalendarEventId(persistedEvent, user)
+		customID, err := handler.getGoogleCalendarEventID(persistedEvent, user)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err)
 			return
 		}
 
-		persistedEvent.CalendarEventID = customId
+		persistedEvent.CalendarEventID = customID
 	}
 
 	handler.ResponseManager.Respond(writer, persistedEvent)
 }
 
-func (handler *Handler) getGoogleCalendarEventId(event *calendar.PersistedEvent, user *users.User) (string, error) {
+func (handler *Handler) getGoogleCalendarEventID(event *calendar.PersistedEvent, user *users.User) (string, error) {
 	connection, _, err := user.GoogleCalendarConnections.GetTaskCalendarConnection()
 	if err != nil {
 		return "", err
