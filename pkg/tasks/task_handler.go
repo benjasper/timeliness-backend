@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
@@ -12,11 +13,13 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
+	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -969,6 +972,12 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 		return
 	}
 
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+		return
+	}
+
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
@@ -981,7 +990,45 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 		return
 	}
 
+	// We need to calculate a custom id for Google Calendar
+	if persistedEvent.CalendarType == calendar.PersistedCalendarTypeGoogleCalendar {
+		customId, err := handler.getGoogleCalendarEventId(persistedEvent, user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err)
+			return
+		}
+
+		persistedEvent.CalendarEventID = customId
+	}
+
 	handler.ResponseManager.Respond(writer, persistedEvent)
+}
+
+func (handler *Handler) getGoogleCalendarEventId(event *calendar.PersistedEvent, user *users.User) (string, error) {
+	connection, _, err := user.GoogleCalendarConnections.GetTaskCalendarConnection()
+	if err != nil {
+		return "", err
+	}
+
+	var calendarID string
+
+	splitString := strings.Split(connection.TaskCalendarID, "@")
+	if splitString == nil || len(splitString) != 2 {
+		return "", errors.New(fmt.Sprintf("Could not split calendar id %s", connection.TaskCalendarID))
+	}
+
+	if strings.Contains(connection.TaskCalendarID, "@group.calendar.google.com") {
+		calendarID = splitString[0] + "@g"
+	} else if strings.Contains(connection.TaskCalendarID, "@gmail.com") {
+		calendarID = splitString[0] + "@m"
+	} else {
+		return "", errors.New(fmt.Sprintf("Could not determine calendar id type for %s", connection.TaskCalendarID))
+	}
+
+	toEncode := fmt.Sprintf("%s %s", event.CalendarEventID, calendarID)
+	result := base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString([]byte(toEncode))
+
+	return result, nil
 }
 
 // RescheduleWorkUnitGet is the endpoint for requesting time suggestions when rescheduling a work unit
