@@ -445,6 +445,59 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 	writer.WriteHeader(http.StatusAccepted)
 }
 
+// RevokeGoogleAuth deletes a Google connection and stops calendar notifications
+func (handler *CalendarHandler) RevokeGoogleAuth(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+	connectionID := mux.Vars(request)["connectionID"]
+
+	u, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		return
+	}
+
+	connection, index, err := u.GoogleCalendarConnections.FindByConnectionID(connectionID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find connection id %s", connectionID), err)
+		return
+	}
+
+	repository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connectionID)
+	if err != nil {
+		connection.Status = users.CalendarConnectionStatusExpired
+	}
+
+	for _, sync := range connection.CalendarsOfInterest {
+		if sync.IsNotSyncable || connection.Status != users.CalendarConnectionStatusActive {
+			continue
+		}
+
+		u, err = repository.StopWatchingCalendar(sync.CalendarID, u)
+		if err != nil {
+			handler.Logger.Warning("Calendar notifications could not be stopped", err)
+			continue
+		}
+	}
+
+	err = google.RevokeToken(request.Context(), &connection.Token)
+	if err != nil {
+		handler.Logger.Info(fmt.Sprintf("Could not revoke token: %s", err))
+		connection.Status = users.CalendarConnectionStatusExpired
+	} else {
+		connection.Status = users.CalendarConnectionStatusInactive
+	}
+
+	u.GoogleCalendarConnections[index] = *connection
+
+	err = handler.UserRepository.Update(request.Context(), u)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		return
+	}
+
+	handler.ResponseManager.Respond(writer, u)
+}
+
 // GoogleCalendarAuthCallback is the call the api will redirect to
 func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseWriter, request *http.Request) {
 	googleError := request.URL.Query().Get("error")
