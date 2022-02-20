@@ -151,8 +151,8 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, request *http.Request, u *users.User) error {
 	var err error
 
-	for i, connection := range u.GoogleCalendarConnections {
-		u, err = handler.CalendarRepositoryManager.CheckIfGoogleTaskCalendarIsSet(request.Context(), u, &connection, i)
+	for connectionIndex, connection := range u.GoogleCalendarConnections {
+		u, err = handler.CalendarRepositoryManager.CheckIfGoogleTaskCalendarIsSet(request.Context(), u, &connection, connectionIndex)
 		if err != nil {
 			handler.Logger.Error("Could not check if Google Task Calendar is set", errors.Wrap(err, "could not check if Google Task Calendar is set"))
 			return err
@@ -164,7 +164,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 			return err
 		}
 
-		for _, sync := range connection.CalendarsOfInterest {
+		for calendarIndex, sync := range connection.CalendarsOfInterest {
 			if sync.IsNotSyncable {
 				continue
 			}
@@ -172,7 +172,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 			u, err = calendarRepository.WatchCalendar(sync.CalendarID, u)
 			if err != nil {
 				if err.Error() == calendar.ErrNonSyncable.Error() {
-					sync.IsNotSyncable = true
+					u.GoogleCalendarConnections[connectionIndex].CalendarsOfInterest[calendarIndex].IsNotSyncable = true
 				} else {
 
 					_ = handler.UserRepository.Update(request.Context(), u)
