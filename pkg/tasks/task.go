@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"github.com/pkg/errors"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"sort"
@@ -224,6 +225,17 @@ func (w WorkUnits) Sort() {
 	sort.Slice(w, func(i, j int) bool {
 		return w[i].ScheduledAt.Date.Start.Before(w[j].ScheduledAt.Date.Start)
 	})
+}
+
+// Timespans gets all the timespans of the WorkUnits
+func (w WorkUnits) Timespans() []date.Timespan {
+	var timespans []date.Timespan
+
+	for _, unit := range w {
+		timespans = append(timespans, unit.ScheduledAt.Date)
+	}
+
+	return timespans
 }
 
 // Tags is an array of ObjectIDs

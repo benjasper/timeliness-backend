@@ -199,7 +199,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 	}
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, workloadToSchedule)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +412,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 	}
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload, windowTotal, availabilityRepositories, constraint)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
@@ -512,7 +512,7 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 	var iterations time.Duration = 5
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
@@ -540,8 +540,7 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 			maxDuration = durationToFind
 		}
 
-		var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-		slot := w.FindTimeSlot(&rules)
+		slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration})
 		if slot == nil {
 			break
 		}
@@ -578,8 +577,7 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 				maxDuration = durationToFind
 			}
 
-			var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-			slot := w.FindTimeSlot(&rules)
+			slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration})
 			if slot == nil {
 				break
 			}
@@ -1218,7 +1216,9 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 }
 
 // computeAvailabilityForTimeWindow traverses the given time interval by two weeks and returns when it found enough free time or traversed the whole interval
-func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint) (*date.TimeWindow, error) {
+func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint, task *Task) (*date.TimeWindow, error) {
+	window.PreferredNeighbors = task.WorkUnits.Timespans()
+
 	s.generateTimespansBasedOnTargetDate(target, window, func(timespans []date.Timespan) bool {
 		for _, timespan := range timespans {
 			wg := errgroup.Group{}

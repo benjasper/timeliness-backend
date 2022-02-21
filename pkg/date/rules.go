@@ -4,11 +4,6 @@ import (
 	"time"
 )
 
-// RuleInterface is the interface all rules have to implement
-type RuleInterface interface {
-	Test(timespan Timespan) *Timespan
-}
-
 // FreeConstraint is for constraints that a single timespan has to comply with
 // AllowedTimeSpans can only contain []Timespan with dates 0 and times that don't cross the dateline (0:00)
 type FreeConstraint struct {
@@ -83,14 +78,18 @@ type RuleDuration struct {
 }
 
 // Test against RuleDuration
-func (r *RuleDuration) Test(timespan Timespan) *Timespan {
+func (r *RuleDuration) Test(timespan Timespan, cutFromEnd bool) *Timespan {
 	diff := timespan.Duration()
 	if r.Minimum != 0 && diff < r.Minimum {
 		return nil
 	}
 
 	if r.Maximum != 0 && diff > r.Maximum {
-		timespan.End = timespan.End.Add((diff - r.Maximum) * -1)
+		if cutFromEnd {
+			timespan.End = timespan.End.Add((diff - r.Maximum) * -1)
+		} else {
+			timespan.Start = timespan.Start.Add(diff - r.Maximum)
+		}
 	}
 
 	return &timespan

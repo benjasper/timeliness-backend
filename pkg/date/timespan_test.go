@@ -1053,7 +1053,7 @@ func TestTimespan_IntersectsWith(t *testing.T) {
 func TestTimeWindow_FindTimeSlot(t *testing.T) {
 	var ruleTests = []struct {
 		in   []Timespan
-		rule RuleInterface
+		rule *RuleDuration
 		out  *Timespan
 	}{
 		// Case fits minimum
@@ -1102,8 +1102,8 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 			window := TimeWindow{
 				Free: tt.in,
 			}
-			var rules = []RuleInterface{tt.rule}
-			result := window.FindTimeSlot(&rules)
+
+			result := window.FindTimeSlot(tt.rule)
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
