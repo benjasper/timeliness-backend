@@ -448,13 +448,13 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration, maxWorkUnitLength 
 					w.Free[index].End = tmp.Start
 
 					if tmp.Duration() >= maxWorkUnitLength {
-						w.Free[index].End.Add(w.BusyPadding * -1)
+						w.Free[index].End = w.Free[index].End.Add(w.BusyPadding * -1)
 					}
 				} else {
 					w.Free[index].Start = tmp.End
 
 					if tmp.Duration() >= maxWorkUnitLength {
-						w.Free[index].Start.Add(w.BusyPadding)
+						w.Free[index].Start = w.Free[index].Start.Add(w.BusyPadding)
 					}
 				}
 				return &tmp
