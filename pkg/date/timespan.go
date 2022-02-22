@@ -446,8 +446,16 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration, maxWorkUnitLength 
 				// If it's false it means we have cut something from the end
 				if neighborEnd {
 					w.Free[index].End = tmp.Start
+
+					if tmp.Duration() >= maxWorkUnitLength {
+						w.Free[index].End.Add(w.BusyPadding * -1)
+					}
 				} else {
 					w.Free[index].Start = tmp.End
+
+					if tmp.Duration() >= maxWorkUnitLength {
+						w.Free[index].Start.Add(w.BusyPadding)
+					}
 				}
 				return &tmp
 			}
