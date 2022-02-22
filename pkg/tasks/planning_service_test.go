@@ -42,7 +42,8 @@ var primaryUser = users.User{
 					End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
 				},
 			},
-			BusyTimeSpacing: time.Minute * 15,
+			BusyTimeSpacing:     time.Minute * 15,
+			MaxWorkUnitDuration: time.Hour * 6,
 		},
 	},
 }
