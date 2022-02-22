@@ -350,6 +350,8 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		}
 	}
 
+	t = s.checkForMergingWorkUnits(ctx, t)
+
 	return t, nil
 }
 
@@ -472,6 +474,8 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 	if err != nil {
 		return nil, err
 	}
+
+	t = s.checkForMergingWorkUnits(ctx, t)
 
 	return t, nil
 }
