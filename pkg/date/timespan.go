@@ -403,12 +403,20 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration) *Timespan {
 			}
 		}
 
+		// Get the duration we expect to schedule
+		var expectedDuration time.Duration
+		if ruleDuration.Maximum <= timespan.Duration() {
+			expectedDuration = ruleDuration.Maximum
+		} else {
+			expectedDuration = timespan.Duration()
+		}
+
 		// Apply padding when it's not a neighbor and apply padding when the neighbors combined would be bigger than allowed
-		if neighborStart && (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+timespan.Duration() > LargestPossibleWorkUnit) {
+		if neighborStart && (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+expectedDuration > LargestPossibleWorkUnit) {
 			timespan.Start = timespan.Start.Add(w.BusyPadding)
 		}
 
-		if neighborEnd && (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+timespan.Duration() > LargestPossibleWorkUnit) {
+		if neighborEnd && (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+expectedDuration > LargestPossibleWorkUnit) {
 			timespan.End = timespan.End.Add(-1 * w.BusyPadding)
 		}
 

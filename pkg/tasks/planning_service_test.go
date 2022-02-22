@@ -369,8 +369,8 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 						Workload: time.Hour,
 						ScheduledAt: calendar.Event{
 							Date: date.Timespan{
-								Start: time.Date(2021, 2, 1, 16, 0, 0, 0, location),
-								End:   time.Date(2021, 2, 1, 17, 0, 0, 0, location),
+								Start: time.Date(2021, 2, 1, 8, 0, 0, 0, location),
+								End:   time.Date(2021, 2, 1, 9, 0, 0, 0, location),
 							},
 							CalendarEvents: calendar.PersistedEvents{
 								calendar.PersistedEvent{
@@ -396,8 +396,8 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 						},
 						{
 							Date: date.Timespan{
-								Start: time.Date(2021, 2, 1, 16, 0, 0, 0, location),
-								End:   time.Date(2021, 2, 1, 17, 0, 0, 0, location),
+								Start: time.Date(2021, 2, 1, 8, 0, 0, 0, location),
+								End:   time.Date(2021, 2, 1, 9, 0, 0, 0, location),
 							},
 							CalendarEvents: calendar.PersistedEvents{
 								calendar.PersistedEvent{
