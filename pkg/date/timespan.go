@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// LargestPossibleWorkUnit is the largest possible work unit.
-const LargestPossibleWorkUnit = time.Hour * 6
-
 // TimeBeforeOrEquals returns whether t1 is before or equal t2
 func TimeBeforeOrEquals(t1 time.Time, t2 time.Time) bool {
 	ts := t1.UnixNano()
@@ -373,7 +370,7 @@ func absoluteOfDuration(duration time.Duration) time.Duration {
 }
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules
-func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration) *Timespan {
+func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration, maxWorkUnitLength time.Duration) *Timespan {
 	w.freeMutex.Lock()
 	defer w.freeMutex.Unlock()
 
@@ -412,11 +409,11 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration) *Timespan {
 		}
 
 		// Apply padding when it's not a neighbor and apply padding when the neighbors combined would be bigger than allowed
-		if neighborStart && (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+expectedDuration > LargestPossibleWorkUnit) {
+		if neighborStart && (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+expectedDuration > maxWorkUnitLength) {
 			timespan.Start = timespan.Start.Add(w.BusyPadding)
 		}
 
-		if neighborEnd && (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+expectedDuration > LargestPossibleWorkUnit) {
+		if neighborEnd && (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+expectedDuration > maxWorkUnitLength) {
 			timespan.End = timespan.End.Add(-1 * w.BusyPadding)
 		}
 

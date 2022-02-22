@@ -1103,7 +1103,7 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 				Free: tt.in,
 			}
 
-			result := window.FindTimeSlot(tt.rule)
+			result := window.FindTimeSlot(tt.rule, time.Hour*6)
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
