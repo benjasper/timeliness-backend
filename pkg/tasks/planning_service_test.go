@@ -339,6 +339,78 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Already once scheduled Task: 16h time available and changed workload",
+			task: Task{
+				ID:              task5ObjectID,
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				LastModifiedAt:  time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				Deleted:         false,
+				Name:            "Testtask 5",
+				Description:     "",
+				WorkloadOverall: time.Hour * 2,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 5, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						{
+							CalendarType:    "mock_calendar",
+							CalendarEventID: "due-5",
+							UserID:          primaryUser.ID,
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					WorkUnit{
+						ID:       primitive.NewObjectID(),
+						Workload: time.Hour,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 2, 1, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 2, 1, 17, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "persistedEvent1",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+			},
+			calendarRepositories: []repoEntry{
+				{
+					userID: primaryUser.ID,
+					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{
+						{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 1, 0, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 3, 18, 0, 0, 0, location),
+							},
+							Blocking: true,
+						},
+						{
+							Date: date.Timespan{
+								Start: time.Date(2021, 2, 1, 16, 0, 0, 0, location),
+								End:   time.Date(2021, 2, 1, 17, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "persistedEvent1",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					}, User: &primaryUser},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

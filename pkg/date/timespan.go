@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// LargestPossibleWorkUnit is the largest possible work unit.
+const LargestPossibleWorkUnit = time.Hour * 6
+
 // TimeBeforeOrEquals returns whether t1 is before or equal t2
 func TimeBeforeOrEquals(t1 time.Time, t2 time.Time) bool {
 	ts := t1.UnixNano()
@@ -201,6 +204,20 @@ func (w *TimeWindow) Duration() time.Duration {
 
 // AddToBusy adds a single Timespan to the sorted busy timespan array in a TimeWindow
 func (w *TimeWindow) AddToBusy(timespan Timespan) {
+	isPreferred := false
+	for _, preferred := range w.PreferredNeighbors {
+		if preferred == timespan {
+			isPreferred = true
+			break
+		}
+	}
+
+	// If it isn't a WorkUnit we have here we can apply the padding
+	if !isPreferred {
+		timespan.Start = timespan.Start.Add(w.BusyPadding * -1)
+		timespan.End = timespan.End.Add(w.BusyPadding)
+	}
+
 	w.busyMutex.Lock()
 	defer w.busyMutex.Unlock()
 
@@ -340,8 +357,9 @@ func (w *TimeWindow) calculateHeuristic(target time.Time, timespan Timespan) tim
 		}
 	}
 
+	// If its a neighbor we want to prioritize it
 	if isNeighbor {
-		value /= 2
+		value = 0
 	}
 
 	return value
@@ -386,11 +404,11 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration) *Timespan {
 		}
 
 		// Apply padding when it's not a neighbor and apply padding when the neighbors combined would be bigger than allowed
-		if !neighborStart || (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+timespan.Duration() > ruleDuration.Maximum) {
+		if neighborStart && (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+timespan.Duration() > LargestPossibleWorkUnit) {
 			timespan.Start = timespan.Start.Add(w.BusyPadding)
 		}
 
-		if !neighborEnd || (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+timespan.Duration() > ruleDuration.Maximum) {
+		if neighborEnd && (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+timespan.Duration() > LargestPossibleWorkUnit) {
 			timespan.End = timespan.End.Add(-1 * w.BusyPadding)
 		}
 
