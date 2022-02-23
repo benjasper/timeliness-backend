@@ -317,6 +317,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 		user.Settings.Scheduling.TimeZone = "Europe/Berlin"
 		user.Settings.Scheduling.BusyTimeSpacing = time.Minute * 15
 		user.Settings.Scheduling.TimingPreference = TimingPreferenceEarly
+		user.Settings.Scheduling.MaxWorkUnitDuration = time.Hour * 4
 
 		presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 		if presentUser != nil {
@@ -494,6 +495,13 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 			userSettings.Scheduling.TimingPreference != TimingPreferenceLate &&
 			userSettings.Scheduling.TimingPreference != TimingPreferenceVeryLate {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("TimingPreference is invalid"), nil)
+			return
+		}
+	}
+
+	if userSettings.Scheduling.MaxWorkUnitDuration != originalSettings.Scheduling.MaxWorkUnitDuration {
+		if userSettings.Scheduling.MaxWorkUnitDuration < time.Hour || userSettings.Scheduling.MaxWorkUnitDuration > time.Hour*8 {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("MaxWorkUnitDuration is invalid"), nil)
 			return
 		}
 	}

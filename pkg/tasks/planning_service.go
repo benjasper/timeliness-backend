@@ -22,9 +22,6 @@ var now = time.Now
 // WorkUnitDurationMin is the minimum duration of a work unit
 const WorkUnitDurationMin = time.Hour * 2
 
-// WorkUnitDurationMax is the maximum duration of a work unit
-const WorkUnitDurationMax = time.Hour * 6
-
 // The PlanningService combines the calendar and task implementations
 type PlanningService struct {
 	userRepository            users.UserRepositoryInterface
@@ -199,7 +196,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 	}
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, workloadToSchedule)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +204,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 	if workloadToSchedule > 0 {
 		workUnits := t.WorkUnits
 
-		foundWorkUnits := s.findWorkUnitTimes(windowTotal, workloadToSchedule)
+		foundWorkUnits := s.findWorkUnitTimes(windowTotal, workloadToSchedule, relevantUsers[0])
 
 		for _, workUnit := range foundWorkUnits {
 			workUnit.ScheduledAt.Blocking = true
@@ -350,6 +347,8 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		}
 	}
 
+	t = s.checkForMergingWorkUnits(ctx, t)
+
 	return t, nil
 }
 
@@ -412,14 +411,14 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 	}
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload, windowTotal, availabilityRepositories, constraint)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
 
 	workloadToSchedule := w.Workload
 
-	foundWorkUnits := s.findWorkUnitTimes(windowTotal, workloadToSchedule)
+	foundWorkUnits := s.findWorkUnitTimes(windowTotal, workloadToSchedule, relevantUsers[0])
 
 	if len(foundWorkUnits) == 0 {
 		t.WorkUnits = t.WorkUnits.RemoveByIndex(index)
@@ -473,6 +472,8 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		return nil, err
 	}
 
+	t = s.checkForMergingWorkUnits(ctx, t)
+
 	return t, nil
 }
 
@@ -512,15 +513,15 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 	var iterations time.Duration = 5
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.findWorkUnitTimesForExactWorkload(windowTotal, w.Workload, int(iterations)), nil
+	return s.findWorkUnitTimesForExactWorkload(windowTotal, w.Workload, int(iterations), relevantUsers[0]), nil
 }
 
-func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration) WorkUnits {
+func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration, user *users.User) WorkUnits {
 	var workUnits WorkUnits
 	if w.FreeDuration == 0 {
 		return workUnits
@@ -530,18 +531,17 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 	if durationToFind < 1*time.Hour {
 		minDuration = durationToFind
 	}
-	maxDuration := WorkUnitDurationMax
+	maxDuration := user.Settings.Scheduling.MaxWorkUnitDuration
 
 	for w.FreeDuration >= 0 && durationToFind > 0 {
-		if durationToFind < WorkUnitDurationMax {
+		if durationToFind < user.Settings.Scheduling.MaxWorkUnitDuration {
 			if durationToFind < WorkUnitDurationMin {
 				minDuration = durationToFind
 			}
 			maxDuration = durationToFind
 		}
 
-		var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-		slot := w.FindTimeSlot(&rules)
+		slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}, user.Settings.Scheduling.MaxWorkUnitDuration)
 		if slot == nil {
 			break
 		}
@@ -552,7 +552,7 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 	return workUnits
 }
 
-func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, durationToFindPerIteration time.Duration, iterations int) [][]date.Timespan {
+func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, durationToFindPerIteration time.Duration, iterations int, user *users.User) [][]date.Timespan {
 	var timespanGroups = make([][]date.Timespan, 0)
 
 	if w.FreeDuration == 0 || w.FreeDuration < durationToFindPerIteration {
@@ -566,20 +566,19 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 		if durationToFind < 1*time.Hour {
 			minDuration = durationToFind
 		}
-		maxDuration := WorkUnitDurationMax
+		maxDuration := user.Settings.Scheduling.MaxWorkUnitDuration
 
 		timespanGroup := make([]date.Timespan, 0)
 
 		for w.FreeDuration >= 0 && durationToFind > 0 {
-			if durationToFind < WorkUnitDurationMax {
+			if durationToFind < user.Settings.Scheduling.MaxWorkUnitDuration {
 				if durationToFind < WorkUnitDurationMin {
 					minDuration = durationToFind
 				}
 				maxDuration = durationToFind
 			}
 
-			var rules = []date.RuleInterface{&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}}
-			slot := w.FindTimeSlot(&rules)
+			slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}, user.Settings.Scheduling.MaxWorkUnitDuration)
 			if slot == nil {
 				break
 			}
@@ -1218,7 +1217,9 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 }
 
 // computeAvailabilityForTimeWindow traverses the given time interval by two weeks and returns when it found enough free time or traversed the whole interval
-func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint) (*date.TimeWindow, error) {
+func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint, task *Task) (*date.TimeWindow, error) {
+	window.PreferredNeighbors = task.WorkUnits.Timespans()
+
 	s.generateTimespansBasedOnTargetDate(target, window, func(timespans []date.Timespan) bool {
 		for _, timespan := range timespans {
 			wg := errgroup.Group{}

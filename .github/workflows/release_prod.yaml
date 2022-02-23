@@ -6,8 +6,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-tests:
-    uses: timeliness-app/timeliness-backend/.github/workflows/tests.yaml@main
   deployment:
     name: Deploy
     runs-on: ubuntu-latest
