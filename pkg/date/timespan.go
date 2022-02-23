@@ -182,13 +182,19 @@ func RemoveFromTimespanSlice(slice []Timespan, s int) []Timespan {
 type TimeWindow struct {
 	Start              time.Time
 	End                time.Time
-	FreeDuration       time.Duration
-	Busy               []Timespan
-	Free               []Timespan
 	BusyPadding        time.Duration
+	MaxWorkUnitLength  time.Duration
 	PreferredNeighbors []Timespan
+	busy               []Timespan
+	free               []Timespan
+	freeDuration       time.Duration
 	busyMutex          sync.Mutex
 	freeMutex          sync.Mutex
+}
+
+// FreeDuration returns the duration of the free timeslots combined
+func (w *TimeWindow) FreeDuration() time.Duration {
+	return w.freeDuration
 }
 
 // Duration simply get the duration of a Timespan
@@ -218,13 +224,13 @@ func (w *TimeWindow) AddToBusy(timespan Timespan) {
 	w.busyMutex.Lock()
 	defer w.busyMutex.Unlock()
 
-	w.Busy = append(w.Busy, timespan)
+	w.busy = append(w.busy, timespan)
 
-	if len(w.Busy) == 0 {
+	if len(w.busy) == 0 {
 		return
 	}
 
-	w.Busy = MergeTimespans(w.Busy)
+	w.busy = MergeTimespans(w.busy)
 }
 
 func min(a, b time.Time) time.Time {
@@ -281,7 +287,7 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint, target time.Time, t
 
 	var relevantBusyEntries []Timespan
 
-	for _, busy := range w.Busy {
+	for _, busy := range w.busy {
 		// Check if the busy timespan is in the time interval we are viewing
 		if !timeInterval.Contains(busy) {
 			// If it isn't contained but does intersect we can inspect it further
@@ -301,9 +307,9 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint, target time.Time, t
 	}
 
 	if len(relevantBusyEntries) == 0 {
-		w.Free = append(w.Free, constraint.Test(Timespan{Start: timeInterval.Start, End: timeInterval.End})...)
-		for _, timespan := range w.Free {
-			w.FreeDuration += timespan.Duration()
+		w.free = append(w.free, constraint.Test(Timespan{Start: timeInterval.Start, End: timeInterval.End})...)
+		for _, timespan := range w.free {
+			w.freeDuration += timespan.Duration()
 		}
 	}
 
@@ -312,35 +318,35 @@ func (w *TimeWindow) ComputeFree(constraint *FreeConstraint, target time.Time, t
 			if timeInterval.Start.Before(busy.Start) {
 				constrained := constraint.Test(Timespan{Start: timeInterval.Start, End: busy.Start})
 				for _, timespan := range constrained {
-					w.FreeDuration += timespan.Duration()
+					w.freeDuration += timespan.Duration()
 				}
-				w.Free = append(w.Free, constrained...)
+				w.free = append(w.free, constrained...)
 			}
 		}
 
 		if index == len(relevantBusyEntries)-1 {
 			constrained := constraint.Test(Timespan{Start: busy.End, End: timeInterval.End})
 			for _, timespan := range constrained {
-				w.FreeDuration += timespan.Duration()
+				w.freeDuration += timespan.Duration()
 			}
-			w.Free = append(w.Free, constrained...)
+			w.free = append(w.free, constrained...)
 			continue
 		}
 
 		constrained := constraint.Test(Timespan{Start: busy.End, End: relevantBusyEntries[index+1].Start})
 		for _, timespan := range constrained {
-			w.FreeDuration += timespan.Duration()
+			w.freeDuration += timespan.Duration()
 		}
-		w.Free = append(w.Free, constrained...)
+		w.free = append(w.free, constrained...)
 	}
 
-	w.Free = MergeTimespans(w.Free)
+	w.free = MergeTimespans(w.free)
 
-	sort.Slice(w.Free, func(i, j int) bool {
-		return w.calculateHeuristic(target, w.Free[i]) < w.calculateHeuristic(target, w.Free[j])
+	sort.Slice(w.free, func(i, j int) bool {
+		return w.calculateHeuristic(target, w.free[i]) < w.calculateHeuristic(target, w.free[j])
 	})
 
-	return w.Free
+	return w.free
 }
 
 func (w *TimeWindow) calculateHeuristic(target time.Time, timespan Timespan) time.Duration {
@@ -348,7 +354,7 @@ func (w *TimeWindow) calculateHeuristic(target time.Time, timespan Timespan) tim
 
 	isNeighbor := false
 	for _, neighbor := range w.PreferredNeighbors {
-		if timespan.Neighbors(neighbor) {
+		if neighbor.Duration() < w.MaxWorkUnitLength && timespan.Neighbors(neighbor) {
 			isNeighbor = true
 			break
 		}
@@ -370,11 +376,11 @@ func absoluteOfDuration(duration time.Duration) time.Duration {
 }
 
 // FindTimeSlot finds one or multiple time slots that comply with the specified rules
-func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration, maxWorkUnitLength time.Duration) *Timespan {
+func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration) *Timespan {
 	w.freeMutex.Lock()
 	defer w.freeMutex.Unlock()
 
-	for index, timespan := range w.Free {
+	for index, timespan := range w.free {
 		foundFlag := false
 
 		neighborStart := false
@@ -409,11 +415,11 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration, maxWorkUnitLength 
 		}
 
 		// Apply padding when it's not a neighbor and apply padding when the neighbors combined would be bigger than allowed
-		if neighborStart && (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+expectedDuration > maxWorkUnitLength) {
+		if neighborStart && (ruleDuration != nil && w.PreferredNeighbors[neighborStartIndex].Duration()+expectedDuration > w.MaxWorkUnitLength) {
 			timespan.Start = timespan.Start.Add(w.BusyPadding)
 		}
 
-		if neighborEnd && (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+expectedDuration > maxWorkUnitLength) {
+		if neighborEnd && (ruleDuration != nil && w.PreferredNeighbors[neighborEndIndex].Duration()+expectedDuration > w.MaxWorkUnitLength) {
 			timespan.End = timespan.End.Add(-1 * w.BusyPadding)
 		}
 
@@ -425,7 +431,7 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration, maxWorkUnitLength 
 		// Base case: If there are no rules, we can return the timespan
 		if ruleDuration == nil {
 			tmp := timespan
-			w.Free = RemoveFromTimespanSlice(w.Free, index)
+			w.free = RemoveFromTimespanSlice(w.free, index)
 			return &tmp
 		}
 
@@ -441,50 +447,28 @@ func (w *TimeWindow) FindTimeSlot(ruleDuration *RuleDuration, maxWorkUnitLength 
 		if foundFlag {
 			tmp := timespan
 
-			if w.Free[index].Duration() != tmp.Duration() {
+			if w.free[index].Duration() != tmp.Duration() {
 				// If neighborEnd is true it means we have cut something from the start
 				// If it's false it means we have cut something from the end
 				if neighborEnd {
-					w.Free[index].End = tmp.Start
+					w.free[index].End = tmp.Start
 
-					if tmp.Duration() >= maxWorkUnitLength {
-						w.Free[index].End = w.Free[index].End.Add(w.BusyPadding * -1)
+					if tmp.Duration() >= w.MaxWorkUnitLength {
+						w.free[index].End = w.free[index].End.Add(w.BusyPadding * -1)
 					}
 				} else {
-					w.Free[index].Start = tmp.End
+					w.free[index].Start = tmp.End
 
-					if tmp.Duration() >= maxWorkUnitLength {
-						w.Free[index].Start = w.Free[index].Start.Add(w.BusyPadding)
+					if tmp.Duration() >= w.MaxWorkUnitLength {
+						w.free[index].Start = w.free[index].Start.Add(w.BusyPadding)
 					}
 				}
 				return &tmp
 			}
-			w.Free = RemoveFromTimespanSlice(w.Free, index)
+			w.free = RemoveFromTimespanSlice(w.free, index)
 			return &tmp
 		}
 	}
 
 	return nil
-}
-
-// GetPreferredTimeWindow returns a TimeWindow that was cut to the specified times
-func (w *TimeWindow) GetPreferredTimeWindow(from time.Time, to time.Time) *TimeWindow {
-	w.freeMutex.Lock()
-	defer w.freeMutex.Unlock()
-
-	preferred := TimeWindow{Start: from, End: to}
-	for _, timespan := range w.Free {
-		if timespan.Start.Before(from) {
-			continue
-		}
-
-		if timespan.End.After(to) || timespan.Start.After(to) {
-			break
-		}
-
-		preferred.Free = append(preferred.Free, timespan)
-		preferred.FreeDuration += timespan.Duration()
-	}
-
-	return &preferred
 }

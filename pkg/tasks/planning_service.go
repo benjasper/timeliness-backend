@@ -115,7 +115,12 @@ func (s *PlanningService) initializeTimeWindow(task *Task, relevantUsers []*user
 	}
 
 	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
-	return &date.TimeWindow{Start: nowRound.UTC(), End: task.DueAt.Date.Start.UTC(), BusyPadding: spacing}, constraint, nil
+	return &date.TimeWindow{
+		Start:             nowRound.UTC(),
+		End:               task.DueAt.Date.Start.UTC(),
+		BusyPadding:       spacing,
+		MaxWorkUnitLength: relevantUsers[0].Settings.Scheduling.MaxWorkUnitDuration,
+	}, constraint, nil
 }
 
 func (s *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) ([]*users.User, error) {
@@ -523,7 +528,7 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 
 func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind time.Duration, user *users.User) WorkUnits {
 	var workUnits WorkUnits
-	if w.FreeDuration == 0 {
+	if w.FreeDuration() == 0 {
 		return workUnits
 	}
 
@@ -533,7 +538,7 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 	}
 	maxDuration := user.Settings.Scheduling.MaxWorkUnitDuration
 
-	for w.FreeDuration >= 0 && durationToFind > 0 {
+	for w.FreeDuration() >= 0 && durationToFind > 0 {
 		if durationToFind < user.Settings.Scheduling.MaxWorkUnitDuration {
 			if durationToFind < WorkUnitDurationMin {
 				minDuration = durationToFind
@@ -541,7 +546,7 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 			maxDuration = durationToFind
 		}
 
-		slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}, user.Settings.Scheduling.MaxWorkUnitDuration)
+		slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration})
 		if slot == nil {
 			break
 		}
@@ -555,7 +560,7 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, durationToFindPerIteration time.Duration, iterations int, user *users.User) [][]date.Timespan {
 	var timespanGroups = make([][]date.Timespan, 0)
 
-	if w.FreeDuration == 0 || w.FreeDuration < durationToFindPerIteration {
+	if w.FreeDuration() == 0 || w.FreeDuration() < durationToFindPerIteration {
 		return timespanGroups
 	}
 
@@ -570,7 +575,7 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 
 		timespanGroup := make([]date.Timespan, 0)
 
-		for w.FreeDuration >= 0 && durationToFind > 0 {
+		for w.FreeDuration() >= 0 && durationToFind > 0 {
 			if durationToFind < user.Settings.Scheduling.MaxWorkUnitDuration {
 				if durationToFind < WorkUnitDurationMin {
 					minDuration = durationToFind
@@ -578,7 +583,7 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 				maxDuration = durationToFind
 			}
 
-			slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration}, user.Settings.Scheduling.MaxWorkUnitDuration)
+			slot := w.FindTimeSlot(&date.RuleDuration{Minimum: minDuration, Maximum: maxDuration})
 			if slot == nil {
 				break
 			}
@@ -1242,7 +1247,7 @@ func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, tim
 
 			window.ComputeFree(constraint, target, timespan)
 
-			if window.FreeDuration >= timeToSchedule {
+			if window.FreeDuration() >= timeToSchedule {
 				return true
 			}
 		}
