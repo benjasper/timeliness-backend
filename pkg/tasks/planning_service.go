@@ -347,7 +347,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		}
 	}
 
-	t = s.checkForMergingWorkUnits(ctx, t)
+	t = s.CheckForMergingWorkUnits(ctx, t)
 
 	return t, nil
 }
@@ -472,7 +472,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		return nil, err
 	}
 
-	t = s.checkForMergingWorkUnits(ctx, t)
+	t = s.CheckForMergingWorkUnits(ctx, t)
 
 	return t, nil
 }
@@ -1000,7 +1000,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	task.WorkUnits = task.WorkUnits.RemoveByIndex(index)
 	task.WorkUnits = task.WorkUnits.Add(workUnit)
 
-	task = s.checkForMergingWorkUnits(ctx, task)
+	task = s.CheckForMergingWorkUnits(ctx, task)
 
 	err = s.taskRepository.Update(ctx, task, false)
 	if err != nil {
@@ -1035,8 +1035,8 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	}
 }
 
-// checkForMergingWorkUnits looks for work units that are scheduled right after one another and merges them
-func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Task) *Task {
+// CheckForMergingWorkUnits looks for work units that are scheduled right after one another and merges them
+func (s *PlanningService) CheckForMergingWorkUnits(ctx context.Context, task *Task) *Task {
 	lastDate := date.Timespan{}
 	var relevantUsers []*users.User
 
@@ -1088,9 +1088,6 @@ func (s *PlanningService) checkForMergingWorkUnits(ctx context.Context, task *Ta
 			}
 
 			task.WorkUnits = task.WorkUnits.RemoveByIndex(i)
-
-			// We only want to merge one work unit max
-			break
 		}
 
 		lastDate = unit.ScheduledAt.Date

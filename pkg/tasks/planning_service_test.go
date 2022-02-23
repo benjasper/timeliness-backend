@@ -1674,8 +1674,8 @@ func TestPlanningService_checkForMergingWorkUnits(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := service.checkForMergingWorkUnits(context.TODO(), tt.input); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("checkForMergingWorkUnits() = %v, want %v", got, tt.want)
+			if got := service.CheckForMergingWorkUnits(context.TODO(), tt.input); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("CheckForMergingWorkUnits() = %v, want %v", got, tt.want)
 			}
 		})
 	}
