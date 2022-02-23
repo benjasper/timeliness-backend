@@ -354,8 +354,8 @@ func (w *TimeWindow) calculateHeuristic(target time.Time, timespan Timespan) tim
 		}
 	}
 
-	// If its a neighbor we want to prioritize it
-	if isNeighbor {
+	// If it's a neighbor we want to prioritize it, it also has to be within 3 days distance to the target date
+	if isNeighbor && value <= time.Hour*24*3 {
 		value = 0
 	}
 
