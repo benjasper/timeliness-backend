@@ -42,7 +42,8 @@ var primaryUser = users.User{
 					End:   time.Date(0, 0, 0, 18, 00, 0, 0, location),
 				},
 			},
-			BusyTimeSpacing: time.Minute * 15,
+			BusyTimeSpacing:     time.Minute * 15,
+			MaxWorkUnitDuration: time.Hour * 6,
 		},
 	},
 }
@@ -336,6 +337,78 @@ func TestPlanningService_ScheduleTask(t *testing.T) {
 							UserID:          primaryUser.ID,
 						},
 					},
+				},
+			},
+		},
+		{
+			name: "Already once scheduled Task: 16h time available and changed workload",
+			task: Task{
+				ID:              task5ObjectID,
+				UserID:          primaryUser.ID,
+				CreatedAt:       time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				LastModifiedAt:  time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+				Deleted:         false,
+				Name:            "Testtask 5",
+				Description:     "",
+				WorkloadOverall: time.Hour * 2,
+				DueAt: calendar.Event{
+					Date: date.Timespan{
+						Start: time.Date(2021, 2, 5, 18, 0, 0, 0, location),
+						End:   time.Date(2021, 2, 5, 18, 15, 0, 0, location),
+					},
+					CalendarEvents: calendar.PersistedEvents{
+						{
+							CalendarType:    "mock_calendar",
+							CalendarEventID: "due-5",
+							UserID:          primaryUser.ID,
+						},
+					},
+				},
+				WorkUnits: WorkUnits{
+					WorkUnit{
+						ID:       primitive.NewObjectID(),
+						Workload: time.Hour,
+						ScheduledAt: calendar.Event{
+							Date: date.Timespan{
+								Start: time.Date(2021, 2, 1, 8, 0, 0, 0, location),
+								End:   time.Date(2021, 2, 1, 9, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "persistedEvent1",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					},
+				},
+			},
+			calendarRepositories: []repoEntry{
+				{
+					userID: primaryUser.ID,
+					calendarRepository: &calendar.MockCalendarRepository{Events: []*calendar.Event{
+						{
+							Date: date.Timespan{
+								Start: time.Date(2021, 1, 1, 0, 0, 0, 0, location),
+								End:   time.Date(2021, 1, 3, 18, 0, 0, 0, location),
+							},
+							Blocking: true,
+						},
+						{
+							Date: date.Timespan{
+								Start: time.Date(2021, 2, 1, 8, 0, 0, 0, location),
+								End:   time.Date(2021, 2, 1, 9, 0, 0, 0, location),
+							},
+							CalendarEvents: calendar.PersistedEvents{
+								calendar.PersistedEvent{
+									CalendarEventID: "persistedEvent1",
+									UserID:          primaryUser.ID,
+									CalendarType:    "mock_calendar",
+								},
+							},
+						},
+					}, User: &primaryUser},
 				},
 			},
 		},
@@ -1601,8 +1674,8 @@ func TestPlanningService_checkForMergingWorkUnits(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := service.checkForMergingWorkUnits(context.TODO(), tt.input); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("checkForMergingWorkUnits() = %v, want %v", got, tt.want)
+			if got := service.CheckForMergingWorkUnits(context.TODO(), tt.input); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("CheckForMergingWorkUnits() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -25,7 +25,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 		{
 			// Case single busy time
 			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-				Busy: []Timespan{{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)}}},
+				busy: []Timespan{{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)}}},
 			FreeConstraint{},
 			[]Timespan{
 				{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 10, 13, 0, 0)},
@@ -34,7 +34,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 		{
 			// Case 2 busy time
 			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-				Busy: []Timespan{
+				busy: []Timespan{
 					{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 					{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)}}},
 			FreeConstraint{},
@@ -46,7 +46,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 		{
 			// Case 3 busy time
 			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-				Busy: []Timespan{
+				busy: []Timespan{
 					{Start: timeDate(2020, 6, 10, 13, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 					{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
 					{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
@@ -62,7 +62,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 		{
 			// Case windows start is in busy time
 			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-				Busy: []Timespan{
+				busy: []Timespan{
 					{Start: timeDate(2020, 6, 10, 12, 0, 0), End: timeDate(2020, 6, 10, 14, 0, 0)},
 					{Start: timeDate(2020, 6, 10, 14, 30, 0), End: timeDate(2020, 6, 10, 15, 0, 0)},
 					{Start: timeDate(2020, 6, 12, 14, 30, 0), End: timeDate(2020, 6, 13, 15, 0, 0)},
@@ -77,7 +77,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 		{
 			// Case busy == 0
 			&TimeWindow{Start: timeDate(2020, 6, 10, 12, 30, 0), End: timeDate(2020, 6, 18, 12, 30, 0),
-				Busy: nil,
+				busy: nil,
 			},
 			FreeConstraint{},
 			[]Timespan{{
@@ -87,7 +87,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 		{
 			// Case with free constraint
 			&TimeWindow{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 7, 17, 00, 0),
-				Busy: []Timespan{
+				busy: []Timespan{
 					{Start: timeDate(2021, 3, 1, 8, 30, 0), End: timeDate(2021, 3, 4, 23, 59, 0)},
 					{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
 					{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
@@ -107,7 +107,7 @@ func TestTimeWindow_ComputeFree(t *testing.T) {
 		{
 			// Case with two free constraints
 			&TimeWindow{Start: timeDate(2021, 3, 5, 8, 30, 0), End: timeDate(2021, 3, 7, 18, 00, 0),
-				Busy: []Timespan{
+				busy: []Timespan{
 					{Start: timeDate(2021, 3, 5, 8, 0, 0), End: timeDate(2021, 3, 5, 16, 30, 0)},
 					{Start: timeDate(2021, 3, 6, 8, 0, 0), End: timeDate(2021, 3, 6, 9, 30, 0)},
 				},
@@ -156,7 +156,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 28, 9, 30, 0),
 				End:   timeDate(2021, 2, 28, 16, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -195,7 +195,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 7, 9, 30, 0),
 				End:   timeDate(2021, 3, 7, 16, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -234,7 +234,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 1, 9, 30, 0),
 				End:   timeDate(2021, 3, 1, 16, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -269,7 +269,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 17, 30, 0),
 				End:   timeDate(2021, 3, 4, 17, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -304,7 +304,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 17, 30, 0),
 				End:   timeDate(2021, 3, 3, 7, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -343,7 +343,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 1, 10, 30, 0),
 				End:   timeDate(2021, 3, 5, 10, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 2, 6, 9, 30, 0),
 					End:   timeDate(2021, 2, 7, 16, 30, 0),
@@ -391,7 +391,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 10, 30, 0),
 				End:   timeDate(2021, 3, 3, 10, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -422,7 +422,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 2, 10, 30, 0),
 				End:   timeDate(2021, 4, 3, 10, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -449,7 +449,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 1, 9, 30, 0),
 				End:   timeDate(2021, 4, 3, 10, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -476,7 +476,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 2, 10, 30, 0),
 				End:   timeDate(2021, 3, 6, 16, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -503,7 +503,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 16, 30, 0),
 				End:   timeDate(2021, 3, 3, 9, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -534,7 +534,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 16, 30, 0),
 				End:   timeDate(2021, 3, 3, 12, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -565,7 +565,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 3, 2, 15, 30, 0),
 				End:   timeDate(2021, 3, 3, 9, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -596,7 +596,7 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 				Start: timeDate(2021, 2, 2, 15, 30, 0),
 				End:   timeDate(2021, 3, 1, 9, 30, 0),
 			},
-			window: &TimeWindow{Busy: []Timespan{
+			window: &TimeWindow{busy: []Timespan{
 				{
 					Start: timeDate(2021, 3, 1, 9, 30, 0),
 					End:   timeDate(2021, 3, 2, 16, 30, 0),
@@ -633,8 +633,8 @@ func TestTimeWindow_AddToBusy(t *testing.T) {
 			t.Parallel()
 
 			tt.window.AddToBusy(tt.input)
-			if !reflect.DeepEqual(tt.output, tt.window.Busy) {
-				t.Errorf("got %v, want %v", tt.window.Busy, tt.output)
+			if !reflect.DeepEqual(tt.output, tt.window.busy) {
+				t.Errorf("got %v, want %v", tt.window.busy, tt.output)
 			}
 		})
 	}
@@ -1053,7 +1053,7 @@ func TestTimespan_IntersectsWith(t *testing.T) {
 func TestTimeWindow_FindTimeSlot(t *testing.T) {
 	var ruleTests = []struct {
 		in   []Timespan
-		rule RuleInterface
+		rule *RuleDuration
 		out  *Timespan
 	}{
 		// Case fits minimum
@@ -1100,10 +1100,11 @@ func TestTimeWindow_FindTimeSlot(t *testing.T) {
 			tt := tt
 			t.Parallel()
 			window := TimeWindow{
-				Free: tt.in,
+				free:              tt.in,
+				MaxWorkUnitLength: time.Hour * 6,
 			}
-			var rules = []RuleInterface{tt.rule}
-			result := window.FindTimeSlot(&rules)
+
+			result := window.FindTimeSlot(tt.rule)
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}

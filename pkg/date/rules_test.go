@@ -286,7 +286,7 @@ func TestRuleDuration_Test(t *testing.T) {
 		t.Run("Case "+string(rune(index)), func(t *testing.T) {
 			tt := tt
 			t.Parallel()
-			result := tt.rule.Test(tt.in)
+			result := tt.rule.Test(tt.in, true)
 			if !reflect.DeepEqual(result, tt.out) {
 				t.Errorf("got %v, want %v", result, tt.out)
 			}
