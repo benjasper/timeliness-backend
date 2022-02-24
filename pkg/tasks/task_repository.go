@@ -21,7 +21,7 @@ type TaskRepositoryInterface interface {
 	FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*Task, error)
-	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID *primitive.ObjectID, isDeleted bool) ([]Task, error)
+	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID primitive.ObjectID, isDeleted bool) ([]Task, error)
 	FindUnscheduledTasks(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error)
 	CountTasksBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
 	CountWorkUnitsBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
@@ -510,8 +510,8 @@ func (s *MongoDBTaskRepository) FindByCalendarEventID(ctx context.Context, calen
 }
 
 // FindIntersectingWithEvent finds tasks whose WorkUnits are scheduled so that they intersect with a given Event
-// The ignoreWorkUnitByID Parameter is optional so it can be empty
-func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID *primitive.ObjectID, isDeleted bool) ([]Task, error) {
+// The ignoreWorkUnitByID Parameter is optional, so it can be empty
+func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID primitive.ObjectID, isDeleted bool) ([]Task, error) {
 	var t []Task
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -524,7 +524,7 @@ func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, u
 		{Key: "scheduledAt.date.end", Value: bson.M{"$gt": event.Date.Start}},
 	}
 
-	if ignoreWorkUnitID != nil {
+	if ignoreWorkUnitID != primitive.NilObjectID {
 		arrayMatch = append(arrayMatch, bson.E{
 			Key: "_id", Value: bson.M{"$ne": ignoreWorkUnitID},
 		})
