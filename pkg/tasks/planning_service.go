@@ -854,7 +854,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			s.lookForUnscheduledTasks(ctx, userID)
 			return
 		}
-		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, nil, nil)
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, primitive.NilObjectID, nil)
 		s.lookForUnscheduledTasks(ctx, userID)
 
 		return
@@ -1023,7 +1023,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	}
 
 	if !workUnitIsOutOfBounds {
-		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, &workUnit.ID, &task.ID)
+		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, workUnit.ID, &task.ID)
 	}
 
 	s.lookForUnscheduledTasks(ctx, userID)
@@ -1130,7 +1130,7 @@ func (s *PlanningService) updateCalendarEventForOtherCollaborators(ctx context.C
 }
 
 // checkForIntersectingWorkUnits checks if the given work unit or event intersects with any other work unit
-func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID *primitive.ObjectID, lockForTaskIDHeld *primitive.ObjectID) int {
+func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID primitive.ObjectID, lockForTaskIDHeld *primitive.ObjectID) int {
 	intersectingTasks, err := s.taskRepository.FindIntersectingWithEvent(ctx, userID, event, ignoreWorkUnitID, false)
 	if err != nil {
 		s.logger.Error("error while trying to find tasks intersecting with an event", err)
