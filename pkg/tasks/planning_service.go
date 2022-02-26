@@ -1341,10 +1341,18 @@ func (s *PlanningService) generateTimespansBasedOnTargetDate(target time.Time, w
 func (s *PlanningService) getTargetTimeForUser(user *users.User, window *date.TimeWindow, workloadToSchedule time.Duration) time.Time {
 	if window.End.Before(now().Add(time.Hour * 24 * 2)) {
 		if window.End.Before(now().Add(time.Hour * 24)) {
-			return window.Start
+			switch user.Settings.Scheduling.TimingPreference {
+			case users.TimingPreferenceEarly:
+			case users.TimingPreferenceVeryEarly:
+				return window.Start
+			case users.TimingPreferenceLate:
+			case users.TimingPreferenceVeryLate:
+				return window.End
+			}
+			return window.End
 		}
 
-		return window.Start.Add(time.Hour * 2)
+		return window.Start.Add(time.Hour * 24)
 	}
 
 	switch user.Settings.Scheduling.TimingPreference {
