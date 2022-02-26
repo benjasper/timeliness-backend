@@ -61,6 +61,10 @@ func (s *MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 		}
 	}
 
+	if task.WorkUnits == nil {
+		task.WorkUnits = make(WorkUnits, 0)
+	}
+
 	_, err := s.DB.InsertOne(ctx, task)
 	if err != nil {
 		return err
