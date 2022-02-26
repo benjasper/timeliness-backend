@@ -61,6 +61,10 @@ func (s *MongoDBTaskRepository) Add(ctx context.Context, task *Task) error {
 		}
 	}
 
+	if task.WorkUnits == nil {
+		task.WorkUnits = make(WorkUnits, 0)
+	}
+
 	_, err := s.DB.InsertOne(ctx, task)
 	if err != nil {
 		return err
@@ -79,6 +83,10 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *Task, deleted 
 		if unit.ID.IsZero() {
 			task.WorkUnits[index].ID = primitive.NewObjectID()
 		}
+	}
+
+	if task.WorkUnits == nil {
+		task.WorkUnits = make(WorkUnits, 0)
 	}
 
 	result, err := s.DB.UpdateOne(ctx, bson.M{
