@@ -100,12 +100,6 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	if !handler.EmailService.IsInList(request.Context(), user.Email, email.EarlyAccessUsersListID) {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"No access to beta", err)
-		return
-	}
-
 	err = handler.EmailService.AddToList(request.Context(), user.Email, email.AppUsersListID)
 	if err != nil {
 		handler.Logger.Error("Could not add user to app users list", err)
@@ -335,13 +329,10 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 			}
 		}
 
-		if !handler.EmailService.IsInList(request.Context(), user.Email, email.EarlyAccessUsersListID) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"No access to beta", err)
-			return
+		if !userInfo.EmailVerified {
+			user.EmailVerificationToken = uuid.New().String()
 		}
 
-		user.EmailVerificationToken = uuid.New().String()
 		user.EmailVerified = userInfo.EmailVerified
 
 		err = handler.UserRepository.Add(request.Context(), user)
