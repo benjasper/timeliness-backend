@@ -118,10 +118,20 @@ func GetUserInfoFromIDToken(ctx context.Context, idToken string) (*UserInfo, err
 		return nil, err
 	}
 
+	firstname, ok := validate.Claims["given_name"].(string)
+	if !ok {
+		firstname = ""
+	}
+
+	lastname, ok := validate.Claims["family_name"].(string)
+	if !ok {
+		lastname = ""
+	}
+
 	return &UserInfo{
 		Email:         validate.Claims["email"].(string),
-		Firstname:     validate.Claims["given_name"].(string),
-		Lastname:      validate.Claims["family_name"].(string),
+		Firstname:     firstname,
+		Lastname:      lastname,
 		ID:            validate.Subject,
 		EmailVerified: validate.Claims["email_verified"].(bool),
 	}, nil
