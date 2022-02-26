@@ -151,7 +151,7 @@ type TaskUpdate struct {
 	WorkloadOverall time.Duration  `json:"workloadOverall" bson:"workloadOverall"`
 	NotScheduled    time.Duration  `json:"-" bson:"notScheduled"`
 	DueAt           calendar.Event `json:"dueAt" bson:"dueAt" validate:"required"`
-	WorkUnits       WorkUnits      `json:"-" bson:"workUnits"`
+	WorkUnits       WorkUnits      `json:"-" bson:"workUnits,omitempty"`
 }
 
 // Collaborator is a contact that is part of a task
