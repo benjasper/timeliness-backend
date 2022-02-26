@@ -81,6 +81,10 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *Task, deleted 
 		}
 	}
 
+	if task.WorkUnits == nil {
+		task.WorkUnits = make(WorkUnits, 0)
+	}
+
 	result, err := s.DB.UpdateOne(ctx, bson.M{
 		"$or": bson.A{
 			bson.D{
