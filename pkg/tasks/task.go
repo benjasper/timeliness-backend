@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"encoding/json"
 	"github.com/pkg/errors"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
@@ -71,6 +72,23 @@ func (t *Task) Validate() error {
 // CheckDone checks if the task is done
 func (t *Task) CheckDone() bool {
 	return t.IsDone
+}
+
+// MarshalJSON marshals the task to json
+func (t *Task) MarshalJSON() ([]byte, error) {
+	type Alias Task
+
+	a := struct {
+		Alias
+	}{
+		Alias: (Alias)(*t),
+	}
+
+	if a.WorkUnits == nil {
+		a.WorkUnits = make(WorkUnits, 0)
+	}
+
+	return json.Marshal(a)
 }
 
 // TaskAgenda is the model for the agenda task view
