@@ -146,7 +146,9 @@ func (c *GoogleCalendarRepository) createCalendar() (string, error) {
 
 	_, err = c.Service.CalendarList.Patch(cal.Id, calendarList).ColorRgbFormat(true).Do()
 	if err != nil {
-		return "", c.checkForInvalidTokenError(err)
+		c.Logger.Warning(fmt.Sprintf("Could not assign a color to calendar %s for user %s", cal.Id, c.userID), err)
+		// Something weird is going on, but we don't care
+		// return "", c.checkForInvalidTokenError(err)
 	}
 
 	return cal.Id, nil
