@@ -621,9 +621,14 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 	calendarID := ""
 	calendarIndex := -1
 	connectionIndex := -1
+	allInactive := true
 
 Loop:
 	for cIndex, connection := range user.GoogleCalendarConnections {
+		if connection.Status != users.CalendarConnectionStatusActive {
+			continue
+		}
+		allInactive = false
 		for i, sync := range connection.CalendarsOfInterest {
 			if sync.SyncResourceID == resourceID {
 				calendarID = sync.CalendarID
@@ -634,8 +639,14 @@ Loop:
 		}
 	}
 
+	if allInactive {
+		handler.Logger.Warning(fmt.Sprintf("All calendars are inactive for resource id %s and user %s", resourceID, userID), nil)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	if calendarID == "" {
-		handler.Logger.Warning(fmt.Sprintf("Could not find calendar sync for resourceId %s for user %s", resourceID, userID), nil)
+		handler.Logger.Error(fmt.Sprintf("Could not find calendar sync for resourceId %s for user %s", resourceID, userID), nil)
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
