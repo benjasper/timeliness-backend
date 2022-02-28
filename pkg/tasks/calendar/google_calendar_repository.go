@@ -353,6 +353,7 @@ func (c *GoogleCalendarRepository) StopWatchingCalendar(calendarID string, user 
 
 	c.connection.CalendarsOfInterest[index].SyncResourceID = ""
 	c.connection.CalendarsOfInterest[index].ChannelID = ""
+	c.connection.CalendarsOfInterest[index].Expiration = time.Unix(0, 0)
 
 	for i, connection := range user.GoogleCalendarConnections {
 		if connection.ID == c.connection.ID {
