@@ -309,6 +309,14 @@ func (c *GoogleCalendarRepository) WatchCalendar(calendarID string, user *users.
 		return user, err
 	}
 
+	if response.ResourceId == "" {
+		c.Logger.Warning(fmt.Sprintf("ResourceId is empty for user %s", c.userID), errors.New("resourceId is empty"))
+	}
+
+	if response.Id == "" {
+		c.Logger.Warning(fmt.Sprintf("ChannedId is empty for user %s", c.userID), errors.New("channelId is empty"))
+	}
+
 	c.connection.CalendarsOfInterest[index].SyncResourceID = response.ResourceId
 	c.connection.CalendarsOfInterest[index].ChannelID = response.Id
 	c.connection.CalendarsOfInterest[index].Expiration = time.Unix(0, response.Expiration*int64(time.Millisecond))

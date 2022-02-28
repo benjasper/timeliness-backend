@@ -312,6 +312,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 		user.Settings.Scheduling.BusyTimeSpacing = time.Minute * 15
 		user.Settings.Scheduling.TimingPreference = TimingPreferenceEarly
 		user.Settings.Scheduling.MaxWorkUnitDuration = time.Hour * 4
+		user.Settings.Scheduling.AllowedTimespans = make([]date.Timespan, 0)
 
 		presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 		if presentUser != nil {
