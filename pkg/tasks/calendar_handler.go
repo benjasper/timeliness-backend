@@ -635,7 +635,7 @@ Loop:
 	}
 
 	if calendarID == "" {
-		handler.Logger.Error(fmt.Sprintf("Could not find calendar sync for resourceId %s for user %s", resourceID, userID), nil)
+		handler.Logger.Warning(fmt.Sprintf("Could not find calendar sync for resourceId %s for user %s", resourceID, userID), nil)
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
