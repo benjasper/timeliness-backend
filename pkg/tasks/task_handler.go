@@ -40,7 +40,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 
 	err := json.NewDecoder(request.Body).Decode(&parsedTask)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, parsedTask)
 		return
 	}
 
@@ -48,8 +48,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 
 	userID, err := primitive.ObjectIDFromHex(request.Context().Value(auth.KeyUserID).(string))
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"UserID malformed", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "UserID malformed", err, request, parsedTask)
 		return
 	}
 
@@ -59,21 +58,20 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 	err = v.Struct(task)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e, request, parsedTask)
 			return
 		}
 	}
 
 	err = task.Validate()
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "task invalid", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "task invalid", err, request, parsedTask)
 		return
 	}
 
 	err = handler.TaskRepository.Add(request.Context(), &task)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Persisting task in database did not work", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Persisting task in database did not work", err, request, parsedTask)
 		return
 	}
 
@@ -85,8 +83,7 @@ func (handler *Handler) TaskAdd(writer http.ResponseWriter, request *http.Reques
 			return
 		}
 
-		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-			"Error while creating calendar events", err, communication.Calendar)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error while creating calendar events", err, request, communication.Calendar, parsedTask)
 		return
 	}
 
@@ -100,14 +97,13 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"), request, nil)
 		return
 	}
 
 	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
 	}
 
@@ -120,14 +116,14 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 	original, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 		return
 	}
 	parsedTask := (TaskUpdate)(*original)
 
 	err = json.NewDecoder(request.Body).Decode(&parsedTask)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, parsedTask)
 		return
 	}
 
@@ -135,7 +131,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 	err = task.Validate()
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "task invalid", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "task invalid", err, request, parsedTask)
 		return
 	}
 
@@ -143,8 +139,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.WorkloadOverall != task.WorkloadOverall || task.NotScheduled > 0 {
 		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-				fmt.Sprintf("Error scheduling task %s", taskID), err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, fmt.Sprintf("Error scheduling task %s", taskID), err, request, communication.Calendar, parsedTask)
 			return
 		}
 	}
@@ -154,8 +149,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 
 		err = handler.PlanningService.UpdateDueAtEvent(request.Context(), task)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-				"Error updating the task", err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error updating the task", err, request, communication.Calendar, parsedTask)
 			return
 		}
 
@@ -170,8 +164,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		for _, unit := range toReschedule {
 			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit, false)
 			if err != nil {
-				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-					fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err, communication.Calendar)
+				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err, request, communication.Calendar, parsedTask)
 				return
 			}
 		}
@@ -186,15 +179,14 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	if original.Name != task.Name {
 		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, true)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-				"Error updating event", err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error updating event", err, request, communication.Calendar, parsedTask)
 			return
 		}
 	}
 
 	err = handler.TaskRepository.Update(request.Context(), task, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err, request, parsedTask)
 		return
 	}
 
@@ -209,14 +201,13 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"), request, nil)
 		return
 	}
 
 	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
 	}
 
@@ -229,13 +220,13 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 		return
 	}
 
 	index, _ := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID), request, nil)
 		return
 	}
 
@@ -243,7 +234,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 	original := workUnit
 	err = json.NewDecoder(request.Body).Decode(&workUnit)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, workUnit)
 		return
 	}
 
@@ -252,26 +243,25 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		task.WorkloadOverall -= original.Workload
 		task.WorkloadOverall += workUnit.Workload
 
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify workload", errors.New("Not supported"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify workload", errors.New("Not supported"), request, workUnit)
 		return
 	}
 
 	if workUnit.ScheduledAt.Date != original.ScheduledAt.Date {
 		if original.Workload != workUnit.ScheduledAt.Date.Duration() {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify scheduledAt", errors.New("Not supported"))
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify scheduledAt", errors.New("Not supported"), request, workUnit)
 			return
 		}
 
 		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &workUnit)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-				"Error updating the task", err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error updating the task", err, request, communication.Calendar, workUnit)
 			return
 		}
 	}
 
 	if original.IsDone != workUnit.IsDone {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify isDone", errors.New("Not supported"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Not supported to modify isDone", errors.New("Not supported"), request, workUnit)
 		return
 	}
 
@@ -279,7 +269,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 
 	err = handler.TaskRepository.Update(request.Context(), task, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err, request, workUnit)
 		return
 	}
 
@@ -300,14 +290,13 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"), request, nil)
 		return
 	}
 
 	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
 	}
 
@@ -320,13 +309,13 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 		return
 	}
 
 	index, _ := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit", errors.Errorf("Invalid work unit id %s", workUnitID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit", errors.Errorf("Invalid work unit id %s", workUnitID), request, nil)
 		return
 	}
 
@@ -338,17 +327,17 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 
 	err = json.NewDecoder(request.Body).Decode(&requestBody)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, requestBody)
 		return
 	}
 
 	if requestBody.TimeLeft < 0 || requestBody.TimeLeft == workUnit.Workload {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Time left must be positive and not equal to units workload", errors.New("Invalid time left"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Time left must be positive and not equal to units workload", errors.New("Invalid time left"), request, requestBody)
 		return
 	}
 
 	if requestBody.TimeLeft > task.WorkUnits[index].Workload {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Time left must be smaller than the scheduled time", errors.New("Invalid time left"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Time left must be smaller than the scheduled time", errors.New("Invalid time left"), request, requestBody)
 		return
 	}
 
@@ -367,8 +356,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		// We let the planning service create new work units at its own discretion
 		task, err = handler.PlanningService.ScheduleTask(request.Context(), task, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-				"Error scheduling the task", err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error scheduling the task", err, request, communication.Calendar, requestBody)
 			return
 		}
 	}
@@ -396,23 +384,21 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 
 	err = handler.TaskRepository.Update(request.Context(), task, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not persist task", err, request, requestBody)
 		return
 	}
 
 	if taskDoneChanged {
 		err = handler.PlanningService.UpdateTaskTitle(request.Context(), task, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-				"Error while communicating with calendar", err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error while communicating with calendar", err, request, communication.Calendar, requestBody)
 			return
 		}
 	}
 
 	err = handler.PlanningService.UpdateWorkUnitTitle(request.Context(), task, workUnit)
 	if err != nil {
-		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-			"Error while communicating with calendar", err, communication.Calendar)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error while communicating with calendar", err, request, communication.Calendar, requestBody)
 		return
 	}
 
@@ -426,14 +412,13 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"), request, nil)
 		return
 	}
 
 	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
 	}
 
@@ -446,14 +431,13 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 		return
 	}
 
 	err = handler.PlanningService.DeleteTask(request.Context(), task)
 	if err != nil {
-		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError,
-			"Could not delete task events", err, communication.Calendar)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Could not delete task events", err, request, communication.Calendar, nil)
 		return
 	}
 
@@ -479,8 +463,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	if includeDeletedQuery != "" {
 		includeDeleted, err = strconv.ParseBool(includeDeletedQuery)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad value for includeDeleted", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for includeDeleted", err, request, nil)
 			return
 		}
 	}
@@ -488,8 +471,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter page", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter page", err, request, nil)
 			return
 		}
 	}
@@ -497,14 +479,12 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	if queryPageSize != "" {
 		pageSize, err = strconv.Atoi(queryPageSize)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter pageSize", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter pageSize", err, request, nil)
 			return
 		}
 
 		if pageSize > 25 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Page size can't be more than 25", nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Page size can't be more than 25", nil, request, nil)
 			return
 		}
 	}
@@ -514,7 +494,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	if queryDueAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
 		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
@@ -523,7 +503,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	if lastModifiedAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, lastModifiedAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
@@ -533,15 +513,14 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	if queryIsDoneAndDueAt != "" {
 		isDoneAndDueAt, err = time.Parse(time.RFC3339, queryIsDoneAndDueAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter isDoneAndDueAt value", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter isDoneAndDueAt value", err, request, nil)
 			return
 		}
 	}
 
 	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, isDoneAndDueAt, includeDeleted)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
 	}
 
@@ -567,7 +546,7 @@ func (handler *Handler) TaskGet(writer http.ResponseWriter, request *http.Reques
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find task", err, request, nil)
 		return
 	}
 
@@ -594,8 +573,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	if includeDeletedQuery != "" {
 		includeDeleted, err = strconv.ParseBool(includeDeletedQuery)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad value for includeDeleted", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for includeDeleted", err, request, nil)
 			return
 		}
 	}
@@ -605,8 +583,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter page", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter page", err, request, nil)
 			return
 		}
 	}
@@ -614,14 +591,12 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	if queryPageSize != "" {
 		pageSize, err = strconv.Atoi(queryPageSize)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter pageSize", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter pageSize", err, request, nil)
 			return
 		}
 
 		if pageSize > 25 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Page size can't be more than 25", nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Page size can't be more than 25", nil, request, nil)
 			return
 		}
 	}
@@ -629,7 +604,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	if queryIsDoneAndScheduledAt != "" {
 		isDoneAndScheduledAt, err = time.Parse(time.RFC3339, queryIsDoneAndScheduledAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
 	}
@@ -638,8 +613,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		value := false
 		value, err = strconv.ParseBool(queryWorkUnitIsDone)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter workUnit.isDone value", nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter workUnit.isDone value", nil, request, nil)
 			return
 		}
 
@@ -649,7 +623,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	if lastModifiedAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, lastModifiedAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
@@ -657,7 +631,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 
 	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, includeDeleted, isDoneAndScheduledAt)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
 	}
 
@@ -690,20 +664,20 @@ func (handler *Handler) GetTaskBetween(writer http.ResponseWriter, request *http
 	from := time.Time{}
 	from, err := time.Parse(time.RFC3339, queryFrom)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string from", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string from", err, request, nil)
 		return
 	}
 
 	to := time.Time{}
 	to, err = time.Parse(time.RFC3339, queryTo)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string to", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string to", err, request, nil)
 		return
 	}
 
 	count, err := handler.TaskRepository.CountTasksBetween(request.Context(), userID, from, to, true)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error while db connection", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error while db connection", err, request, nil)
 		return
 	}
 
@@ -724,20 +698,20 @@ func (handler *Handler) GetWorkUnitsBetween(writer http.ResponseWriter, request 
 	from := time.Time{}
 	from, err := time.Parse(time.RFC3339, queryFrom)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string from", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string from", err, request, nil)
 		return
 	}
 
 	to := time.Time{}
 	to, err = time.Parse(time.RFC3339, queryTo)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string to", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string to", err, request, nil)
 		return
 	}
 
 	count, err := handler.TaskRepository.CountWorkUnitsBetween(request.Context(), userID, from, to, true)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error while db connection", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error while db connection", err, request, nil)
 		return
 	}
 
@@ -768,8 +742,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter page", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter page", err, request, nil)
 			return
 		}
 	}
@@ -777,14 +750,12 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	if queryPageSize != "" {
 		pageSize, err = strconv.Atoi(queryPageSize)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter pageSize", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter pageSize", err, request, nil)
 			return
 		}
 
 		if pageSize > 25 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Page size can't be more than 25", nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Page size can't be more than 25", nil, request, nil)
 			return
 		}
 	}
@@ -792,21 +763,20 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	if querySort != "" {
 		sort, err = strconv.Atoi(querySort)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter sort", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter sort", err, request, nil)
 			return
 		}
 	}
 
 	d, err = time.Parse(time.RFC3339, queryDate)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 		return
 	}
 
 	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, filters, d, sort)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
 	}
 
@@ -842,14 +812,13 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"), request, nil)
 		return
 	}
 
 	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			fmt.Sprintf("Could not acquire lock for %s", taskID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
 	}
 
@@ -862,13 +831,13 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 		return
 	}
 
 	index, _ := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID), request, nil)
 		return
 	}
 
@@ -877,7 +846,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 	requestBody := &OptionalTimespans{}
 	err = json.NewDecoder(request.Body).Decode(&requestBody)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err, request, requestBody)
 		return
 	}
 
@@ -888,7 +857,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		}
 
 		if summedDuration != workUnit.Workload {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Sum of chosen timespans does not match workunit duration"), err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Sum of chosen timespans does not match workunit duration"), err, request, requestBody)
 			return
 		}
 
@@ -904,7 +873,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 
 		err = handler.PlanningService.UpdateWorkUnitEvent(request.Context(), task, &task.WorkUnits[index])
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Couldn't update event", err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Couldn't update event", err, request, communication.Calendar, requestBody)
 			return
 		}
 
@@ -913,14 +882,14 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		if len(requestBody.ChosenTimespans) > 1 {
 			task, err = handler.PlanningService.CreateNewSpecificWorkUnits(request.Context(), task, requestBody.ChosenTimespans[1:])
 			if err != nil {
-				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Couldn't create new work units", err, communication.Calendar)
+				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Couldn't create new work units", err, request, communication.Calendar, requestBody)
 				return
 			}
 		}
 
 		err = handler.TaskRepository.Update(request.Context(), task, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't update task", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't update task", err, request, requestBody)
 			return
 		}
 
@@ -928,7 +897,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 	} else {
 		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, communication.Calendar)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, request, communication.Calendar, requestBody)
 			return
 		}
 	}
@@ -944,7 +913,7 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"), request, nil)
 		return
 	}
 
@@ -957,7 +926,7 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 		var err error
 		user, err = handler.UserRepository.FindByID(request.Context(), userID)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err, request, nil)
 			return err
 		}
 
@@ -968,7 +937,7 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 		var err error
 		task, err = handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 			return err
 		}
 
@@ -983,13 +952,13 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 
 	index, workUnit := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID), request, nil)
 		return
 	}
 
 	persistedEvent := workUnit.ScheduledAt.CalendarEvents.FindByUserID(userID)
 	if persistedEvent == nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find calendar event data", errors.Errorf("no calendar event for userID %s", userID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find calendar event data", errors.Errorf("no calendar event for userID %s", userID), request, nil)
 		return
 	}
 
@@ -997,7 +966,7 @@ func (handler *Handler) GetWorkUnitCalendarData(writer http.ResponseWriter, requ
 	if persistedEvent.CalendarType == calendar.PersistedCalendarTypeGoogleCalendar {
 		customID, err := handler.getGoogleCalendarEventID(persistedEvent, user)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err, request, nil)
 			return
 		}
 
@@ -1014,7 +983,7 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 
 	isValid := primitive.IsValidObjectID(taskID)
 	if !isValid {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid taskID", errors.New("Invalid taskID"), request, nil)
 		return
 	}
 
@@ -1027,7 +996,7 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 		var err error
 		user, err = handler.UserRepository.FindByID(request.Context(), userID)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find user", err, request, nil)
 			return err
 		}
 
@@ -1038,7 +1007,7 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 		var err error
 		task, err = handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 			return err
 		}
 
@@ -1053,7 +1022,7 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 
 	persistedEvent := task.DueAt.CalendarEvents.FindByUserID(userID)
 	if persistedEvent == nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find calendar event data", errors.Errorf("no calendar event for userID %s", userID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find calendar event data", errors.Errorf("no calendar event for userID %s", userID), request, nil)
 		return
 	}
 
@@ -1061,7 +1030,7 @@ func (handler *Handler) GetTaskDueDateCalendarData(writer http.ResponseWriter, r
 	if persistedEvent.CalendarType == calendar.PersistedCalendarTypeGoogleCalendar {
 		customID, err := handler.getGoogleCalendarEventID(persistedEvent, user)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Couldn't get google calendar event id", err, request, nil)
 			return
 		}
 
@@ -1106,19 +1075,19 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
 		return
 	}
 
 	index, workUnit := task.WorkUnits.FindByID(workUnitID)
 	if index == -1 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID))
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find work unit with id %s", errors.Errorf("Invalid work unit id %s", workUnitID), request, nil)
 		return
 	}
 
 	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit)
 	if err != nil {
-		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, communication.Calendar)
+		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, request, communication.Calendar, nil)
 		return
 	}
 

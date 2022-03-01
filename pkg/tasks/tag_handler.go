@@ -31,14 +31,13 @@ func (handler *TagHandler) TagAdd(writer http.ResponseWriter, request *http.Requ
 
 	err := json.NewDecoder(request.Body).Decode(&tag)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, tag)
 		return
 	}
 
 	userID, err := primitive.ObjectIDFromHex(request.Context().Value(auth.KeyUserID).(string))
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"UserID malformed", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "UserID malformed", err, request, tag)
 		return
 	}
 
@@ -48,22 +47,20 @@ func (handler *TagHandler) TagAdd(writer http.ResponseWriter, request *http.Requ
 	err = v.Struct(tag)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e, request, tag)
 			return
 		}
 	}
 
 	existingTag, err := handler.TagRepository.FindByValue(request.Context(), tag.Value, userID.Hex(), false)
 	if err == nil && existingTag != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusConflict,
-			"This tag already exists", fmt.Errorf("tag already exists"))
+		handler.ResponseManager.RespondWithError(writer, http.StatusConflict, "This tag already exists", fmt.Errorf("tag already exists"), request, tag)
 		return
 	}
 
 	err = handler.TagRepository.Add(request.Context(), &tag)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Persisting tag in database did not work", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Persisting tag in database did not work", err, request, tag)
 		return
 	}
 
@@ -77,7 +74,7 @@ func (handler *TagHandler) TagUpdate(writer http.ResponseWriter, request *http.R
 
 	tag, err := handler.TagRepository.FindByID(request.Context(), tagID, userID, false)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find tag", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find tag", err, request, nil)
 		return
 	}
 
@@ -85,13 +82,13 @@ func (handler *TagHandler) TagUpdate(writer http.ResponseWriter, request *http.R
 
 	err = json.NewDecoder(request.Body).Decode(&tagUpdate)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, tagUpdate)
 		return
 	}
 
 	err = handler.TagRepository.Update(request.Context(), (*Tag)(tagUpdate))
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't update tag", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't update tag", err, request, tagUpdate)
 		return
 	}
 
@@ -105,15 +102,13 @@ func (handler *TagHandler) TagDelete(writer http.ResponseWriter, request *http.R
 
 	err := handler.TagRepository.Delete(request.Context(), tagID, userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not delete tag", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not delete tag", err, request, nil)
 		return
 	}
 
 	err = handler.TaskRepository.DeleteTag(request.Context(), tagID, userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not delete tag(s) from task(s)", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not delete tag(s) from task(s)", err, request, nil)
 		return
 	}
 
@@ -137,8 +132,7 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 	if includeDeletedQuery != "" {
 		includeDeleted, err = strconv.ParseBool(includeDeletedQuery)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad value for includeDeleted", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for includeDeleted", err, request, nil)
 			return
 		}
 	}
@@ -146,8 +140,7 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter page", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter page", err, request, nil)
 			return
 		}
 	}
@@ -155,14 +148,12 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 	if queryPageSize != "" {
 		pageSize, err = strconv.Atoi(queryPageSize)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Bad query parameter pageSize", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad query parameter pageSize", err, request, nil)
 			return
 		}
 
 		if pageSize > 25 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-				"Page size can't be more than 25", nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Page size can't be more than 25", nil, request, nil)
 			return
 		}
 	}
@@ -172,7 +163,7 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 	if lastModifiedAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, lastModifiedAt)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
 		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
@@ -180,7 +171,7 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 
 	tags, count, err := handler.TagRepository.FindAll(request.Context(), userID, page, pageSize, filters, includeDeleted)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
 	}
 

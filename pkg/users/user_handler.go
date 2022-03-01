@@ -39,8 +39,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	err := decoder.Decode(&body)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, nil)
 		return
 	}
 
@@ -53,8 +52,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusConflict,
-			"User with email "+presentUser.Email+" already exists", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusConflict, "User with email "+presentUser.Email+" already exists", err, request, nil)
 		return
 	}
 
@@ -62,8 +60,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Error hashing password", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error hashing password", err, request, nil)
 		return
 	}
 	user.Password = string(hashedPassword)
@@ -72,7 +69,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	err = v.Struct(user)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e, request, nil)
 			return
 		}
 	}
@@ -81,8 +78,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 
 	err = handler.UserRepository.Add(request.Context(), &user)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"User couldn't be persisted in the database", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "User couldn't be persisted in the database", err, request, nil)
 		return
 	}
 
@@ -95,8 +91,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		},
 	})
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not send registration confirmation mail", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not send registration confirmation mail", err, request, nil)
 		return
 	}
 
@@ -118,23 +113,20 @@ func (handler *Handler) UserAddDevice(writer http.ResponseWriter, request *http.
 
 	err := decoder.Decode(&body)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, body)
 		return
 	}
 
 	deviceToken := body["deviceToken"]
 
 	if deviceToken == "" {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Must provide deviceToken", nil)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Must provide deviceToken", nil, request, body)
 		return
 	}
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
-			"User wasn't found", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "User wasn't found", err, request, body)
 		return
 	}
 
@@ -149,8 +141,7 @@ func (handler *Handler) UserAddDevice(writer http.ResponseWriter, request *http.
 
 	if !found {
 		if len(u.DeviceTokens) >= 10 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusTooManyRequests,
-				"Too many registered devices", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusTooManyRequests, "Too many registered devices", err, request, body)
 			return
 		}
 
@@ -159,8 +150,7 @@ func (handler *Handler) UserAddDevice(writer http.ResponseWriter, request *http.
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not update user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not update user", err, request, body)
 		return
 	}
 
@@ -174,15 +164,13 @@ func (handler *Handler) UserRemoveDevice(writer http.ResponseWriter, request *ht
 	deviceToken := mux.Vars(request)["deviceToken"]
 
 	if deviceToken == "" {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Must provide deviceToken", nil)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Must provide deviceToken", nil, request, nil)
 		return
 	}
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
-			"User wasn't found", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "User wasn't found", err, request, nil)
 		return
 	}
 
@@ -196,15 +184,13 @@ func (handler *Handler) UserRemoveDevice(writer http.ResponseWriter, request *ht
 	}
 
 	if !found {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"device token not registered", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "device token not registered", err, request, nil)
 		return
 	}
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not update user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not update user", err, request, nil)
 		return
 	}
 
@@ -217,8 +203,7 @@ func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Reques
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound,
-			"User wasn't found", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "User wasn't found", err, request, nil)
 		return
 	}
 
@@ -240,8 +225,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	userLogin := UserLogin{}
 	err := json.NewDecoder(request.Body).Decode(&userLogin)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, nil)
 		return
 	}
 
@@ -249,15 +233,14 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	err = v.Struct(userLogin)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e, request, nil)
 			return
 		}
 	}
 
 	user, err := handler.UserRepository.FindByEmail(request.Context(), userLogin.Email)
 	if err != nil || user == nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong credentials", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong credentials", err, request, nil)
 		return
 	}
 
@@ -265,8 +248,7 @@ func (handler *Handler) UserLogin(writer http.ResponseWriter, request *http.Requ
 	inputPassword := []byte(userLogin.Password)
 	err = bcrypt.CompareHashAndPassword(hashedPassword, inputPassword)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong credentials", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong credentials", err, request, nil)
 		return
 	}
 
@@ -278,8 +260,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 	userLogin := UserLoginGoogle{}
 	err := json.NewDecoder(request.Body).Decode(&userLogin)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, userLogin)
 		return
 	}
 
@@ -287,15 +268,14 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 	err = v.Struct(userLogin)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e, request, userLogin)
 			return
 		}
 	}
 
 	userInfo, err := google.GetUserInfoFromIDToken(request.Context(), userLogin.Token)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Invalid Google ID Token", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid Google ID Token", err, request, userLogin)
 		return
 	}
 
@@ -316,8 +296,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 
 		presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 		if presentUser != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusConflict,
-				"User with email "+presentUser.Email+" already exists", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusConflict, "User with email "+presentUser.Email+" already exists", err, request, userLogin)
 			return
 		}
 
@@ -325,7 +304,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 		err = v.Struct(user)
 		if err != nil {
 			for _, e := range err.(validator.ValidationErrors) {
-				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e, request, userLogin)
 				return
 			}
 		}
@@ -338,8 +317,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 
 		err = handler.UserRepository.Add(request.Context(), user)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"User couldn't be persisted in the database", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "User couldn't be persisted in the database", err, request, userLogin)
 			return
 		}
 
@@ -353,8 +331,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 				},
 			})
 			if err != nil {
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-					"Could not send registration confirmation mail", err)
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not send registration confirmation mail", err, request, userLogin)
 				return
 			}
 		}
@@ -407,23 +384,20 @@ func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.R
 
 	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Error signing access token", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error signing access token", err, request, nil)
 		return
 	}
 
 	refreshTokenString, err := refreshToken.Sign(handler.Secret)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Error signing refresh token", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error signing refresh token", err, request, nil)
 		return
 	}
 
 	user.LastRefreshAt = time.Now()
 	err = handler.UserRepository.Update(request.Context(), user)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not update user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not update user", err, request, nil)
 		return
 	}
 
@@ -442,7 +416,7 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 
 	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err, request, nil)
 		return
 	}
 
@@ -451,14 +425,14 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 
 	err = json.NewDecoder(request.Body).Decode(&userSettings)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, userSettings)
 		return
 	}
 
 	if userSettings.Scheduling.TimeZone != originalSettings.Scheduling.TimeZone {
 		_, err := time.LoadLocation(userSettings.Scheduling.TimeZone)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, 400, fmt.Sprintf("Timezone %s does not exist", userSettings.Scheduling.TimeZone), err)
+			handler.ResponseManager.RespondWithError(writer, 400, fmt.Sprintf("Timezone %s does not exist", userSettings.Scheduling.TimeZone), err, request, userSettings)
 			return
 		}
 	}
@@ -466,7 +440,7 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 	if !reflect.DeepEqual(userSettings.Scheduling.AllowedTimespans, originalSettings.Scheduling.AllowedTimespans) {
 		for _, timespan := range userSettings.Scheduling.AllowedTimespans {
 			if !timespan.IsStartBeforeEnd() || timespan.Duration() == 0 {
-				handler.ResponseManager.RespondWithError(writer, 400, fmt.Sprintf("Allowed Timespan %s is invalid", timespan), nil)
+				handler.ResponseManager.RespondWithError(writer, 400, fmt.Sprintf("Allowed Timespan %s is invalid", timespan), nil, request, userSettings)
 				return
 			}
 		}
@@ -476,7 +450,7 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 
 	if userSettings.Scheduling.BusyTimeSpacing != originalSettings.Scheduling.BusyTimeSpacing {
 		if userSettings.Scheduling.BusyTimeSpacing > time.Hour*2 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("BusyTimeSpacing is invalid"), nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("BusyTimeSpacing is invalid"), nil, request, userSettings)
 			return
 		}
 	}
@@ -486,14 +460,14 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 			userSettings.Scheduling.TimingPreference != TimingPreferenceVeryEarly &&
 			userSettings.Scheduling.TimingPreference != TimingPreferenceLate &&
 			userSettings.Scheduling.TimingPreference != TimingPreferenceVeryLate {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("TimingPreference is invalid"), nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("TimingPreference is invalid"), nil, request, userSettings)
 			return
 		}
 	}
 
 	if userSettings.Scheduling.MaxWorkUnitDuration != originalSettings.Scheduling.MaxWorkUnitDuration {
 		if userSettings.Scheduling.MaxWorkUnitDuration < time.Hour || userSettings.Scheduling.MaxWorkUnitDuration > time.Hour*8 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("MaxWorkUnitDuration is invalid"), nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("MaxWorkUnitDuration is invalid"), nil, request, userSettings)
 			return
 		}
 	}
@@ -502,7 +476,7 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 	err = v.Struct(userSettings)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, e.Error(), e, request, userSettings)
 			return
 		}
 	}
@@ -510,7 +484,7 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 	user.Settings = userSettings
 	err = handler.UserRepository.UpdateSettings(request.Context(), user)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Couldn't update user settings for %s", userID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Couldn't update user settings for %s", userID), err, request, userSettings)
 		return
 	}
 
@@ -525,14 +499,12 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 
 	err := json.NewDecoder(request.Body).Decode(&body)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, body)
 		return
 	}
 
 	if body.RefreshToken == "" {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"No refresh refreshToken specified", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No refresh refreshToken specified", err, request, body)
 		return
 	}
 
@@ -540,7 +512,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 
 	refreshToken, err := jwt.Verify(body.RefreshToken, jwt.TokenTypeRefresh, handler.Secret, jwt.AlgHS256, claims)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Token invalid", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Token invalid", err, request, body)
 		return
 	}
 
@@ -548,7 +520,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil || u.IsDeactivated {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "User not found", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "User not found", err, request, body)
 		return
 	}
 
@@ -563,8 +535,7 @@ func (handler *Handler) UserRefresh(writer http.ResponseWriter, request *http.Re
 
 	accessTokenString, err := accessToken.Sign(handler.Secret)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Error signing access refreshToken", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error signing access refreshToken", err, request, nil)
 		return
 	}
 
@@ -615,21 +586,18 @@ func (handler *Handler) RegisterForNewsletter(writer http.ResponseWriter, reques
 
 	err := json.NewDecoder(request.Body).Decode(&body)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, body)
 		return
 	}
 
 	if body.Email == "" {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"No email specified", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No email specified", err, request, body)
 		return
 	}
 
 	err = handler.EmailService.AddToList(request.Context(), body.Email, email.UnconfirmedListID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Bad email", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad email", err, request, body)
 		return
 	}
 
