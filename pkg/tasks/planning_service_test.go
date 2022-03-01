@@ -1069,6 +1069,16 @@ func Test_generateTimespansBasedOnTargetDate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "window is very small",
+			args: args{
+				target: time.Date(2021, 1, 1, 12, 15, 0, 0, location),
+				window: &date.TimeWindow{
+					Start: time.Date(2021, 1, 1, 12, 0, 0, 0, location),
+					End:   time.Date(2021, 1, 1, 12, 15, 0, 0, location),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

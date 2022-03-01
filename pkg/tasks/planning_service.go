@@ -115,6 +115,11 @@ func (s *PlanningService) initializeTimeWindow(task *Task, relevantUsers []*user
 	}
 
 	nowRound := now().Add(time.Minute * 15).Round(time.Minute * 15)
+
+	if nowRound.Unix() == task.DueAt.Date.Start.Unix() || task.DueAt.Date.Start.Before(nowRound) {
+		nowRound = nowRound.Add(time.Minute * 5).Round(time.Minute * 5)
+	}
+
 	return &date.TimeWindow{
 		Start:             nowRound.UTC(),
 		End:               task.DueAt.Date.Start.UTC(),
