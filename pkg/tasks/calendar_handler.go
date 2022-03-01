@@ -44,8 +44,7 @@ func (handler *CalendarHandler) GetCalendarsFromConnection(writer http.ResponseW
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not find user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not find user", err, request, nil)
 		return
 	}
 
@@ -59,15 +58,13 @@ func (handler *CalendarHandler) GetCalendarsFromConnection(writer http.ResponseW
 
 		googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Error while using Google Calendar connection", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error while using Google Calendar connection", err, request, nil)
 			return
 		}
 
 		googleCalendarMap, err := googleRepo.GetAllCalendarsOfInterest()
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-				"Could not retrieve Google Calendar calendars", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not retrieve Google Calendar calendars", err, request, nil)
 			return
 		}
 
@@ -96,8 +93,7 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not find user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not find user", err, request, nil)
 		return
 	}
 
@@ -105,28 +101,26 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 
 	err = json.NewDecoder(request.Body).Decode(&requestBody)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong format", err, request, requestBody)
 		return
 	}
 
 	connection, index, err := u.GoogleCalendarConnections.FindByConnectionID(connectionID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find connection", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find connection", err, request, requestBody)
 		return
 	}
 
 	// TODO: check which sources have a connection
 	googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connectionID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusServiceUnavailable,
-			"Error while using Google Calendar connection", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusServiceUnavailable, "Error while using Google Calendar connection", err, request, requestBody)
 		return
 	}
 
 	googleCalendars, err := googleRepo.GetAllCalendarsOfInterest()
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-			"Could not retrieve Google Calendar calendars", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not retrieve Google Calendar calendars", err, request, requestBody)
 		return
 	}
 
@@ -136,7 +130,7 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error trying to persist user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error trying to persist user", err, request, requestBody)
 		return
 	}
 
@@ -176,8 +170,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 				} else {
 
 					_ = handler.UserRepository.Update(request.Context(), u)
-					handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError,
-						"Error while registering for calendar notifications", err)
+					handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error while registering for calendar notifications", err, request, nil)
 					return err
 				}
 			}
@@ -186,7 +179,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error trying to persist user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error trying to persist user", err, request, nil)
 		return err
 	}
 
@@ -252,7 +245,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 	}
 
 	if request.Header.Get("scheduler-secret") != schedulerSecret {
-		handler.ResponseManager.RespondWithError(writer, http.StatusForbidden, "Invalid secret", fmt.Errorf("%s != the scheduler secret", request.Header.Get("scheduler-secret")))
+		handler.ResponseManager.RespondWithError(writer, http.StatusForbidden, "Invalid secret", fmt.Errorf("%s != the scheduler secret", request.Header.Get("scheduler-secret")), request, nil)
 		return
 	}
 
@@ -260,7 +253,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 
 	_, count, err := handler.UserRepository.FindBySyncExpiration(request.Context(), now, 0, pageSize)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error finding users for renewal", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error finding users for renewal", err, request, nil)
 		return
 	}
 
@@ -269,7 +262,7 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 	for i := 0; i < pages; i++ {
 		u, _, err := handler.UserRepository.FindBySyncExpiration(request.Context(), now, i, pageSize)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error finding users for renewal", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error finding users for renewal", err, request, nil)
 			return
 		}
 
@@ -327,7 +320,7 @@ func (handler *CalendarHandler) InitiateGoogleCalendarAuth(writer http.ResponseW
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err, request, nil)
 		return
 	}
 
@@ -342,14 +335,14 @@ func (handler *CalendarHandler) InitiateGoogleCalendarAuth(writer http.ResponseW
 	} else {
 		_, foundConnectionIndex, err = u.GoogleCalendarConnections.FindByConnectionID(connectionID)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find calendar connection", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Could not find calendar connection", err, request, nil)
 			return
 		}
 	}
 
 	url, stateToken, err := google.GetGoogleAuthURL()
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not get Google config", err, request, nil)
 		return
 	}
 
@@ -366,7 +359,7 @@ func (handler *CalendarHandler) InitiateGoogleCalendarAuth(writer http.ResponseW
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err, request, nil)
 		return
 	}
 
@@ -394,13 +387,13 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err, request, nil)
 		return
 	}
 
 	connection, _, err := u.GoogleCalendarConnections.FindByConnectionID(connectionID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find connection id %s", connectionID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find connection id %s", connectionID), err, request, nil)
 		return
 	}
 
@@ -410,7 +403,7 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 
 		err = handler.UserRepository.Update(request.Context(), u)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err, request, nil)
 			return
 		}
 
@@ -438,7 +431,7 @@ func (handler *CalendarHandler) DeleteGoogleConnection(writer http.ResponseWrite
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err, request, nil)
 		return
 	}
 
@@ -452,13 +445,13 @@ func (handler *CalendarHandler) RevokeGoogleAuth(writer http.ResponseWriter, req
 
 	u, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err, request, nil)
 		return
 	}
 
 	connection, index, err := u.GoogleCalendarConnections.FindByConnectionID(connectionID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find connection id %s", connectionID), err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find connection id %s", connectionID), err, request, nil)
 		return
 	}
 
@@ -491,7 +484,7 @@ func (handler *CalendarHandler) RevokeGoogleAuth(writer http.ResponseWriter, req
 
 	err = handler.UserRepository.Update(request.Context(), u)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not update user", err, request, nil)
 		return
 	}
 
@@ -505,13 +498,13 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 	stateToken := request.URL.Query().Get("state")
 
 	if googleError != "" {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Access was denied by user", fmt.Errorf(googleError))
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Access was denied by user", fmt.Errorf(googleError), request, nil)
 		return
 	}
 
 	usr, err := handler.UserRepository.FindByGoogleStateToken(request.Context(), stateToken)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err, request, nil)
 		return
 	}
 
@@ -524,25 +517,25 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 	}
 
 	if foundConnectionIndex == -1 {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err, request, nil)
 		return
 	}
 
 	token, err := google.GetGoogleToken(request.Context(), authCode)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error getting token", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error getting token", err, request, nil)
 		return
 	}
 
 	userInfo, err := google.GetUserInfo(request.Context(), token)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error getting user id", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error getting user id", err, request, nil)
 		return
 	}
 
 	for i, connection := range usr.GoogleCalendarConnections {
 		if connection.ID == userInfo.ID && i != foundConnectionIndex {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Account is already connected", fmt.Errorf("account %s is already connected", userInfo.ID))
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Account is already connected", fmt.Errorf("account %s is already connected", userInfo.ID), request, nil)
 			return
 		}
 	}
@@ -580,7 +573,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 
 	err = handler.UserRepository.Update(request.Context(), usr)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, nil)
 		return
 	}
 
@@ -613,8 +606,7 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 
 	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest,
-			"Could not find user", err)
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Could not find user", err, request, nil)
 		return
 	}
 

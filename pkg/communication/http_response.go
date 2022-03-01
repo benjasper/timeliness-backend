@@ -19,6 +19,9 @@ type ResponseManager struct {
 // ErrCalendarAuthInvalid is an error thrown if calendar auth is invalid
 var ErrCalendarAuthInvalid = errors.New("calendar auth is invalid")
 
+// MaxRequestBytes is the maximum request size of 1 MB
+var MaxRequestBytes = int64(1048576)
+
 const (
 	// Other is a generic error
 	Other = "other"
@@ -28,7 +31,7 @@ const (
 )
 
 // RespondWithError returns an error to the user
-func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status int, message string, err error) {
+func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status int, message string, err error, request *http.Request, body interface{}) {
 	errorType := Other
 
 	if errors.Cause(err) == ErrCalendarAuthInvalid {
@@ -36,17 +39,26 @@ func (r *ResponseManager) RespondWithError(writer http.ResponseWriter, status in
 		errorType = Calendar
 	}
 
-	r.RespondWithErrorAndErrorType(writer, status, message, err, errorType)
+	r.RespondWithErrorAndErrorType(writer, status, message, err, request, errorType, nil)
 }
 
 // RespondWithErrorAndErrorType takes several arguments to return an error to the user and logs the error as well
-func (r *ResponseManager) RespondWithErrorAndErrorType(writer http.ResponseWriter, status int, message string, err error, errorType string) {
+func (r *ResponseManager) RespondWithErrorAndErrorType(writer http.ResponseWriter, status int, message string, err error, request *http.Request, errorType string, body interface{}) {
 	trackID := uuid.New().String()
+	requestData := ""
+
+	if request != nil {
+		requestData = fmt.Sprintf("\nrequest: %s %s", request.Method, request.URL.String())
+
+		if body != nil {
+			requestData += fmt.Sprintf("\nbody: %s", body)
+		}
+	}
 
 	if status >= 500 {
-		r.Logger.Error(fmt.Sprintf("%s - trackID: %s", message, trackID), err)
+		r.Logger.Error(fmt.Sprintf("%s\ntrackID: %s%s", message, trackID, requestData), err)
 	} else {
-		r.Logger.Warning(fmt.Sprintf("%s - trackID: %s", message, trackID), err)
+		r.Logger.Warning(fmt.Sprintf("%s\ntrackID: %s%s", message, trackID, requestData), err)
 	}
 
 	writer.WriteHeader(status)
@@ -78,8 +90,7 @@ func (r *ResponseManager) RespondWithErrorAndErrorType(writer http.ResponseWrite
 func (r ResponseManager) RespondWithBinary(writer http.ResponseWriter, i []byte, contentType string) {
 	_, err := writer.Write(i)
 	if err != nil {
-		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Error writing response", err)
+		r.RespondWithError(writer, http.StatusInternalServerError, "Error writing response", err, nil, nil)
 		return
 	}
 
@@ -90,15 +101,13 @@ func (r ResponseManager) RespondWithBinary(writer http.ResponseWriter, i []byte,
 func (r ResponseManager) Respond(writer http.ResponseWriter, i interface{}) {
 	binary, err := json.Marshal(i)
 	if err != nil {
-		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Error while marshalling tasks into json", err)
+		r.RespondWithError(writer, http.StatusInternalServerError, "Error while marshalling tasks into json", err, nil, nil)
 		return
 	}
 
 	_, err = writer.Write(binary)
 	if err != nil {
-		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Error writing response", err)
+		r.RespondWithError(writer, http.StatusInternalServerError, "Error writing response", err, nil, nil)
 		return
 	}
 }
@@ -107,16 +116,14 @@ func (r ResponseManager) Respond(writer http.ResponseWriter, i interface{}) {
 func (r ResponseManager) RespondWithStatus(writer http.ResponseWriter, i interface{}, status int) {
 	binary, err := json.Marshal(i)
 	if err != nil {
-		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Error while marshalling tasks into json", err)
+		r.RespondWithError(writer, http.StatusInternalServerError, "Error while marshalling tasks into json", err, nil, nil)
 		return
 	}
 
 	writer.WriteHeader(status)
 	_, err = writer.Write(binary)
 	if err != nil {
-		r.RespondWithError(writer, http.StatusInternalServerError,
-			"Error writing response", err)
+		r.RespondWithError(writer, http.StatusInternalServerError, "Error writing response", err, nil, nil)
 		return
 	}
 }

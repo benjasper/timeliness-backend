@@ -27,13 +27,13 @@ func (m *AuthenticationMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
 		extractedToken, err := extractTokenStringFromHeader(r)
 		if err != nil {
-			m.ErrorManager.RespondWithError(writer, http.StatusUnauthorized, "No authorization", err)
+			m.ErrorManager.RespondWithError(writer, http.StatusUnauthorized, "No authorization", err, r, nil)
 			return
 		}
 		claims := jwt.Claims{}
 		token, err := jwt.Verify(extractedToken, jwt.TokenTypeAccess, m.Secret, jwt.AlgHS256, claims)
 		if err != nil {
-			m.ErrorManager.RespondWithError(writer, http.StatusUnauthorized, "Token invalid", err)
+			m.ErrorManager.RespondWithError(writer, http.StatusUnauthorized, "Token invalid", err, r, nil)
 			return
 		}
 

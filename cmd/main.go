@@ -253,6 +253,10 @@ func main() {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 			}
 
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, communication.MaxRequestBytes)
+			}
+
 			w.Header().Add("Content-Type", "application/json")
 			next.ServeHTTP(w, r)
 		})
