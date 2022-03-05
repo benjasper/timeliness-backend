@@ -501,14 +501,15 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 	authCode := request.URL.Query().Get("code")
 	stateToken := request.URL.Query().Get("state")
 
-	if googleError != "" {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Access was denied by user", fmt.Errorf(googleError), request, nil)
-		return
-	}
-
 	usr, err := handler.UserRepository.FindByGoogleStateToken(request.Context(), stateToken)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Invalid request", err, request, nil)
+		return
+	}
+
+	if googleError != "" {
+		handler.Logger.Warning(fmt.Sprintf("Access was denied by user %s", usr.ID.Hex()), fmt.Errorf(googleError))
+		http.Redirect(writer, request, fmt.Sprintf("%s/static/google-error", os.Getenv("FRONTEND_BASE_URL")), http.StatusTemporaryRedirect)
 		return
 	}
 
