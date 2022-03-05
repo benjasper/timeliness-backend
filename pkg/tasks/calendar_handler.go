@@ -283,9 +283,13 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time time.Time) {
 	// Google Calendar
 	for _, connection := range user.GoogleCalendarConnections {
+		if connection.Status != users.CalendarConnectionStatusActive {
+			continue
+		}
+
 		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(context.Background(), user, connection.ID)
 		if err != nil {
-			handler.Logger.Error("Error while processing user for sync renewal", err)
+			handler.Logger.Error(fmt.Sprintf("Error while processing user %s for sync renewal", user.ID.Hex()), err)
 			return
 		}
 
