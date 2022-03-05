@@ -120,12 +120,12 @@ func GetUserInfoFromIDToken(ctx context.Context, idToken string) (*UserInfo, err
 
 	firstname, ok := validate.Claims["given_name"].(string)
 	if !ok {
-		firstname = ""
+		firstname = "X"
 	}
 
 	lastname, ok := validate.Claims["family_name"].(string)
 	if !ok {
-		lastname = ""
+		lastname = "X"
 	}
 
 	return &UserInfo{

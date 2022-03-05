@@ -138,9 +138,15 @@ func (s *UserRepository) FindBySyncExpiration(ctx context.Context, greaterThan t
 	findOptions.SetSkip(int64(offset))
 	findOptions.SetLimit(int64(pageSize))
 
-	queryFilter := bson.D{{
-		Key:   "googleCalendarConnections.calendarsOfInterest.expiration",
-		Value: bson.M{"$lte": greaterThan}},
+	queryFilter := bson.D{
+		{
+			Key:   "googleCalendarConnections.calendarsOfInterest.expiration",
+			Value: bson.M{"$lte": greaterThan},
+		},
+		{
+			Key:   "googleCalendarConnections.status",
+			Value: bson.M{"$eq": CalendarConnectionStatusActive},
+		},
 	}
 
 	cursor, err := s.DB.Find(ctx, queryFilter, findOptions)
