@@ -58,7 +58,7 @@ func (handler *CalendarHandler) GetCalendarsFromConnection(writer http.ResponseW
 
 		googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error while using Google Calendar connection", err, request, nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusUnauthorized, "Error while using Google Calendar connection", err, request, nil)
 			return
 		}
 
@@ -114,7 +114,7 @@ func (handler *CalendarHandler) PatchCalendars(writer http.ResponseWriter, reque
 	// TODO: check which sources have a connection
 	googleRepo, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connectionID)
 	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusServiceUnavailable, "Error while using Google Calendar connection", err, request, requestBody)
+		handler.ResponseManager.RespondWithError(writer, http.StatusUnauthorized, "Error while using Google Calendar connection", err, request, requestBody)
 		return
 	}
 
@@ -154,7 +154,7 @@ func (handler *CalendarHandler) syncGoogleCalendars(writer http.ResponseWriter, 
 
 		calendarRepository, err := handler.CalendarRepositoryManager.GetCalendarRepositoryForUserByConnectionID(request.Context(), u, connection.ID)
 		if err != nil {
-			handler.Logger.Error("Error while processing user for sync renewal", err)
+			handler.Logger.Warning(fmt.Sprintf("Error while processing user %s for sync renewal", u.ID.Hex()), err)
 			return err
 		}
 
