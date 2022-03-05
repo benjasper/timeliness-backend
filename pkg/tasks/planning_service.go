@@ -794,10 +794,10 @@ func (s *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 		repositories[user.ID.Hex()] = repository
 
 		for _, unit := range task.WorkUnits {
-
-			err := repository.DeleteEvent(&unit.ScheduledAt)
+			err = repository.DeleteEvent(&unit.ScheduledAt)
 			if err != nil {
-				return err
+				s.logger.Warning(fmt.Sprintf("failed to delete work unit %s event", unit.ID.Hex()), errors.WithStack(err))
+				continue
 			}
 		}
 	}
@@ -805,7 +805,7 @@ func (s *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 	for _, user := range relevantUsers {
 		err = repositories[user.ID.Hex()].DeleteEvent(&task.DueAt)
 		if err != nil {
-			return err
+			s.logger.Warning(fmt.Sprintf("failed to delete task %s event", task.ID.Hex()), errors.WithStack(err))
 		}
 	}
 
