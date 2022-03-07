@@ -21,8 +21,8 @@ func NewLockerRedis(redisClient *redis.Client) *LockerRedis {
 }
 
 // Acquire acquires a lock
-func (l *LockerRedis) Acquire(ctx context.Context, key string, ttl time.Duration, tryOnlyOnce bool) (LockInterface, error) {
-	retryStrategy := redislock.ExponentialBackoff(500*time.Millisecond, 2*time.Second)
+func (l *LockerRedis) Acquire(ctx context.Context, key string, ttl time.Duration, tryOnlyOnce bool, waitMax time.Duration) (LockInterface, error) {
+	retryStrategy := redislock.ExponentialBackoff(500*time.Millisecond, waitMax)
 	if tryOnlyOnce {
 		retryStrategy = redislock.NoRetry()
 	}

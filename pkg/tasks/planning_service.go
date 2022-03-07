@@ -150,7 +150,7 @@ func maxDuration(a, b time.Duration) time.Duration {
 // and pushes or removes events to and from the calendar. Also updates the task.
 func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bool) (*Task, error) {
 	if !t.ID.IsZero() && withLock == true {
-		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
+		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false, 30*time.Second)
 		if err != nil {
 			return nil, err
 		}
@@ -365,7 +365,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
 func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *WorkUnit, withLock bool) (*Task, error) {
 	if withLock == true {
-		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false)
+		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false, 2*time.Second)
 		if err != nil {
 			return nil, err
 		}
@@ -794,10 +794,10 @@ func (s *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 		repositories[user.ID.Hex()] = repository
 
 		for _, unit := range task.WorkUnits {
-
-			err := repository.DeleteEvent(&unit.ScheduledAt)
+			err = repository.DeleteEvent(&unit.ScheduledAt)
 			if err != nil {
-				return err
+				s.logger.Warning(fmt.Sprintf("failed to delete work unit %s event", unit.ID.Hex()), errors.WithStack(err))
+				continue
 			}
 		}
 	}
@@ -805,7 +805,7 @@ func (s *PlanningService) DeleteTask(ctx context.Context, task *Task) error {
 	for _, user := range relevantUsers {
 		err = repositories[user.ID.Hex()].DeleteEvent(&task.DueAt)
 		if err != nil {
-			return err
+			s.logger.Warning(fmt.Sprintf("failed to delete task %s event", task.ID.Hex()), errors.WithStack(err))
 		}
 	}
 
@@ -865,7 +865,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*30, false)
+	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*30, false, 2*time.Second)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("error acquiring lock for task %s", task.ID.Hex()), err)
 		return
@@ -1193,7 +1193,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 
 // lookForUnscheduledTasks looks for tasks that have unscheduled time
 func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID string) {
-	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("lookForUnscheduledTasks-%s", userID), time.Minute*1, true)
+	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("lookForUnscheduledTasks-%s", userID), time.Minute*1, true, 2*time.Second)
 	if err != nil {
 		// This is fine, and we don't want to spam the logs
 		return
