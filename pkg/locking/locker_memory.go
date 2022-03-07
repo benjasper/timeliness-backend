@@ -25,7 +25,7 @@ func NewLockerMemory() *LockerMemory {
 }
 
 // Acquire acquires a LockInterface, doesn't support tryOnlyOnce
-func (l *LockerMemory) Acquire(ctx context.Context, key string, ttl time.Duration, tryOnlyOnce bool) (LockInterface, error) {
+func (l *LockerMemory) Acquire(ctx context.Context, key string, ttl time.Duration, tryOnlyOnce bool, waitMax time.Duration) (LockInterface, error) {
 	l.getLock(key).Lock()
 
 	return &LockMemory{

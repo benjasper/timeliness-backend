@@ -101,7 +101,7 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false, 10*time.Second)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
@@ -205,7 +205,7 @@ func (handler *Handler) WorkUnitUpdate(writer http.ResponseWriter, request *http
 		return
 	}
 
-	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false, 2*time.Second)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
@@ -294,7 +294,7 @@ func (handler *Handler) MarkWorkUnitAsDone(writer http.ResponseWriter, request *
 		return
 	}
 
-	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false, 2*time.Second)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
@@ -416,7 +416,7 @@ func (handler *Handler) TaskDelete(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false, 2*time.Second)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
@@ -816,7 +816,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 		return
 	}
 
-	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false)
+	lock, err := handler.Locker.Acquire(request.Context(), taskID, time.Second*10, false, 2*time.Second)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Could not acquire lock for %s", taskID), err, request, nil)
 		return
