@@ -152,8 +152,8 @@ func (handler *TagHandler) GetAllTags(writer http.ResponseWriter, request *http.
 			return
 		}
 
-		if pageSize > 25 {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Page size can't be more than 25", nil, request, nil)
+		if pageSize > 100 {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Page size can't be more than 100", nil, request, nil)
 			return
 		}
 	}
