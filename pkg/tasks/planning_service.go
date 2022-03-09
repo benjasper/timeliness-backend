@@ -150,7 +150,7 @@ func maxDuration(a, b time.Duration) time.Duration {
 // and pushes or removes events to and from the calendar. Also updates the task.
 func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bool) (*Task, error) {
 	if !t.ID.IsZero() && withLock == true {
-		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false, 30*time.Second)
+		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false, 32*time.Second)
 		if err != nil {
 			return nil, err
 		}
@@ -365,7 +365,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
 func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *WorkUnit, withLock bool) (*Task, error) {
 	if withLock == true {
-		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false, 2*time.Second)
+		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false, 32*time.Second)
 		if err != nil {
 			return nil, err
 		}
@@ -865,19 +865,20 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		return
 	}
 
-	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*30, false, 2*time.Second)
+	lock, err := s.locker.Acquire(ctx, task.ID.Hex(), time.Second*60, false, 62*time.Second)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("error acquiring lock for task %s", task.ID.Hex()), err)
 		return
 	}
 
-	defer func(lock locking.LockInterface, ctx context.Context) {
+	defer func(lock locking.LockInterface, ctx context.Context, userID string) {
 		err := lock.Release(ctx)
 		if err != nil {
 			s.logger.Error("error releasing lock", errors.Wrap(err, "error releasing lock"))
-			return
 		}
-	}(lock, ctx)
+
+		s.lookForUnscheduledTasks(ctx, userID)
+	}(lock, ctx, userID)
 
 	// Refresh task, after potential change
 	task, err = s.taskRepository.FindByCalendarEventID(ctx, calendarEvent.CalendarEventID, userID, false)
@@ -901,7 +902,6 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 				return
 			}
 
-			s.lookForUnscheduledTasks(ctx, userID)
 			return
 		}
 
@@ -935,7 +935,6 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			}
 		}
 
-		s.lookForUnscheduledTasks(ctx, userID)
 		return
 	}
 
@@ -987,7 +986,6 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 			return
 		}
 
-		s.lookForUnscheduledTasks(ctx, userID)
 		return
 	}
 
@@ -1023,7 +1021,6 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		// The work unit was either merged and therefore does not exist anymore or
 		// the work unit was merged and exists but now has a different date
 		// We don't need to check for intersecting work units anymore
-		s.lookForUnscheduledTasks(ctx, userID)
 		return
 	}
 
@@ -1031,7 +1028,10 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		_ = s.checkForIntersectingWorkUnits(ctx, userID, event, workUnit.ID, task.ID)
 	}
 
-	s.lookForUnscheduledTasks(ctx, userID)
+	// We only want to for other unscheduled tasks here because we currently hold the lock and could cause a deadlock
+	if task.NotScheduled == 0 {
+		s.lookForUnscheduledTasks(ctx, userID)
+	}
 
 	// Maybe the user wanted to make place for another task, so we first accept the wrong work unit and reschedule
 	// after we looked for unscheduled tasks
