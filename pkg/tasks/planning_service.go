@@ -969,9 +969,9 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 		// If the event is deleted, and we are sure we are not the ones who deleted it we delete the task
 		if event.Deleted && !task.DueAt.CalendarEvents.IsEmpty() {
-			err := s.DeleteTask(ctx, task)
+			err = s.DeleteTask(ctx, task)
 			if err != nil {
-				s.logger.Error("Error while deleting task", err)
+				s.logger.Error(fmt.Sprintf("Error while deleting task %s", task.ID.Hex()), err)
 				return
 			}
 
@@ -982,19 +982,28 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 		task.DueAt.Date = event.Date
 		task, err = s.DueDateChanged(ctx, task, false)
 		if err != nil {
-			s.logger.Error("Error while updating task", err)
+			s.logger.Error(fmt.Sprintf("Error while updating due date event for task %s", task.ID.Hex()), err)
+			return
+		}
+
+		// Update the task
+		err = s.taskRepository.Update(ctx, task, false)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Error while updating task %s", task.ID.Hex()), err)
 			return
 		}
 
 		return
 	}
 
+	// At this point the event is not the due date event, so we check if it is a work unit event
 	index, workUnit := task.WorkUnits.FindByCalendarID(calendarEvent.CalendarEventID)
 	if workUnit == nil {
 		s.logger.Error("event not found", errors.Errorf("could not find work unit for calendar event %s", calendarEvent.CalendarEventID))
 		return
 	}
 
+	// If the work unit date is the same as the event date, we do nothing
 	if workUnit.ScheduledAt.Date.Start == event.Date.Start && workUnit.ScheduledAt.Date.End == event.Date.End {
 		return
 	}
