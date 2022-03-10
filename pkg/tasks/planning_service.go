@@ -664,6 +664,11 @@ func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task, rele
 		}
 
 		task.DueAt = *dueEvent
+
+		err := s.taskRepository.Update(ctx, task, false)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Remove event when it's not needed anymore
@@ -680,6 +685,11 @@ func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task, rele
 			}
 
 			task.DueAt.CalendarEvents = task.DueAt.CalendarEvents.RemoveByUserID(user.ID.Hex())
+		}
+
+		err := s.taskRepository.Update(ctx, task, false)
+		if err != nil {
+			return nil, err
 		}
 
 		return task, nil
@@ -703,6 +713,11 @@ func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task, rele
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	err := s.taskRepository.Update(ctx, task, false)
+	if err != nil {
+		return nil, err
 	}
 
 	return task, nil
