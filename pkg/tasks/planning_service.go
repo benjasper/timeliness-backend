@@ -669,7 +669,7 @@ func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task, rele
 	// Remove event when it's not needed anymore
 	if relevantUsers[0].Settings.Scheduling.HideDeadlineWhenDone && task.IsDone {
 		for _, user := range relevantUsers {
-			if persistedEvent := task.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
+			if persistedEvent := task.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent == nil {
 				continue
 			}
 
