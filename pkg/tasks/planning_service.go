@@ -676,7 +676,7 @@ func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task, rele
 			var err error
 			err = taskCalendarRepositories[user.ID.Hex()].DeleteEvent(&task.DueAt)
 			if err != nil {
-				return nil, err
+				// We ignore the error here, because we don't want to stop the update process
 			}
 
 			task.DueAt.CalendarEvents = task.DueAt.CalendarEvents.RemoveByUserID(user.ID.Hex())
@@ -962,13 +962,13 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	dueAtCalendarEvent := task.DueAt.CalendarEvents.FindByUserID(userID)
 	if dueAtCalendarEvent != nil && dueAtCalendarEvent.CalendarEventID == calendarEvent.CalendarEventID {
-		// If there is no change we do nothing
-		if task.DueAt.Date == event.Date {
+		// If there is no change we do nothing or if the task was deleted by us (no calendar events left)
+		if task.DueAt.Date == event.Date || (event.Deleted && task.DueAt.CalendarEvents.IsEmpty()) {
 			return
 		}
 
-		// If the event is deleted, and we are sure we are not the ones who deleted it we delete the task
-		if event.Deleted && !task.DueAt.CalendarEvents.IsEmpty() {
+		// If the event is deleted
+		if event.Deleted {
 			err = s.DeleteTask(ctx, task)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("Error while deleting task %s", task.ID.Hex()), err)
