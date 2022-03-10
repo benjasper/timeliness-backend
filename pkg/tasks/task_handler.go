@@ -145,28 +145,10 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.DueAt.Date != task.DueAt.Date {
-		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
-
-		err = handler.PlanningService.UpdateDueAtEvent(request.Context(), task)
+		task, err = handler.PlanningService.DueDateChanged(request.Context(), task, true)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error updating the task", err, request, communication.Calendar, parsedTask)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, fmt.Sprintf("Error updating due date for task %s", taskID), err, request, communication.Calendar, parsedTask)
 			return
-		}
-
-		// In case there are work units now after the deadline
-		var toReschedule []WorkUnit
-		for _, unit := range task.WorkUnits {
-			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) && unit.IsDone == false {
-				toReschedule = append(toReschedule, unit)
-			}
-		}
-
-		for _, unit := range toReschedule {
-			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit, false)
-			if err != nil {
-				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err, request, communication.Calendar, parsedTask)
-				return
-			}
 		}
 	}
 

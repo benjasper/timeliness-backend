@@ -178,9 +178,10 @@ type UserSettings struct {
 
 // SchedulingSettings holds different settings for scheduling
 type SchedulingSettings struct {
-	TimingPreference    string          `json:"timingPreference" bson:"timingPreference"`
-	TimeZone            string          `json:"timeZone" bson:"timeZone" validate:"required"`
-	AllowedTimespans    []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
-	BusyTimeSpacing     time.Duration   `json:"busyTimeSpacing" bson:"busyTimeSpacing"`
-	MaxWorkUnitDuration time.Duration   `json:"maxWorkUnitDuration" bson:"maxWorkUnitDuration"`
+	TimingPreference     string          `json:"timingPreference" bson:"timingPreference"`
+	TimeZone             string          `json:"timeZone" bson:"timeZone" validate:"required"`
+	AllowedTimespans     []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
+	BusyTimeSpacing      time.Duration   `json:"busyTimeSpacing" bson:"busyTimeSpacing"`
+	MaxWorkUnitDuration  time.Duration   `json:"maxWorkUnitDuration" bson:"maxWorkUnitDuration"`
+	HideDeadlineWhenDone bool            `json:"hideDeadlineWhenDone" bson:"hideDeadlineWhenDone"`
 }
