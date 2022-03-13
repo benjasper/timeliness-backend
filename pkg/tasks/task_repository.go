@@ -51,7 +51,7 @@ type MongoDBTaskRepository struct {
 
 func buildConcatFilterQuery(queryFilter bson.D, filters []ConcatFilter) bson.D {
 	for _, filter := range filters {
-		if len(filters) == 0 {
+		if len(filter.Filters) == 0 {
 			continue
 		}
 
