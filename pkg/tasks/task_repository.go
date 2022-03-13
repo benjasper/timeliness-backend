@@ -59,10 +59,10 @@ func buildConcatFilterQuery(queryFilter bson.D, filters []ConcatFilter) bson.D {
 
 		for _, f := range filter.Filters {
 			if f.Operator != "" {
-				conditions = append(conditions, bson.E{Key: f.Field, Value: bson.M{f.Operator: f.Value}})
+				conditions = append(conditions, bson.D{{Key: f.Field, Value: bson.M{f.Operator: f.Value}}})
 				continue
 			}
-			conditions = append(conditions, bson.E{Key: f.Field, Value: f.Value})
+			conditions = append(conditions, bson.D{{Key: f.Field, Value: f.Value}})
 		}
 
 		queryFilter = append(queryFilter, bson.E{Key: filter.Operator, Value: conditions})

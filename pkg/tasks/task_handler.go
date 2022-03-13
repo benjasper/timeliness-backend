@@ -504,7 +504,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 
 		isDone, err := strconv.ParseBool(queryIsDonePart)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for includeDeleted", err, request, nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for isDone", err, request, nil)
 			return
 		}
 
