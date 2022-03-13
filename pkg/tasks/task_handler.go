@@ -1161,7 +1161,14 @@ func (handler *Handler) buildTagFilter(request *http.Request, writer http.Respon
 				return ConcatFilter{}, err
 			}
 
-			tagsFilter.Filters = append(tagsFilter.Filters, Filter{Field: "tags", Operator: operator, Value: queryTagID})
+			tagObjectID, err := primitive.ObjectIDFromHex(queryTagID)
+			if err != nil {
+				var err = errors.New(fmt.Sprintf("Invalid tag id %s", queryTagID))
+				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter tags", err, request, nil)
+				return ConcatFilter{}, err
+			}
+
+			tagsFilter.Filters = append(tagsFilter.Filters, Filter{Field: "tags", Operator: operator, Value: tagObjectID})
 		}
 	}
 
