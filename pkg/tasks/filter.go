@@ -6,3 +6,9 @@ type Filter struct {
 	Value    interface{}
 	Operator string
 }
+
+// ConcatFilter is a model for the rest api where multiple filters are concatenated
+type ConcatFilter struct {
+	Filters  []Filter
+	Operator string
+}

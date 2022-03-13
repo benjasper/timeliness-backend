@@ -16,9 +16,9 @@ import (
 type TaskRepositoryInterface interface {
 	Add(ctx context.Context, task *Task) error
 	Update(ctx context.Context, task *Task, deleted bool) error
-	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error)
-	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error)
-	FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error)
+	FindAll(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error)
+	FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error)
+	FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, date time.Time, sort int) ([]TaskAgenda, int, error)
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*Task, error)
 	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID primitive.ObjectID, isDeleted bool) ([]Task, error)
@@ -47,6 +47,23 @@ type MongoDBTaskRepository struct {
 	DB          *mongo.Collection
 	Logger      logger.Interface
 	subscribers []TaskObserver
+}
+
+func buildConcatFilterQuery(queryFilter bson.D, filters []ConcatFilter) bson.D {
+	for _, filter := range filters {
+		conditions := bson.A{}
+
+		for _, f := range filter.Filters {
+			if f.Operator != "" {
+				conditions = append(conditions, bson.E{Key: f.Field, Value: bson.M{f.Operator: f.Value}})
+				continue
+			}
+			conditions = append(conditions, bson.E{Key: f.Field, Value: f.Value})
+		}
+
+		queryFilter = append(queryFilter, bson.E{Key: filter.Operator, Value: conditions})
+	}
+	return queryFilter
 }
 
 // Add adds a task
@@ -114,7 +131,7 @@ func (s *MongoDBTaskRepository) Update(ctx context.Context, task *Task, deleted 
 }
 
 // FindAll finds all task paginated
-func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []Filter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error) {
+func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error) {
 	t := []Task{}
 
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
@@ -145,13 +162,7 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 		queryFilter = append(queryFilter, bson.E{Key: "deleted", Value: false})
 	}
 
-	for _, filter := range filters {
-		if filter.Operator != "" {
-			queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
-			continue
-		}
-		queryFilter = append(queryFilter, bson.E{Key: filter.Field, Value: filter.Value})
-	}
+	queryFilter = buildConcatFilterQuery(queryFilter, filters)
 
 	if (isDoneAndDueAt != time.Time{}) {
 		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
@@ -181,7 +192,7 @@ func (s *MongoDBTaskRepository) FindAll(ctx context.Context, userID string, page
 }
 
 // FindAllByWorkUnits finds all task paginated, but unwound by their work units
-func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []Filter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error) {
+func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error) {
 
 	var results []struct {
 		AllResults []TaskUnwound
@@ -218,14 +229,7 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 	addFieldStage2 := bson.D{{Key: "$addFields", Value: bson.M{"workUnit": "$workUnits"}}}
 	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
 
-	queryWorkUnitFilters := bson.D{}
-	for _, filter := range filters {
-		if filter.Operator != "" {
-			queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
-			continue
-		}
-		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: filter.Value})
-	}
+	queryWorkUnitFilters := buildConcatFilterQuery(bson.D{}, filters)
 
 	if (isDoneAndScheduledAt != time.Time{}) {
 		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: "$or", Value: bson.A{
@@ -318,7 +322,7 @@ func (s *MongoDBTaskRepository) FindUnscheduledTasks(ctx context.Context, userID
 }
 
 // FindAllByDate finds all task, combining work units and due dates
-func (s *MongoDBTaskRepository) FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error) {
+func (s *MongoDBTaskRepository) FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, date time.Time, sort int) ([]TaskAgenda, int, error) {
 	var results []struct {
 		AllResults []TaskAgenda
 
@@ -349,14 +353,7 @@ func (s *MongoDBTaskRepository) FindAllByDate(ctx context.Context, userID string
 		},
 	}
 
-	queryWorkUnitFilters := bson.D{}
-	for _, filter := range filters {
-		if filter.Operator != "" {
-			queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: bson.M{filter.Operator: filter.Value}})
-			continue
-		}
-		queryWorkUnitFilters = append(queryWorkUnitFilters, bson.E{Key: filter.Field, Value: filter.Value})
-	}
+	queryAgendaFilters := buildConcatFilterQuery(bson.D{}, filters)
 
 	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
 	addFieldsStage := bson.D{{
@@ -403,10 +400,10 @@ func (s *MongoDBTaskRepository) FindAllByDate(ctx context.Context, userID string
 		direction = "$lte"
 	}
 
+	queryAgendaFilters = append(queryAgendaFilters, bson.E{Key: "date.date.start", Value: bson.M{direction: date}})
+
 	matchStage2 := bson.D{{
-		Key: "$match", Value: bson.D{
-			{Key: "date.date.start", Value: bson.M{direction: date}},
-		},
+		Key: "$match", Value: queryAgendaFilters,
 	}}
 
 	facetStage := bson.D{

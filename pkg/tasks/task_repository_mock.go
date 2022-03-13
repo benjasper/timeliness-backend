@@ -44,7 +44,7 @@ func (m *MockTaskRepository) Update(_ context.Context, task *Task, deleted bool)
 }
 
 // FindAll finds all tasks. Filters are not yet implemented.
-func (m *MockTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, _ []Filter, _ time.Time, _ bool) ([]Task, int, error) {
+func (m *MockTaskRepository) FindAll(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, isDoneAndDueAt time.Time, includeDeleted bool) ([]Task, int, error) {
 	userObjectID, _ := primitive.ObjectIDFromHex(userID)
 
 	var tasks []Task
@@ -75,7 +75,7 @@ func (m *MockTaskRepository) FindAll(ctx context.Context, userID string, page in
 }
 
 // FindAllByWorkUnits outputs tasks by WorkUnits and is not implemented yet
-func (m *MockTaskRepository) FindAllByWorkUnits(_ context.Context, _ string, _ int, _ int, _ []Filter, _ bool, _ time.Time) ([]TaskUnwound, int, error) {
+func (m *MockTaskRepository) FindAllByWorkUnits(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, includeDeleted bool, isDoneAndScheduledAt time.Time) ([]TaskUnwound, int, error) {
 	panic("not implemented")
 }
 
@@ -149,7 +149,7 @@ func (m *MockTaskRepository) DeleteTag(ctx context.Context, tagID string, userID
 }
 
 // FindAllByDate finds all task, combining work units and due dates
-func (m *MockTaskRepository) FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []Filter, date time.Time, sort int) ([]TaskAgenda, int, error) {
+func (m *MockTaskRepository) FindAllByDate(ctx context.Context, userID string, page int, pageSize int, filters []ConcatFilter, date time.Time, sort int) ([]TaskAgenda, int, error) {
 	panic("not implemented")
 }
 

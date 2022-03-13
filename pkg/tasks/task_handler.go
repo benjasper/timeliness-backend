@@ -440,6 +440,8 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
 	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
 	queryIsDoneAndDueAt := request.URL.Query().Get("isDoneAndDueAt")
+	queryIsDone := request.URL.Query().Get("isDone")
+	queryTags := request.URL.Query().Get("tags")
 
 	includeDeleted := false
 	if includeDeletedQuery != "" {
@@ -471,7 +473,8 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	var filters []Filter
+	andFilter := ConcatFilter{Operator: "$and"}
+	tagsFilter := ConcatFilter{Operator: "$or"}
 
 	if queryDueAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
@@ -479,7 +482,50 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
-		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
+	}
+
+	if queryIsDone != "" {
+		queryIsDoneParts := strings.Split(queryIsDone, ":")
+		queryIsDonePart := ""
+		operator := "$eq"
+		if len(queryIsDoneParts) == 1 {
+			queryIsDonePart = queryIsDoneParts[0]
+		} else if len(queryIsDoneParts) == 2 {
+			operator = queryIsDoneParts[0]
+			queryIsDonePart = queryIsDoneParts[1]
+		} else {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", nil, request, nil)
+			return
+		}
+
+		isDone, err := strconv.ParseBool(queryIsDonePart)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for includeDeleted", err, request, nil)
+			return
+		}
+
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "isDone", Operator: operator, Value: isDone})
+	}
+
+	// query filters in format of "operator:value,operator:value" or "value,value"
+	if queryTags != "" {
+		for _, tagFilter := range strings.Split(queryTags, ",") {
+			queryTagsParts := strings.Split(tagFilter, ":")
+			queryTagID := ""
+			operator := "$eq"
+			if len(queryTagsParts) == 1 {
+				queryTagID = queryTagsParts[0]
+			} else if len(queryTagsParts) == 2 {
+				operator = queryTagsParts[0]
+				queryTagID = queryTagsParts[1]
+			} else {
+				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter tags", nil, request, nil)
+				return
+			}
+
+			tagsFilter.Filters = append(tagsFilter.Filters, Filter{Field: "tags", Operator: operator, Value: queryTagID})
+		}
 	}
 
 	if lastModifiedAt != "" {
@@ -488,7 +534,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
-		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
 	isDoneAndDueAt := time.Time{}
@@ -500,7 +546,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, isDoneAndDueAt, includeDeleted)
+	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter, tagsFilter}, isDoneAndDueAt, includeDeleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
@@ -560,7 +606,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		}
 	}
 
-	var filters []Filter
+	andFilter := ConcatFilter{Operator: "$and"}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -599,7 +645,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 			return
 		}
 
-		filters = append(filters, Filter{Field: "workUnit.isDone", Value: value})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "workUnit.isDone", Value: value})
 	}
 
 	if lastModifiedAt != "" {
@@ -608,10 +654,10 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
-		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, includeDeleted, isDoneAndScheduledAt)
+	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter}, includeDeleted, isDoneAndScheduledAt)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
@@ -719,7 +765,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	d := time.Time{}
 	sort := 1
 
-	var filters []Filter
+	andFilter := ConcatFilter{Operator: "$and"}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -756,7 +802,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 		return
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, filters, d, sort)
+	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter}, d, sort)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
