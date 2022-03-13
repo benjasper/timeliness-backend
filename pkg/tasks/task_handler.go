@@ -441,7 +441,6 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
 	queryIsDoneAndDueAt := request.URL.Query().Get("isDoneAndDueAt")
 	queryIsDone := request.URL.Query().Get("isDone")
-	queryTags := request.URL.Query().Get("tags")
 
 	includeDeleted := false
 	if includeDeletedQuery != "" {
@@ -474,7 +473,11 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	}
 
 	andFilter := ConcatFilter{Operator: "$and"}
-	tagsFilter := ConcatFilter{Operator: "$or"}
+	tagsFilter, err := handler.buildTagFilter(request, writer)
+	if err != nil {
+		// No need to respond with an error, the error has already been handled
+		return
+	}
 
 	if queryDueAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
@@ -506,26 +509,6 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 
 		andFilter.Filters = append(andFilter.Filters, Filter{Field: "isDone", Operator: operator, Value: isDone})
-	}
-
-	// query filters in format of "operator:value,operator:value" or "value,value"
-	if queryTags != "" {
-		for _, tagFilter := range strings.Split(queryTags, ",") {
-			queryTagsParts := strings.Split(tagFilter, ":")
-			queryTagID := ""
-			operator := "$eq"
-			if len(queryTagsParts) == 1 {
-				queryTagID = queryTagsParts[0]
-			} else if len(queryTagsParts) == 2 {
-				operator = queryTagsParts[0]
-				queryTagID = queryTagsParts[1]
-			} else {
-				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter tags", nil, request, nil)
-				return
-			}
-
-			tagsFilter.Filters = append(tagsFilter.Filters, Filter{Field: "tags", Operator: operator, Value: queryTagID})
-		}
 	}
 
 	if lastModifiedAt != "" {
@@ -607,6 +590,11 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 	}
 
 	andFilter := ConcatFilter{Operator: "$and"}
+	tagsFilter, err := handler.buildTagFilter(request, writer)
+	if err != nil {
+		// No need to respond with an error, the error has already been handled
+		return
+	}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -657,7 +645,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		andFilter.Filters = append(andFilter.Filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter}, includeDeleted, isDoneAndScheduledAt)
+	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter, tagsFilter}, includeDeleted, isDoneAndScheduledAt)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
@@ -762,10 +750,40 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryDate := request.URL.Query().Get("date")
 	querySort := request.URL.Query().Get("sort")
+	queryIsDone := request.URL.Query().Get("isDone")
 	d := time.Time{}
 	sort := 1
 
 	andFilter := ConcatFilter{Operator: "$and"}
+	tagsFilter, err := handler.buildTagFilter(request, writer)
+	if err != nil {
+		// No need to respond with an error, the error has already been handled
+		return
+	}
+
+	if queryIsDone != "" {
+		queryIsDoneParts := strings.Split(queryIsDone, ":")
+		queryIsDonePart := ""
+		operator := "$eq"
+
+		if len(queryIsDoneParts) == 1 {
+			queryIsDonePart = queryIsDoneParts[0]
+		} else if len(queryIsDoneParts) == 2 {
+			operator = queryIsDoneParts[0]
+			queryIsDonePart = queryIsDoneParts[1]
+		} else {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", nil, request, nil)
+			return
+		}
+
+		isDone, err := strconv.ParseBool(queryIsDonePart)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for includeDeleted", err, request, nil)
+			return
+		}
+
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "isDone", Operator: operator, Value: isDone})
+	}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -802,7 +820,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 		return
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter}, d, sort)
+	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter, tagsFilter}, d, sort)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
@@ -1120,4 +1138,32 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 	}
 
 	handler.ResponseManager.Respond(writer, timespans)
+}
+
+func (handler *Handler) buildTagFilter(request *http.Request, writer http.ResponseWriter) (ConcatFilter, error) {
+	// query filters in format of "operator:value,operator:value" or "value,value"
+	tagsFilter := ConcatFilter{Operator: "$or"}
+	queryTags := request.URL.Query().Get("tags")
+
+	if queryTags != "" {
+		for _, tagFilter := range strings.Split(queryTags, ",") {
+			queryTagsParts := strings.Split(tagFilter, ":")
+			queryTagID := ""
+			operator := "$eq"
+			if len(queryTagsParts) == 1 {
+				queryTagID = queryTagsParts[0]
+			} else if len(queryTagsParts) == 2 {
+				operator = queryTagsParts[0]
+				queryTagID = queryTagsParts[1]
+			} else {
+				var err = errors.New(fmt.Sprintf("Invalid tag filter %s", tagFilter))
+				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter tags", err, request, nil)
+				return ConcatFilter{}, err
+			}
+
+			tagsFilter.Filters = append(tagsFilter.Filters, Filter{Field: "tags", Operator: operator, Value: queryTagID})
+		}
+	}
+
+	return tagsFilter, nil
 }
