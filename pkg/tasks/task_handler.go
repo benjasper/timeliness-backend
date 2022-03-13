@@ -751,6 +751,8 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	queryDate := request.URL.Query().Get("date")
 	querySort := request.URL.Query().Get("sort")
 	queryIsDone := request.URL.Query().Get("isDone")
+	queryEventType := request.URL.Query().Get("date.type")
+
 	d := time.Time{}
 	sort := 1
 
@@ -762,27 +764,29 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	}
 
 	if queryIsDone != "" {
-		queryIsDoneParts := strings.Split(queryIsDone, ":")
-		queryIsDonePart := ""
-		operator := "$eq"
-
-		if len(queryIsDoneParts) == 1 {
-			queryIsDonePart = queryIsDoneParts[0]
-		} else if len(queryIsDoneParts) == 2 {
-			operator = queryIsDoneParts[0]
-			queryIsDonePart = queryIsDoneParts[1]
-		} else {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", nil, request, nil)
+		operator, value, err := extractOperatorAndValue(queryEventType)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", err, request, nil)
 			return
 		}
 
-		isDone, err := strconv.ParseBool(queryIsDonePart)
+		isDone, err := strconv.ParseBool(value)
 		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for includeDeleted", err, request, nil)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for isDone", err, request, nil)
 			return
 		}
 
 		andFilter.Filters = append(andFilter.Filters, Filter{Field: "isDone", Operator: operator, Value: isDone})
+	}
+
+	if queryEventType != "" {
+		operator, value, err := extractOperatorAndValue(queryEventType)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter date.type", err, request, nil)
+			return
+		}
+
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "date.type", Operator: operator, Value: value})
 	}
 
 	if queryPage != "" {
@@ -1173,4 +1177,21 @@ func (handler *Handler) buildTagFilter(request *http.Request, writer http.Respon
 	}
 
 	return tagsFilter, nil
+}
+
+func extractOperatorAndValue(filter string) (string, string, error) {
+	parts := strings.Split(filter, ":")
+	part := ""
+	operator := "$eq"
+
+	if len(parts) == 1 {
+		part = parts[0]
+	} else if len(parts) == 2 {
+		operator = parts[0]
+		part = parts[1]
+	} else {
+		return "", "", errors.Errorf("Invalid filter %s", filter)
+	}
+
+	return operator, part, nil
 }
