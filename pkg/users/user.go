@@ -182,6 +182,7 @@ type SchedulingSettings struct {
 	TimeZone             string          `json:"timeZone" bson:"timeZone" validate:"required"`
 	AllowedTimespans     []date.Timespan `json:"allowedTimespans" bson:"allowedTimespans"`
 	BusyTimeSpacing      time.Duration   `json:"busyTimeSpacing" bson:"busyTimeSpacing"`
+	MinWorkUnitDuration  time.Duration   `json:"minWorkUnitDuration" bson:"minWorkUnitDuration"`
 	MaxWorkUnitDuration  time.Duration   `json:"maxWorkUnitDuration" bson:"maxWorkUnitDuration"`
 	HideDeadlineWhenDone bool            `json:"hideDeadlineWhenDone" bson:"hideDeadlineWhenDone"`
 }

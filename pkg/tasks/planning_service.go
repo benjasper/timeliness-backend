@@ -525,8 +525,8 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 		return workUnits
 	}
 
-	minDuration := 1 * time.Hour
-	if durationToFind < 1*time.Hour {
+	minDuration := user.Settings.Scheduling.MinWorkUnitDuration
+	if durationToFind < user.Settings.Scheduling.MinWorkUnitDuration {
 		minDuration = durationToFind
 	}
 	maxDuration := user.Settings.Scheduling.MaxWorkUnitDuration
@@ -560,8 +560,8 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 	for i := 0; i < iterations; i++ {
 		durationToFind := durationToFindPerIteration
 
-		minDuration := 1 * time.Hour
-		if durationToFind < 1*time.Hour {
+		minDuration := user.Settings.Scheduling.MinWorkUnitDuration
+		if durationToFind < user.Settings.Scheduling.MinWorkUnitDuration {
 			minDuration = durationToFind
 		}
 		maxDuration := user.Settings.Scheduling.MaxWorkUnitDuration
