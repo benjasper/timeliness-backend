@@ -17,6 +17,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/sync/errgroup"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"strconv"
@@ -1123,12 +1124,14 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 	taskID := mux.Vars(request)["taskID"]
 	workUnitID := mux.Vars(request)["workUnitID"]
 
-	var requestBody struct {
+	var body struct {
 		IgnoreTimespans []date.Timespan `json:"ignoreTimespans"`
 	}
 
-	if request.Body != nil {
-		err := json.NewDecoder(request.Body).Decode(&requestBody)
+	requestBody, _ := ioutil.ReadAll(request.Body)
+
+	if len(requestBody) > 0 {
+		err := json.NewDecoder(request.Body).Decode(&body)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err, request, requestBody)
 			return
@@ -1147,7 +1150,7 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 		return
 	}
 
-	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit, requestBody.IgnoreTimespans)
+	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit, body.IgnoreTimespans)
 	if err != nil {
 		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, request, communication.Calendar, nil)
 		return
