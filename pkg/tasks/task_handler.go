@@ -765,13 +765,20 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	}
 
 	if queryIsDone != "" {
-		operator, value, err := extractOperatorAndValue(queryEventType)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", err, request, nil)
+		queryIsDoneParts := strings.Split(queryIsDone, ":")
+		queryIsDonePart := ""
+		operator := "$eq"
+		if len(queryIsDoneParts) == 1 {
+			queryIsDonePart = queryIsDoneParts[0]
+		} else if len(queryIsDoneParts) == 2 {
+			operator = queryIsDoneParts[0]
+			queryIsDonePart = queryIsDoneParts[1]
+		} else {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", nil, request, nil)
 			return
 		}
 
-		isDone, err := strconv.ParseBool(value)
+		isDone, err := strconv.ParseBool(queryIsDonePart)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for isDone", err, request, nil)
 			return
