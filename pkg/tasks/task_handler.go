@@ -1131,7 +1131,7 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 	requestBody, _ := ioutil.ReadAll(request.Body)
 
 	if len(requestBody) > 0 {
-		err := json.NewDecoder(request.Body).Decode(&body)
+		err := json.Unmarshal(requestBody, &body)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err, request, requestBody)
 			return
