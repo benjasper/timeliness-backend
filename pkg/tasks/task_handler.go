@@ -1126,10 +1126,13 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 	var requestBody struct {
 		IgnoreTimespans []date.Timespan `json:"ignoreTimespans"`
 	}
-	err := json.NewDecoder(request.Body).Decode(&requestBody)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err, request, requestBody)
-		return
+
+	if request.Body != nil {
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err, request, requestBody)
+			return
+		}
 	}
 
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
