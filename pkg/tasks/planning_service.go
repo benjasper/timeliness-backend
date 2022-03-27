@@ -128,6 +128,7 @@ func (s *PlanningService) initializeTimeWindow(task *Task, relevantUsers []*user
 	}, constraint, nil
 }
 
+// getAllRelevantUsers fetches all relevant users for a task, the first one is always the owner
 func (s *PlanningService) getAllRelevantUsers(ctx context.Context, task *Task) ([]*users.User, error) {
 	var initializeWithOwner *users.User
 
@@ -303,25 +304,6 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		}
 	}
 
-	//  Check if a user is missing the due date event
-	if len(t.DueAt.CalendarEvents) != len(relevantUsers) {
-		t.DueAt.Blocking = false
-		t.DueAt.Date.End = t.DueAt.Date.Start.Add(time.Minute * 15)
-
-		var dueEvent *calendar.Event
-		for _, user := range relevantUsers {
-			if persistedEvent := t.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
-				continue
-			}
-			dueEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&t.DueAt, t.ID.Hex(), s.taskTextRenderer.RenderDueEventTitle(t), "", s.taskTextRenderer.HasReminder(t))
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		t.DueAt = *dueEvent
-	}
-
 	// Check if all work units are done, and mark the task as done if so
 	allDone := true
 	for _, unit := range t.WorkUnits {
@@ -349,6 +331,12 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		allDone = false
 	}
 	t.IsDone = allDone
+
+	// Create due date event if it doesn't exist
+	t, err = s.UpdateDueAtEvent(ctx, t, relevantUsers, taskCalendarRepositories, false, true)
+	if err != nil {
+		return nil, err
+	}
 
 	if !t.ID.IsZero() {
 		err = s.taskRepository.Update(ctx, t, false)
@@ -488,7 +476,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 }
 
 // SuggestTimespansForWorkUnit returns a list of timespans that can be used to reschedule a work unit
-func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Task, w *WorkUnit) ([][]date.Timespan, error) {
+func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Task, w *WorkUnit, ignoreTimespans []date.Timespan) ([][]date.Timespan, error) {
 	relevantUsers, err := s.getAllRelevantUsers(ctx, t)
 	if err != nil {
 		return nil, err
@@ -497,6 +485,10 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 	windowTotal, constraint, err := s.initializeTimeWindow(t, relevantUsers)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, timespan := range ignoreTimespans {
+		windowTotal.AddToBusy(timespan)
 	}
 
 	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)
@@ -537,8 +529,8 @@ func (s *PlanningService) findWorkUnitTimes(w *date.TimeWindow, durationToFind t
 		return workUnits
 	}
 
-	minDuration := 1 * time.Hour
-	if durationToFind < 1*time.Hour {
+	minDuration := user.Settings.Scheduling.MinWorkUnitDuration
+	if durationToFind < user.Settings.Scheduling.MinWorkUnitDuration {
 		minDuration = durationToFind
 	}
 	maxDuration := user.Settings.Scheduling.MaxWorkUnitDuration
@@ -572,8 +564,8 @@ func (s *PlanningService) findWorkUnitTimesForExactWorkload(w *date.TimeWindow, 
 	for i := 0; i < iterations; i++ {
 		durationToFind := durationToFindPerIteration
 
-		minDuration := 1 * time.Hour
-		if durationToFind < 1*time.Hour {
+		minDuration := user.Settings.Scheduling.MinWorkUnitDuration
+		if durationToFind < user.Settings.Scheduling.MinWorkUnitDuration {
 			minDuration = durationToFind
 		}
 		maxDuration := user.Settings.Scheduling.MaxWorkUnitDuration
@@ -655,26 +647,84 @@ func (s *PlanningService) CreateNewSpecificWorkUnits(ctx context.Context, task *
 	return task, nil
 }
 
-// UpdateDueAtEvent updates a due at event
-func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task) error {
-	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
-	if err != nil {
-		return err
+// UpdateDueAtEvent updates a due at event, creates missing events and deletes event when necessary
+func (s *PlanningService) UpdateDueAtEvent(ctx context.Context, task *Task, relevantUsers []*users.User, taskCalendarRepositories map[string]calendar.RepositoryInterface, needsUpdate bool, ownerNeedsUpdate bool) (*Task, error) {
+	// Create a new event for the due at date if it doesn't exist for a user
+	if !task.IsDone && len(task.DueAt.CalendarEvents) != len(relevantUsers) {
+		task.DueAt.Blocking = false
+		task.DueAt.Date.End = task.DueAt.Date.Start.Add(time.Minute * 15)
+
+		var dueEvent *calendar.Event
+		for _, user := range relevantUsers {
+			if persistedEvent := task.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent != nil {
+				continue
+			}
+
+			var err error
+			dueEvent, err = taskCalendarRepositories[user.ID.Hex()].NewEvent(&task.DueAt, task.ID.Hex(), s.taskTextRenderer.RenderDueEventTitle(task), "", s.taskTextRenderer.HasReminder(task))
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		task.DueAt = *dueEvent
+
+		err := s.taskRepository.Update(ctx, task, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Remove event when it's not needed anymore
+	if relevantUsers[0].Settings.Scheduling.HideDeadlineWhenDone && task.IsDone {
+		for _, user := range relevantUsers {
+			if persistedEvent := task.DueAt.CalendarEvents.FindByUserID(user.ID.Hex()); persistedEvent == nil {
+				continue
+			}
+
+			var err error
+			err = taskCalendarRepositories[user.ID.Hex()].DeleteEvent(&task.DueAt)
+			if err != nil {
+				// We ignore the error here, because we don't want to stop the update process
+			}
+
+			task.DueAt.CalendarEvents = task.DueAt.CalendarEvents.RemoveByUserID(user.ID.Hex())
+		}
+
+		err := s.taskRepository.Update(ctx, task, false)
+		if err != nil {
+			return nil, err
+		}
+
+		return task, nil
+	}
+
+	if !needsUpdate {
+		return task, nil
 	}
 
 	for _, user := range relevantUsers {
+		if user.ID.Hex() == task.UserID.Hex() && !ownerNeedsUpdate {
+			continue
+		}
+
 		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		err = repository.UpdateEvent(&task.DueAt, task.ID.Hex(), s.taskTextRenderer.RenderDueEventTitle(task), "", s.taskTextRenderer.HasReminder(task))
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	err := s.taskRepository.Update(ctx, task, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }
 
 // UpdateWorkUnitEvent updates a work unit event
@@ -701,8 +751,6 @@ func (s *PlanningService) UpdateWorkUnitEvent(ctx context.Context, task *Task, u
 
 // UpdateTaskTitle updates the events of the tasks and work units
 func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updateWorkUnits bool) error {
-	dueAtTitle := s.taskTextRenderer.RenderDueEventTitle(task)
-
 	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
 	if err != nil {
 		return err
@@ -717,11 +765,11 @@ func (s *PlanningService) UpdateTaskTitle(ctx context.Context, task *Task, updat
 		}
 
 		repositories[user.ID.Hex()] = repository
+	}
 
-		err = repository.UpdateEvent(&task.DueAt, task.ID.Hex(), dueAtTitle, "", s.taskTextRenderer.HasReminder(task))
-		if err != nil {
-			return err
-		}
+	task, err = s.UpdateDueAtEvent(ctx, task, relevantUsers, repositories, true, true)
+	if err != nil {
+		return err
 	}
 
 	if !updateWorkUnits {
@@ -845,6 +893,50 @@ func (s *PlanningService) SyncCalendar(ctx context.Context, user *users.User, ca
 	}
 }
 
+// DueDateChanged should be triggered when the due date changes. The task needs to be locked before this is called.
+func (s *PlanningService) DueDateChanged(ctx context.Context, task *Task, ownerNeedsUpdate bool) (*Task, error) {
+	task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
+
+	relevantUsers, err := s.getAllRelevantUsers(ctx, task)
+	if err != nil {
+		return nil, err
+	}
+
+	repositories := make(map[string]calendar.RepositoryInterface)
+
+	for _, user := range relevantUsers {
+		repository, err := s.calendarRepositoryManager.GetTaskCalendarRepositoryForUser(ctx, user)
+		if err != nil {
+			return nil, err
+		}
+
+		repositories[user.ID.Hex()] = repository
+	}
+
+	task, err = s.UpdateDueAtEvent(ctx, task, relevantUsers, repositories, true, ownerNeedsUpdate)
+	if err != nil {
+		return nil, err
+	}
+
+	// In case there are work units now after the deadline
+	var toReschedule []WorkUnit
+	for _, unit := range task.WorkUnits {
+		if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) && unit.IsDone == false {
+			toReschedule = append(toReschedule, unit)
+		}
+	}
+
+	for _, unit := range toReschedule {
+		var err error
+		task, err = s.RescheduleWorkUnit(ctx, task, &unit, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return task, nil
+}
+
 // processTaskEventChange processes a single event change and updates the task accordingly
 func (s *PlanningService) processTaskEventChange(ctx context.Context, event *calendar.Event, userID string) {
 	calendarEvent := event.CalendarEvents.FindByUserID(userID)
@@ -889,16 +981,16 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	dueAtCalendarEvent := task.DueAt.CalendarEvents.FindByUserID(userID)
 	if dueAtCalendarEvent != nil && dueAtCalendarEvent.CalendarEventID == calendarEvent.CalendarEventID {
-		// If there is no change we do nothing
-		if task.DueAt.Date == event.Date {
+		// If there is no change we do nothing or if the task was deleted by us (no calendar events left)
+		if task.DueAt.Date == event.Date || (event.Deleted && task.DueAt.CalendarEvents.IsEmpty()) {
 			return
 		}
 
-		// If the event is deleted we delete the task
+		// If the event is deleted
 		if event.Deleted {
-			err := s.DeleteTask(ctx, task)
+			err = s.DeleteTask(ctx, task)
 			if err != nil {
-				s.logger.Error("Error while deleting task", err)
+				s.logger.Error(fmt.Sprintf("Error while deleting task %s", task.ID.Hex()), err)
 				return
 			}
 
@@ -907,43 +999,30 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 		// If the event is not deleted, we update the task
 		task.DueAt.Date = event.Date
-		err = s.updateCalendarEventForOtherCollaborators(ctx, task, userID, &task.DueAt, s.taskTextRenderer.RenderDueEventTitle(task), s.taskTextRenderer.HasReminder(task))
+		task, err = s.DueDateChanged(ctx, task, false)
 		if err != nil {
-			s.logger.Error(fmt.Sprintf("error updating other collaborators workUnit event %s", task.ID.Hex()), err)
+			s.logger.Error(fmt.Sprintf("Error while updating due date event for task %s", task.ID.Hex()), err)
 			return
 		}
 
+		// Update the task
 		err = s.taskRepository.Update(ctx, task, false)
 		if err != nil {
-			s.logger.Error("Error while updating task", err)
+			s.logger.Error(fmt.Sprintf("Error while updating task %s", task.ID.Hex()), err)
 			return
-		}
-
-		// Also check if we need to reschedule work units
-		var toReschedule []WorkUnit
-		for _, unit := range task.WorkUnits {
-			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) && unit.IsDone == false {
-				toReschedule = append(toReschedule, unit)
-			}
-		}
-
-		for _, unit := range toReschedule {
-			task, err = s.RescheduleWorkUnit(ctx, task, &unit, false)
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err)
-				return
-			}
 		}
 
 		return
 	}
 
+	// At this point the event is not the due date event, so we check if it is a work unit event
 	index, workUnit := task.WorkUnits.FindByCalendarID(calendarEvent.CalendarEventID)
 	if workUnit == nil {
 		s.logger.Error("event not found", errors.Errorf("could not find work unit for calendar event %s", calendarEvent.CalendarEventID))
 		return
 	}
 
+	// If the work unit date is the same as the event date, we do nothing
 	if workUnit.ScheduledAt.Date.Start == event.Date.Start && workUnit.ScheduledAt.Date.End == event.Date.End {
 		return
 	}

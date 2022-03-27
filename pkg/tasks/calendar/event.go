@@ -55,6 +55,11 @@ func (c PersistedEvents) FindByCalendarID(ID string) *PersistedEvent {
 	return nil
 }
 
+// IsEmpty returns true if the slice is empty
+func (c PersistedEvents) IsEmpty() bool {
+	return len(c) == 0
+}
+
 // FindByUserID finds a PersistedEvent by its UserID
 func (c PersistedEvents) FindByUserID(ID string) *PersistedEvent {
 	userID, _ := primitive.ObjectIDFromHex(ID)
@@ -66,6 +71,20 @@ func (c PersistedEvents) FindByUserID(ID string) *PersistedEvent {
 	}
 
 	return nil
+}
+
+// RemoveByUserID removes a PersistedEvent by its UserID
+func (c PersistedEvents) RemoveByUserID(ID string) PersistedEvents {
+	userID, _ := primitive.ObjectIDFromHex(ID)
+
+	for i, event := range c {
+		if event.UserID == userID {
+			c = append(c[:i], c[i+1:]...)
+			return c
+		}
+	}
+
+	return c
 }
 
 // Calendar represents a calendar of any source

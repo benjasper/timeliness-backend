@@ -35,7 +35,7 @@ func (r *MockCalendarRepository) findEventByID(ID string) (*Event, int, error) {
 		return event, i, nil
 	}
 
-	return nil, -1, nil
+	return nil, -1, errors.New("event does not exist")
 }
 
 // TestTaskCalendarExistence creates a test calendar

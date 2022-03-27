@@ -13,6 +13,8 @@ var ErrNonSyncable = errors.New("non_syncable_calendar")
 // RepositoryInterface is an interface for every calendar implementation e.g. Google Calendar, Microsoft Calendar,...
 type RepositoryInterface interface {
 	GetAllCalendarsOfInterest() (map[string]*Calendar, error)
+
+	// NewEvent creates a new event in a calendar and adds a persisted event to the event struct
 	NewEvent(event *Event, taskID string, title string, description string, withReminder bool) (*Event, error)
 	TestTaskCalendarExistence(*users.User) (*users.User, error)
 

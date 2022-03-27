@@ -17,6 +17,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/sync/errgroup"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"strconv"
@@ -145,28 +146,10 @@ func (handler *Handler) TaskUpdate(writer http.ResponseWriter, request *http.Req
 	}
 
 	if original.DueAt.Date != task.DueAt.Date {
-		task.DueAt.Date.End = task.DueAt.Date.Start.Add(15 * time.Minute)
-
-		err = handler.PlanningService.UpdateDueAtEvent(request.Context(), task)
+		task, err = handler.PlanningService.DueDateChanged(request.Context(), task, true)
 		if err != nil {
-			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error updating the task", err, request, communication.Calendar, parsedTask)
+			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, fmt.Sprintf("Error updating due date for task %s", taskID), err, request, communication.Calendar, parsedTask)
 			return
-		}
-
-		// In case there are work units now after the deadline
-		var toReschedule []WorkUnit
-		for _, unit := range task.WorkUnits {
-			if unit.ScheduledAt.Date.End.After(task.DueAt.Date.Start) && unit.IsDone == false {
-				toReschedule = append(toReschedule, unit)
-			}
-		}
-
-		for _, unit := range toReschedule {
-			task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &unit, false)
-			if err != nil {
-				handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, fmt.Sprintf("Error rescheduling work unit %s", unit.ID.Hex()), err, request, communication.Calendar, parsedTask)
-				return
-			}
 		}
 	}
 
@@ -458,6 +441,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 	lastModifiedAt := request.URL.Query().Get("lastModifiedAt")
 	includeDeletedQuery := request.URL.Query().Get("includeDeleted")
 	queryIsDoneAndDueAt := request.URL.Query().Get("isDoneAndDueAt")
+	queryIsDone := request.URL.Query().Get("isDone")
 
 	includeDeleted := false
 	if includeDeletedQuery != "" {
@@ -489,7 +473,12 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	var filters []Filter
+	andFilter := ConcatFilter{Operator: "$and"}
+	tagsFilter, err := handler.buildTagFilter(request, writer)
+	if err != nil {
+		// No need to respond with an error, the error has already been handled
+		return
+	}
 
 	if queryDueAt != "" {
 		timeValue, err := time.Parse(time.RFC3339, queryDueAt)
@@ -497,7 +486,30 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
-		filters = append(filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "dueAt.date.start", Operator: "$gte", Value: timeValue})
+	}
+
+	if queryIsDone != "" {
+		queryIsDoneParts := strings.Split(queryIsDone, ":")
+		queryIsDonePart := ""
+		operator := "$eq"
+		if len(queryIsDoneParts) == 1 {
+			queryIsDonePart = queryIsDoneParts[0]
+		} else if len(queryIsDoneParts) == 2 {
+			operator = queryIsDoneParts[0]
+			queryIsDonePart = queryIsDoneParts[1]
+		} else {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", nil, request, nil)
+			return
+		}
+
+		isDone, err := strconv.ParseBool(queryIsDonePart)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for isDone", err, request, nil)
+			return
+		}
+
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "isDone", Operator: operator, Value: isDone})
 	}
 
 	if lastModifiedAt != "" {
@@ -506,7 +518,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
-		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
 	isDoneAndDueAt := time.Time{}
@@ -518,7 +530,7 @@ func (handler *Handler) GetAllTasks(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, filters, isDoneAndDueAt, includeDeleted)
+	tasks, count, err := handler.TaskRepository.FindAll(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter, tagsFilter}, isDoneAndDueAt, includeDeleted)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
@@ -578,7 +590,12 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 		}
 	}
 
-	var filters []Filter
+	andFilter := ConcatFilter{Operator: "$and"}
+	tagsFilter, err := handler.buildTagFilter(request, writer)
+	if err != nil {
+		// No need to respond with an error, the error has already been handled
+		return
+	}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -617,7 +634,7 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 			return
 		}
 
-		filters = append(filters, Filter{Field: "workUnit.isDone", Value: value})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "workUnit.isDone", Value: value})
 	}
 
 	if lastModifiedAt != "" {
@@ -626,10 +643,10 @@ func (handler *Handler) GetAllTasksByWorkUnits(writer http.ResponseWriter, reque
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong date format in query string", err, request, nil)
 			return
 		}
-		filters = append(filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "lastModifiedAt", Operator: "$gte", Value: timeValue})
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, filters, includeDeleted, isDoneAndScheduledAt)
+	tasks, count, err := handler.TaskRepository.FindAllByWorkUnits(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter, tagsFilter}, includeDeleted, isDoneAndScheduledAt)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
@@ -734,10 +751,44 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 	queryPageSize := request.URL.Query().Get("pageSize")
 	queryDate := request.URL.Query().Get("date")
 	querySort := request.URL.Query().Get("sort")
+	queryIsDone := request.URL.Query().Get("isDone")
+	queryEventType := request.URL.Query().Get("date.type")
+
 	d := time.Time{}
 	sort := 1
 
-	var filters []Filter
+	andFilter := ConcatFilter{Operator: "$and"}
+	tagsFilter, err := handler.buildTagFilter(request, writer)
+	if err != nil {
+		// No need to respond with an error, the error has already been handled
+		return
+	}
+
+	if queryIsDone != "" {
+		operator, value, err := extractOperatorAndValue(queryEventType)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter isDone", err, request, nil)
+			return
+		}
+
+		isDone, err := strconv.ParseBool(value)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Bad value for isDone", err, request, nil)
+			return
+		}
+
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "isDone", Operator: operator, Value: isDone})
+	}
+
+	if queryEventType != "" {
+		operator, value, err := extractOperatorAndValue(queryEventType)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter date.type", err, request, nil)
+			return
+		}
+
+		andFilter.Filters = append(andFilter.Filters, Filter{Field: "date.type", Operator: operator, Value: value})
+	}
 
 	if queryPage != "" {
 		page, err = strconv.Atoi(queryPage)
@@ -774,7 +825,7 @@ func (handler *Handler) GetTasksByAgenda(writer http.ResponseWriter, request *ht
 		return
 	}
 
-	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, filters, d, sort)
+	tasks, count, err := handler.TaskRepository.FindAllByDate(request.Context(), userID, page, pageSize, []ConcatFilter{andFilter, tagsFilter}, d, sort)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error in query", err, request, nil)
 		return
@@ -1073,6 +1124,20 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 	taskID := mux.Vars(request)["taskID"]
 	workUnitID := mux.Vars(request)["workUnitID"]
 
+	var body struct {
+		IgnoreTimespans []date.Timespan `json:"ignoreTimespans"`
+	}
+
+	requestBody, _ := ioutil.ReadAll(request.Body)
+
+	if len(requestBody) > 0 {
+		err := json.Unmarshal(requestBody, &body)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err, request, requestBody)
+			return
+		}
+	}
+
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
@@ -1085,11 +1150,63 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 		return
 	}
 
-	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit)
+	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit, body.IgnoreTimespans)
 	if err != nil {
 		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, request, communication.Calendar, nil)
 		return
 	}
 
 	handler.ResponseManager.Respond(writer, timespans)
+}
+
+func (handler *Handler) buildTagFilter(request *http.Request, writer http.ResponseWriter) (ConcatFilter, error) {
+	// query filters in format of "operator:value,operator:value" or "value,value"
+	tagsFilter := ConcatFilter{Operator: "$or"}
+	queryTags := request.URL.Query().Get("tags")
+
+	if queryTags != "" {
+		for _, tagFilter := range strings.Split(queryTags, ",") {
+			queryTagsParts := strings.Split(tagFilter, ":")
+			queryTagID := ""
+			operator := "$eq"
+			if len(queryTagsParts) == 1 {
+				queryTagID = queryTagsParts[0]
+			} else if len(queryTagsParts) == 2 {
+				operator = queryTagsParts[0]
+				queryTagID = queryTagsParts[1]
+			} else {
+				var err = errors.New(fmt.Sprintf("Invalid tag filter %s", tagFilter))
+				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter tags", err, request, nil)
+				return ConcatFilter{}, err
+			}
+
+			tagObjectID, err := primitive.ObjectIDFromHex(queryTagID)
+			if err != nil {
+				var err = errors.New(fmt.Sprintf("Invalid tag id %s", queryTagID))
+				handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Wrong query parameter tags", err, request, nil)
+				return ConcatFilter{}, err
+			}
+
+			tagsFilter.Filters = append(tagsFilter.Filters, Filter{Field: "tags", Operator: operator, Value: tagObjectID})
+		}
+	}
+
+	return tagsFilter, nil
+}
+
+func extractOperatorAndValue(filter string) (string, string, error) {
+	parts := strings.Split(filter, ":")
+	part := ""
+	operator := "$eq"
+
+	if len(parts) == 1 {
+		part = parts[0]
+	} else if len(parts) == 2 {
+		operator = parts[0]
+		part = parts[1]
+	} else {
+		return "", "", errors.Errorf("Invalid filter %s", filter)
+	}
+
+	return operator, part, nil
 }

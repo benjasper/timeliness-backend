@@ -291,6 +291,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 		user.Settings.Scheduling.TimeZone = "Europe/Berlin"
 		user.Settings.Scheduling.BusyTimeSpacing = time.Minute * 15
 		user.Settings.Scheduling.TimingPreference = TimingPreferenceEarly
+		user.Settings.Scheduling.MinWorkUnitDuration = time.Hour * 1
 		user.Settings.Scheduling.MaxWorkUnitDuration = time.Hour * 4
 		user.Settings.Scheduling.AllowedTimespans = make([]date.Timespan, 0)
 
@@ -461,6 +462,13 @@ func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *h
 			userSettings.Scheduling.TimingPreference != TimingPreferenceLate &&
 			userSettings.Scheduling.TimingPreference != TimingPreferenceVeryLate {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("TimingPreference is invalid"), nil, request, userSettings)
+			return
+		}
+	}
+
+	if userSettings.Scheduling.MinWorkUnitDuration != originalSettings.Scheduling.MinWorkUnitDuration {
+		if userSettings.Scheduling.MinWorkUnitDuration < time.Minute*5 || userSettings.Scheduling.MinWorkUnitDuration > time.Hour*8 {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("MinWorkUnitDuration is invalid"), nil, request, userSettings)
 			return
 		}
 	}
