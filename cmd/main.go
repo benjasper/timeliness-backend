@@ -230,6 +230,7 @@ func main() {
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{workUnitID}/calendar").HandlerFunc(taskHandler.GetWorkUnitCalendarData).Methods(http.MethodGet)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{workUnitID}/done").HandlerFunc(taskHandler.MarkWorkUnitAsDone).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{workUnitID}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnitGet).Methods(http.MethodGet)
+	authenticatedAPI.Path("/tasks/{taskID}/workunits/{workUnitID}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnitGet).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/tasks/{taskID}/workunits/{workUnitID}/reschedule").HandlerFunc(taskHandler.RescheduleWorkUnitPost).Methods(http.MethodPost)
 
 	authenticatedAPI.Path("/tags").HandlerFunc(tagHandler.TagAdd).Methods(http.MethodPost)

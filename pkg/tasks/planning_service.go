@@ -476,7 +476,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 }
 
 // SuggestTimespansForWorkUnit returns a list of timespans that can be used to reschedule a work unit
-func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Task, w *WorkUnit) ([][]date.Timespan, error) {
+func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Task, w *WorkUnit, ignoreTimespans []date.Timespan) ([][]date.Timespan, error) {
 	relevantUsers, err := s.getAllRelevantUsers(ctx, t)
 	if err != nil {
 		return nil, err
@@ -485,6 +485,10 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 	windowTotal, constraint, err := s.initializeTimeWindow(t, relevantUsers)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, timespan := range ignoreTimespans {
+		windowTotal.AddToBusy(timespan)
 	}
 
 	taskCalendarRepositories := make(map[string]calendar.RepositoryInterface)

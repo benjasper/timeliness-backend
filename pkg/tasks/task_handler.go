@@ -1123,6 +1123,15 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 	taskID := mux.Vars(request)["taskID"]
 	workUnitID := mux.Vars(request)["workUnitID"]
 
+	var requestBody struct {
+		IgnoreTimespans []date.Timespan `json:"ignoreTimespans"`
+	}
+	err := json.NewDecoder(request.Body).Decode(&requestBody)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, fmt.Sprintf("Invalid body format"), err, request, requestBody)
+		return
+	}
+
 	task, err := handler.TaskRepository.FindByID(request.Context(), taskID, userID, false)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, "Couldn't find task", err, request, nil)
@@ -1135,7 +1144,7 @@ func (handler *Handler) RescheduleWorkUnitGet(writer http.ResponseWriter, reques
 		return
 	}
 
-	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit)
+	timespans, err := handler.PlanningService.SuggestTimespansForWorkUnit(request.Context(), task, workUnit, requestBody.IgnoreTimespans)
 	if err != nil {
 		handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, request, communication.Calendar, nil)
 		return
