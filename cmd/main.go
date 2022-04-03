@@ -153,7 +153,7 @@ func main() {
 
 	emailService := email.NewSendInBlueService(environment.Global.Sendinblue)
 
-	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret, EmailService: emailService}
+	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret, EmailService: emailService, Locker: locker}
 	calendarHandler := tasks.CalendarHandler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager,
 		TaskRepository: &taskRepository, PlanningService: planningService, Locker: locker, CalendarRepositoryManager: calendarRepositoryManager}
 

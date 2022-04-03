@@ -17,6 +17,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
 	"github.com/timeliness-app/timeliness-backend/pkg/environment"
+	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"io/ioutil"
@@ -31,6 +32,7 @@ type Handler struct {
 	UserRepository  UserRepositoryInterface
 	Logger          logger.Interface
 	ResponseManager *communication.ResponseManager
+	Locker          locking.LockerInterface
 	Secret          string
 	EmailService    email.Mailer
 }
@@ -431,6 +433,19 @@ func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.R
 func (handler *Handler) UserSettingsPatch(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
 
+	lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(userID), time.Minute, false, time.Minute*5)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", userID), err, request, nil)
+		return
+	}
+
+	defer func() {
+		if err = lock.Release(request.Context()); err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", userID), err, request, nil)
+			return
+		}
+	}()
+
 	user, err := handler.UserRepository.FindByID(request.Context(), userID)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err, request, nil)
@@ -683,6 +698,10 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 	http.Redirect(writer, request, s.URL, http.StatusSeeOther)
 }
 
+func userLockingKey(userID string) string {
+	return fmt.Sprintf("user-%s", userID)
+}
+
 // ChangePayment redirects a user to the billing page
 func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.Request) {
 	userID := request.Context().Value(auth.KeyUserID).(string)
@@ -744,6 +763,19 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
+		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(userID), time.Minute, false, time.Minute*5)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", userID), err, request, b)
+			return
+		}
+
+		defer func() {
+			if err = lock.Release(request.Context()); err != nil {
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", userID), err, request, b)
+				return
+			}
+		}()
+
 		user, err := handler.UserRepository.FindByID(request.Context(), userID)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err, request, b)
@@ -787,6 +819,26 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
+		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(user.ID.Hex()), time.Minute, false, time.Minute*5)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", user.ID.Hex()), err, request, b)
+			return
+		}
+
+		defer func() {
+			if err = lock.Release(request.Context()); err != nil {
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", user.ID.Hex()), err, request, b)
+				return
+			}
+		}()
+
+		// Refresh user after potential wait time for lock
+		user, err = handler.UserRepository.FindByID(request.Context(), user.ID.Hex())
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with ID %s", user.ID.Hex()), err, request, b)
+			return
+		}
+
 		nextBilling := time.Unix(invoice.PeriodEnd, 0)
 
 		user.Billing.Status = BillingStatusSubscriptionActive
@@ -815,6 +867,26 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
+		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(user.ID.Hex()), time.Minute, false, time.Minute*5)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", user.ID.Hex()), err, request, b)
+			return
+		}
+
+		defer func() {
+			if err = lock.Release(request.Context()); err != nil {
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", user.ID.Hex()), err, request, b)
+				return
+			}
+		}()
+
+		// Refresh user after potential wait time for lock
+		user, err = handler.UserRepository.FindByID(request.Context(), user.ID.Hex())
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with ID %s", user.ID.Hex()), err, request, b)
+			return
+		}
+
 		user.Billing.Status = BillingStatusSubscriptionActive
 		user.Billing.EndsAt = time.Now().AddDate(0, 0, 3)
 
@@ -837,6 +909,26 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), subscription.Customer.ID)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", subscription.Customer.ID), err, request, b)
+			return
+		}
+
+		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(user.ID.Hex()), time.Minute, false, time.Minute*5)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", user.ID.Hex()), err, request, b)
+			return
+		}
+
+		defer func() {
+			if err = lock.Release(request.Context()); err != nil {
+				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", user.ID.Hex()), err, request, b)
+				return
+			}
+		}()
+
+		// Refresh user after potential wait time for lock
+		user, err = handler.UserRepository.FindByID(request.Context(), user.ID.Hex())
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with ID %s", user.ID.Hex()), err, request, b)
 			return
 		}
 

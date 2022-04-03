@@ -649,10 +649,10 @@ Loop:
 	}
 
 	go func(user *users.User, calendarIndex int) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*6)
 		defer cancel()
 
-		lock, err := handler.Locker.Acquire(ctx, user.ID.Hex(), time.Minute*1, false, 61*time.Second)
+		lock, err := handler.Locker.Acquire(ctx, fmt.Sprintf("user-%s", user.ID.Hex()), time.Minute*3, false, 5*time.Minute)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("error while acquiring lock for user %s", userID), err)
 			return
