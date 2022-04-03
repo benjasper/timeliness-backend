@@ -757,8 +757,6 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		handler.Logger.Debug(fmt.Sprintf("%d", sessionCompletedEvent.Subscription.CurrentPeriodEnd))
-
 		userID := sessionCompletedEvent.ClientReferenceID
 		if userID == "" {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user userID in subscription metadata", nil, request, b)
@@ -784,11 +782,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		nextBilling := time.Unix(sessionCompletedEvent.Subscription.CurrentPeriodEnd, 0)
-
 		user.Billing.CustomerID = sessionCompletedEvent.Customer.ID
-		user.Billing.Status = BillingStatusSubscriptionActive
-		user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
 
 		err = handler.UserRepository.Update(request.Context(), user)
 		if err != nil {
@@ -809,8 +803,6 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
 			return
 		}
-
-		handler.Logger.Debug(fmt.Sprintf("%d", invoice.Subscription.CurrentPeriodEnd))
 
 		if invoice.BillingReason == "subscription_create" {
 			handler.ResponseManager.RespondWithNoContent(writer)
@@ -843,7 +835,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		nextBilling := time.Unix(invoice.Subscription.CurrentPeriodEnd, 0)
+		nextBilling := time.Unix(invoice.Lines.Data[0].Period.End, 0)
 
 		user.Billing.Status = BillingStatusSubscriptionActive
 		user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
@@ -892,7 +884,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 		}
 
 		user.Billing.Status = BillingStatusSubscriptionActive
-		user.Billing.EndsAt = time.Now().AddDate(0, 0, 3)
+		user.Billing.EndsAt = time.Now().AddDate(0, 0, 1)
 
 		err = handler.UserRepository.Update(request.Context(), user)
 		if err != nil {
@@ -909,8 +901,6 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
 			return
 		}
-
-		handler.Logger.Debug(fmt.Sprintf("%d", subscription.CurrentPeriodEnd))
 
 		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), subscription.Customer.ID)
 		if err != nil {
@@ -942,6 +932,8 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			user.Billing.Status = BillingStatusSubscriptionCancelled
 		} else {
 			user.Billing.Status = BillingStatusSubscriptionActive
+			nextBilling := time.Unix(subscription.CurrentPeriodEnd, 0)
+			user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
 		}
 
 		err = handler.UserRepository.Update(request.Context(), user)
