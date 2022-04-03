@@ -757,7 +757,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		handler.Logger.Debug(fmt.Sprintf("%v", sessionCompletedEvent))
+		handler.Logger.Debug(fmt.Sprintf("%d", sessionCompletedEvent.Subscription.CurrentPeriodEnd))
 
 		userID := sessionCompletedEvent.ClientReferenceID
 		if userID == "" {
@@ -810,7 +810,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		handler.Logger.Debug(fmt.Sprintf("%v", invoice))
+		handler.Logger.Debug(fmt.Sprintf("%d", invoice.Subscription.CurrentPeriodEnd))
 
 		if invoice.BillingReason == "subscription_create" {
 			handler.ResponseManager.RespondWithNoContent(writer)
@@ -910,7 +910,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		handler.Logger.Debug(fmt.Sprintf("%v", subscription))
+		handler.Logger.Debug(fmt.Sprintf("%d", subscription.CurrentPeriodEnd))
 
 		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), subscription.Customer.ID)
 		if err != nil {
