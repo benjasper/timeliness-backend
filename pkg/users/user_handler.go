@@ -757,6 +757,8 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
+		handler.Logger.Debug(fmt.Sprintf("%v", sessionCompletedEvent))
+
 		userID := sessionCompletedEvent.ClientReferenceID
 		if userID == "" {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user userID in subscription metadata", nil, request, b)
@@ -807,6 +809,8 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
 			return
 		}
+
+		handler.Logger.Debug(fmt.Sprintf("%v", invoice))
 
 		if invoice.BillingReason == "subscription_create" {
 			handler.ResponseManager.RespondWithNoContent(writer)
@@ -905,6 +909,8 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
 			return
 		}
+
+		handler.Logger.Debug(fmt.Sprintf("%v", subscription))
 
 		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), subscription.Customer.ID)
 		if err != nil {
