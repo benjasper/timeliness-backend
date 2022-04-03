@@ -56,7 +56,7 @@ func main() {
 		redisURL = "localhost:6379"
 	}
 
-	if environment.Global.Environment != environment.Production {
+	if environment.Global.Environment == environment.Production {
 		stripe.Key = environment.Global.StripeLive
 	} else {
 		stripe.Key = environment.Global.StripeTest
