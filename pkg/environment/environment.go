@@ -39,12 +39,10 @@ func Initialize() {
 	data, err := godotenv.Read(".env")
 	if err != nil {
 		panic(err)
-		return
 	}
 
 	err = mapstructure.Decode(data, &Global)
 	if err != nil {
 		panic(err)
-		return
 	}
 }
