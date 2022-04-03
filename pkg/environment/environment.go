@@ -20,7 +20,6 @@ type Environment struct {
 	Cors                    string `mapstructure:"CORS"`
 	Secret                  string `mapstructure:"SECRET"`
 	SchedulerSecret         string `mapstructure:"SCHEDULER_SECRET"`
-	Port                    string `mapstructure:"PORT"`
 	Database                string `mapstructure:"DATABASE"`
 	DatabaseURL             string `mapstructure:"DATABASE_URL"`
 	Redis                   string `mapstructure:"REDIS"`

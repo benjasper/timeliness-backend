@@ -263,8 +263,13 @@ func main() {
 		})
 	})
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+
 	http.Handle("/", r)
-	server := http.Server{Addr: ":" + environment.Global.Port, Handler: r}
+	server := http.Server{Addr: ":" + port, Handler: r}
 
 	go func() {
 		if err = server.ListenAndServe(); err != nil {
@@ -276,7 +281,7 @@ func main() {
 		}
 	}()
 
-	logging.Info("Server started on port " + environment.Global.Port)
+	logging.Info("Server started on port " + port)
 
 	// Setting up signal capturing
 	stop := make(chan os.Signal, 1)
