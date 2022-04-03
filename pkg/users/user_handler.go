@@ -839,7 +839,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		nextBilling := time.Unix(invoice.PeriodEnd, 0)
+		nextBilling := time.Unix(invoice.Subscription.CurrentPeriodEnd, 0)
 
 		user.Billing.Status = BillingStatusSubscriptionActive
 		user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
