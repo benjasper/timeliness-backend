@@ -653,10 +653,11 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 	}
 
 	params := &stripe.CheckoutSessionParams{
-		SuccessURL:    stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=true"),
-		CancelURL:     stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=false"),
-		Mode:          stripe.String(string(stripe.CheckoutSessionModeSubscription)),
-		CustomerEmail: stripe.String(user.Email),
+		SuccessURL:        stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=true"),
+		CancelURL:         stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=false"),
+		Mode:              stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+		CustomerEmail:     stripe.String(user.Email),
+		ClientReferenceID: stripe.String(user.ID.Hex()),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price: stripe.String(priceID),
@@ -664,9 +665,6 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 				Quantity: stripe.Int64(1),
 			},
 		}, SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
-			Metadata: map[string]string{
-				"userID": user.ID.Hex(),
-			},
 			TrialEnd: trialEnd,
 		},
 	}
@@ -739,9 +737,9 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		userID := sessionCompletedEvent.Subscription.Metadata["userID"]
+		userID := sessionCompletedEvent.ClientReferenceID
 		if userID == "" {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user UserID in subscription metadata", nil, request, b)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user userID in subscription metadata", nil, request, b)
 			return
 		}
 
