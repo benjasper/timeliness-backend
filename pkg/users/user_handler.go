@@ -739,9 +739,9 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		userID := sessionCompletedEvent.Metadata["userID"]
+		userID := sessionCompletedEvent.Subscription.Metadata["userID"]
 		if userID == "" {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user UserID in metadata", nil, request, b)
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user UserID in subscription metadata", nil, request, b)
 			return
 		}
 
