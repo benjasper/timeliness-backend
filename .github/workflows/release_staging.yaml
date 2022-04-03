@@ -30,7 +30,7 @@ jobs:
       - name: Create .env file
         uses: SpicyPizza/create-envfile@v1.2
         with:
-          envkey_APP_ENV: prod
+          envkey_APP_ENV: staging
           envkey_BASE_URL: https://staging.api.timeliness.app
           envkey_FRONTEND_BASE_URL: https://staging.web.timeliness.app
           envkey_CORS: staging.web.timeliness.app
