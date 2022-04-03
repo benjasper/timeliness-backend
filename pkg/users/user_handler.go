@@ -711,6 +711,7 @@ func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.
 	http.Redirect(writer, request, ps.URL, http.StatusSeeOther)
 }
 
+// ReceiveBillingEvent receives a billing event from Stripe
 func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request *http.Request) {
 	b, err := ioutil.ReadAll(request.Body)
 	if err != nil {

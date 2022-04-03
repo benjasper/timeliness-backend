@@ -37,6 +37,7 @@ type Environment struct {
 // Global holds the global environment variables
 var Global Environment
 
+// Initialize loads the environment variables into Global
 func Initialize() {
 	data, err := godotenv.Read(".env")
 	if err != nil {
