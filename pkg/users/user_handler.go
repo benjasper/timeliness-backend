@@ -656,7 +656,6 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 		SuccessURL:        stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=true"),
 		CancelURL:         stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=false"),
 		Mode:              stripe.String(string(stripe.CheckoutSessionModeSubscription)),
-		CustomerEmail:     stripe.String(user.Email),
 		ClientReferenceID: stripe.String(user.ID.Hex()),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
@@ -671,6 +670,8 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 
 	if user.Billing.CustomerID != "" {
 		params.Customer = stripe.String(user.Billing.CustomerID)
+	} else {
+		params.CustomerEmail = stripe.String(user.Email)
 	}
 
 	s, err := session.New(params)
