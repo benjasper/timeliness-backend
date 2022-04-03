@@ -386,7 +386,7 @@ func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.R
 	accessToken := jwt.New(jwt.AlgHS256, accessClaims)
 
 	scope := AppScopeFree
-	if user.Billing.Status == BillingStatusSubscriptionActive || user.Billing.Status == BillingStatusTrial {
+	if time.Now().Before(user.Billing.EndsAt) {
 		scope = AppScopePro
 	}
 
@@ -834,19 +834,17 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		// We only want to handle the cancel event
-		if !subscription.CancelAtPeriodEnd {
-			handler.ResponseManager.RespondWithNoContent(writer)
-			return
-		}
-
 		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), subscription.Customer.ID)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", subscription.Customer.ID), err, request, b)
 			return
 		}
 
-		user.Billing.Status = BillingStatusSubscriptionCancelled
+		if subscription.CancelAtPeriodEnd {
+			user.Billing.Status = BillingStatusSubscriptionCancelled
+		} else {
+			user.Billing.Status = BillingStatusSubscriptionActive
+		}
 
 		err = handler.UserRepository.Update(request.Context(), user)
 		if err != nil {
