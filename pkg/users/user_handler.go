@@ -16,11 +16,11 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
+	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -92,7 +92,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		ReceiverAddress: user.Email,
 		Template:        "1",
 		Parameters: map[string]interface{}{
-			"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", os.Getenv("BASE_URL"), user.EmailVerificationToken),
+			"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", environment.Global.BaseUrl, user.EmailVerificationToken),
 		},
 	})
 	if err != nil {
@@ -338,7 +338,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 				ReceiverAddress: user.Email,
 				Template:        "1",
 				Parameters: map[string]interface{}{
-					"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", os.Getenv("BASE_URL"), user.EmailVerificationToken),
+					"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", environment.Global.BaseUrl, user.EmailVerificationToken),
 				},
 			})
 			if err != nil {
@@ -596,7 +596,7 @@ func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, reques
 		}
 	}
 
-	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=%t", os.Getenv("FRONTEND_BASE_URL"), success), http.StatusFound)
+	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=%t", environment.Global.FrontendBaseUrl, success), http.StatusFound)
 }
 
 // NewsletterRegistration is the request body for the newsletter registration endpoint
@@ -640,7 +640,7 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 
 	priceID := mux.Vars(request)["priceID"]
 
-	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
+	frontendBaseUrl := environment.Global.FrontendBaseUrl
 
 	var trialLeft int64 = 0
 	if user.Billing.Status == BillingStatusTrial && user.CreatedAt.Before(time.Date(2022, time.April, 3, 0, 0, 0, 0, time.UTC)) {
@@ -696,7 +696,7 @@ func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
+	frontendBaseUrl := environment.Global.FrontendBaseUrl
 
 	// The URL to which the user is redirected when they are done managing
 	// billing in the portal.
@@ -722,7 +722,12 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 		return
 	}
 
-	event, err := webhook.ConstructEvent(b, request.Header.Get("Stripe-Signature"), os.Getenv("STRIPE_WEBHOOK_SECRET"))
+	secret := environment.Global.StripeWebhookSecret
+	if environment.Global.Environment != environment.Production {
+		secret = environment.Global.StripeWebhookSecretTest
+	}
+
+	event, err := webhook.ConstructEvent(b, request.Header.Get("Stripe-Signature"), secret)
 	if err != nil {
 		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error constructing event", err, request, b)
 		return

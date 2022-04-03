@@ -22,6 +22,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/joho/godotenv v1.4.0
+	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sendinblue/APIv3-go-library v2.0.0+incompatible
 	github.com/stripe/stripe-go/v72 v72.99.0 // indirect

@@ -9,6 +9,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/date"
+	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -538,7 +539,7 @@ func (c *GoogleCalendarRepository) eventToGoogleEvent(event *Event, taskID strin
 		transparency = "transparent"
 	}
 
-	frontendURL := os.Getenv("FRONTEND_BASE_URL")
+	frontendURL := environment.Global.FrontendBaseUrl
 
 	source := gcalendar.EventSource{Title: "Timeliness", Url: fmt.Sprintf("%s/dashboard/task/%s", frontendURL, taskID)}
 

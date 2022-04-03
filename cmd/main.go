@@ -32,55 +32,43 @@ func main() {
 		fmt.Println(err)
 	}
 
-	apiVersion := "v1"
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "80"
-	}
+	environment.Initialize()
 
-	accessControl := os.Getenv("CORS")
+	apiVersion := "v1"
+
+	accessControl := environment.Global.Cors
 	if accessControl == "" {
 		accessControl = "*"
 	}
 
-	appEnv := os.Getenv("APP_ENV")
-	if appEnv == "" {
-		appEnv = environment.Dev
-	}
-
-	databaseURL := os.Getenv("DATABASE_URL")
+	databaseURL := environment.Global.DatabaseUrl
 	if databaseURL == "" {
 		databaseURL = "mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"
 	}
 
-	database := os.Getenv("DATABASE")
+	database := environment.Global.Database
 	if database == "" {
 		database = "test"
 	}
 
-	redisURL := os.Getenv("REDIS")
+	redisURL := environment.Global.Redis
 	if redisURL == "" {
 		redisURL = "localhost:6379"
 	}
 
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-	if redisPassword == "" {
-		redisPassword = ""
-	}
-
-	if os.Getenv("STRIPE_LIVE") != "" {
-		stripe.Key = os.Getenv("STRIPE_LIVE")
+	if environment.Global.Environment != environment.Production {
+		stripe.Key = environment.Global.StripeLive
 	} else {
-		stripe.Key = os.Getenv("STRIPE_TEST")
+		stripe.Key = environment.Global.StripeTest
 	}
 
 	var logging logger.Interface = logger.Logger{}
-	if appEnv == environment.Production {
+	if environment.Global.Environment != environment.Dev {
 		logging = logger.NewGoogleCloudLogger()
 	}
 
-	if appEnv == environment.Production {
-		if err := profiler.Start(profiler.Config{}); err != nil {
+	if environment.Global.Environment == environment.Production {
+		if err = profiler.Start(profiler.Config{}); err != nil {
 			logging.Error("Could not start profiler", err)
 		}
 	}
@@ -118,7 +106,7 @@ func main() {
 	redisClient := redis.NewClient(&redis.Options{
 		Network:  "tcp",
 		Addr:     redisURL,
-		Password: redisPassword,
+		Password: environment.Global.RedisPassword,
 	})
 	defer func(redisClient *redis.Client) {
 		err := redisClient.Close()
@@ -140,14 +128,14 @@ func main() {
 	taskCollection := db.Collection("Tasks")
 	tagsCollection := db.Collection("Tags")
 
-	secret := os.Getenv("SECRET")
+	secret := environment.Global.Secret
 	if secret == "" {
 		secret = "local-secret"
 	}
 
 	locker := locking.NewLockerRedis(redisClient)
 
-	responseManager := communication.ResponseManager{Logger: logging, Environment: appEnv}
+	responseManager := communication.ResponseManager{Logger: logging, Environment: environment.Global.Environment}
 	userRepository := users.UserRepository{DB: userCollection, Logger: logging}
 
 	calendarRepositoryManager, err := tasks.NewCalendarRepositoryManager(10, &userRepository, logging)
@@ -163,7 +151,7 @@ func main() {
 
 	planningService := tasks.NewPlanningController(&userRepository, &taskRepository, logging, locker, calendarRepositoryManager)
 
-	emailService := email.NewSendInBlueService(os.Getenv("SENDINBLUE"))
+	emailService := email.NewSendInBlueService(environment.Global.Sendinblue)
 
 	userHandler := users.Handler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager, Secret: secret, EmailService: emailService}
 	calendarHandler := tasks.CalendarHandler{UserRepository: &userRepository, Logger: logging, ResponseManager: &responseManager,
@@ -276,7 +264,7 @@ func main() {
 	})
 
 	http.Handle("/", r)
-	server := http.Server{Addr: ":" + port, Handler: r}
+	server := http.Server{Addr: ":" + environment.Global.Port, Handler: r}
 
 	go func() {
 		if err = server.ListenAndServe(); err != nil {
@@ -288,7 +276,7 @@ func main() {
 		}
 	}()
 
-	logging.Info("Server started on port " + port)
+	logging.Info("Server started on port " + environment.Global.Port)
 
 	// Setting up signal capturing
 	stop := make(chan os.Signal, 1)
