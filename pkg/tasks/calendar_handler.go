@@ -509,7 +509,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 
 	if googleError != "" {
 		handler.Logger.Warning(fmt.Sprintf("Access was denied by user %s", usr.ID.Hex()), fmt.Errorf(googleError))
-		http.Redirect(writer, request, fmt.Sprintf("%s/static/google-error", environment.Global.FrontendBaseUrl), http.StatusTemporaryRedirect)
+		http.Redirect(writer, request, fmt.Sprintf("%s/static/google-error", environment.Global.FrontendBaseURL), http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -588,7 +588,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 		// We don't have to print error messages because the sub routine already took care of it
 	}
 
-	http.Redirect(writer, request, fmt.Sprintf("%s/static/google-connected", environment.Global.FrontendBaseUrl), http.StatusFound)
+	http.Redirect(writer, request, fmt.Sprintf("%s/static/google-connected", environment.Global.FrontendBaseURL), http.StatusFound)
 }
 
 // GoogleCalendarNotification receives event change notifications from Google Calendar

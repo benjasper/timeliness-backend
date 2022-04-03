@@ -92,7 +92,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 		ReceiverAddress: user.Email,
 		Template:        "1",
 		Parameters: map[string]interface{}{
-			"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", environment.Global.BaseUrl, user.EmailVerificationToken),
+			"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", environment.Global.BaseURL, user.EmailVerificationToken),
 		},
 	})
 	if err != nil {
@@ -338,7 +338,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 				ReceiverAddress: user.Email,
 				Template:        "1",
 				Parameters: map[string]interface{}{
-					"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", environment.Global.BaseUrl, user.EmailVerificationToken),
+					"verifyLink": fmt.Sprintf("%s/v1/auth/register/verify?token=%s", environment.Global.BaseURL, user.EmailVerificationToken),
 				},
 			})
 			if err != nil {
@@ -596,7 +596,7 @@ func (handler *Handler) VerifyRegistrationGet(writer http.ResponseWriter, reques
 		}
 	}
 
-	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=%t", environment.Global.FrontendBaseUrl, success), http.StatusFound)
+	http.Redirect(writer, request, fmt.Sprintf("%s/auth/verify?success=%t", environment.Global.FrontendBaseURL, success), http.StatusFound)
 }
 
 // NewsletterRegistration is the request body for the newsletter registration endpoint
@@ -640,8 +640,6 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 
 	priceID := mux.Vars(request)["priceID"]
 
-	frontendBaseUrl := environment.Global.FrontendBaseUrl
-
 	var trialLeft int64 = 0
 	if user.Billing.Status == BillingStatusTrial && user.CreatedAt.Before(time.Date(2022, time.April, 3, 0, 0, 0, 0, time.UTC)) {
 		trialLeft = time.Now().AddDate(0, 0, 60).Add(time.Hour).Round(time.Hour).Unix()
@@ -655,8 +653,8 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 	}
 
 	params := &stripe.CheckoutSessionParams{
-		SuccessURL:    stripe.String(frontendBaseUrl + "/dashboard/payment/result?success=true"),
-		CancelURL:     stripe.String(frontendBaseUrl + "/dashboard/payment/result?success=false"),
+		SuccessURL:    stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=true"),
+		CancelURL:     stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=false"),
 		Mode:          stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		CustomerEmail: stripe.String(user.Email),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
@@ -696,11 +694,9 @@ func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	frontendBaseUrl := environment.Global.FrontendBaseUrl
-
 	// The URL to which the user is redirected when they are done managing
 	// billing in the portal.
-	returnURL := frontendBaseUrl + "/settings"
+	returnURL := environment.Global.FrontendBaseURL + "/settings"
 
 	params := &stripe.BillingPortalSessionParams{
 		Customer:  stripe.String(user.ID.Hex()),

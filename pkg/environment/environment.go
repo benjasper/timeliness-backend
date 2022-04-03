@@ -14,6 +14,7 @@ const Staging = "staging"
 // Dev defines the dev environment
 const Dev = "dev"
 
+// Environment defines the environment
 type Environment struct {
 	Environment             string `mapstructure:"APP_ENV"`
 	Cors                    string `mapstructure:"CORS"`
@@ -21,7 +22,7 @@ type Environment struct {
 	SchedulerSecret         string `mapstructure:"SCHEDULER_SECRET"`
 	Port                    string `mapstructure:"PORT"`
 	Database                string `mapstructure:"DATABASE"`
-	DatabaseUrl             string `mapstructure:"DATABASE_URL"`
+	DatabaseURL             string `mapstructure:"DATABASE_URL"`
 	Redis                   string `mapstructure:"REDIS"`
 	RedisPassword           string `mapstructure:"REDIS_PASSWORD"`
 	Sendinblue              string `mapstructure:"SENDINBLUE"`
@@ -29,10 +30,11 @@ type Environment struct {
 	StripeTest              string `mapstructure:"STRIPE_TEST"`
 	StripeWebhookSecret     string `mapstructure:"STRIPE_WEBHOOK_SECRET"`
 	StripeWebhookSecretTest string `mapstructure:"STRIPE_WEBHOOK_SECRET_TEST"`
-	BaseUrl                 string `mapstructure:"BASE_URL"`
-	FrontendBaseUrl         string `mapstructure:"FRONTEND_BASE_URL"`
+	BaseURL                 string `mapstructure:"BASE_URL"`
+	FrontendBaseURL         string `mapstructure:"FRONTEND_BASE_URL"`
 }
 
+// Global holds the global environment variables
 var Global Environment
 
 func Initialize() {

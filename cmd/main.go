@@ -41,7 +41,7 @@ func main() {
 		accessControl = "*"
 	}
 
-	databaseURL := environment.Global.DatabaseUrl
+	databaseURL := environment.Global.DatabaseURL
 	if databaseURL == "" {
 		databaseURL = "mongodb://admin:123@localhost:27017/mongodb?authSource=admin&w=majority&readPreference=primary&retryWrites=true&ssl=false"
 	}

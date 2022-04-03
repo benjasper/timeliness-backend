@@ -206,6 +206,7 @@ var BillingStatusSubscriptionActive = "subscriptionActive"
 // BillingStatusSubscriptionCancelled is when a subscription is cancelled
 var BillingStatusSubscriptionCancelled = "subscriptionCancelled"
 
+// Billing is the billing information for stripe
 type Billing struct {
 	Status     string    `json:"status" bson:"status"`
 	CustomerID string    `json:"-" bson:"customerId"`
