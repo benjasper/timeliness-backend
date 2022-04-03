@@ -24,6 +24,7 @@ require (
 	github.com/joho/godotenv v1.4.0
 	github.com/pkg/errors v0.9.1
 	github.com/sendinblue/APIv3-go-library v2.0.0+incompatible
+	github.com/stripe/stripe-go/v72 v72.99.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
 	go.mongodb.org/mongo-driver v1.8.1
 	golang.org/x/crypto v0.0.0-20211209193657-4570a0811e8b

@@ -6,6 +6,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/stripe/stripe-go/v72"
+	portalsession "github.com/stripe/stripe-go/v72/billingportal/session"
+	"github.com/stripe/stripe-go/v72/checkout/session"
+	"github.com/stripe/stripe-go/v72/webhook"
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
@@ -14,6 +18,7 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"reflect"
@@ -295,6 +300,11 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 		user.Settings.Scheduling.MaxWorkUnitDuration = time.Hour * 4
 		user.Settings.Scheduling.AllowedTimespans = make([]date.Timespan, 0)
 
+		user.Billing = Billing{
+			Status: BillingStatusTrial,
+			EndsAt: time.Now().AddDate(0, 0, 14),
+		}
+
 		presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 		if presentUser != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusConflict, "User with email "+presentUser.Email+" already exists", err, request, userLogin)
@@ -339,7 +349,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 
 		err = handler.EmailService.AddToList(request.Context(), user.Email, email.AppUsersListID)
 		if err != nil {
-			handler.Logger.Error("Could not add user to app users list", err)
+			handler.Logger.Error(fmt.Sprintf("Could not add user %s to app users list", user.ID.Hex()), err)
 		}
 
 		user.GoogleCalendarConnections = append(user.GoogleCalendarConnections, GoogleCalendarConnection{
@@ -375,9 +385,15 @@ func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.R
 	}
 	accessToken := jwt.New(jwt.AlgHS256, accessClaims)
 
+	scope := AppScopeFree
+	if user.Billing.Status == BillingStatusSubscriptionActive || user.Billing.Status == BillingStatusTrial {
+		scope = AppScopePro
+	}
+
 	refreshTokenClaims := jwt.Claims{
 		Subject:   user.ID.Hex(),
 		Issuer:    "timeliness",
+		Scope:     scope,
 		IssuedAt:  time.Now().Unix(),
 		TokenType: jwt.TokenTypeRefresh,
 	}
@@ -610,4 +626,224 @@ func (handler *Handler) RegisterForNewsletter(writer http.ResponseWriter, reques
 	}
 
 	handler.ResponseManager.RespondWithNoContent(writer)
+}
+
+// InitiatePayment initiates a payment for a user
+func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err, request, nil)
+		return
+	}
+
+	priceID := mux.Vars(request)["priceID"]
+
+	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
+
+	var trialLeft int64 = 0
+	if user.Billing.Status == BillingStatusTrial && user.CreatedAt.Before(time.Date(2022, time.April, 3, 0, 0, 0, 0, time.UTC)) {
+		trialLeft = time.Now().AddDate(0, 0, 60).Add(time.Hour).Round(time.Hour).Unix()
+	} else if user.Billing.Status == BillingStatusTrial && time.Now().Before(user.Billing.EndsAt) {
+		trialLeft = user.Billing.EndsAt.Unix()
+	}
+
+	var trialEnd *int64 = nil
+	if trialLeft > 0 {
+		trialEnd = stripe.Int64(trialLeft)
+	}
+
+	params := &stripe.CheckoutSessionParams{
+		SuccessURL:    stripe.String(frontendBaseUrl + "/dashboard/payment/result?success=true"),
+		CancelURL:     stripe.String(frontendBaseUrl + "/dashboard/payment/result?success=false"),
+		Mode:          stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+		CustomerEmail: stripe.String(user.Email),
+		LineItems: []*stripe.CheckoutSessionLineItemParams{
+			{
+				Price: stripe.String(priceID),
+				// For metered billing, do not pass quantity
+				Quantity: stripe.Int64(1),
+			},
+		}, SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
+			Metadata: map[string]string{
+				"userID": user.ID.Hex(),
+			},
+			TrialEnd: trialEnd,
+		},
+	}
+
+	if user.Billing.CustomerID != "" {
+		params.Customer = stripe.String(user.Billing.CustomerID)
+	}
+
+	s, err := session.New(params)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error creating payment session", err, request, nil)
+		return
+	}
+
+	http.Redirect(writer, request, s.URL, http.StatusSeeOther)
+}
+
+// ChangePayment redirects a user to the billing page
+func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.Request) {
+	userID := request.Context().Value(auth.KeyUserID).(string)
+
+	user, err := handler.UserRepository.FindByID(request.Context(), userID)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err, request, nil)
+		return
+	}
+
+	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
+
+	// The URL to which the user is redirected when they are done managing
+	// billing in the portal.
+	returnURL := frontendBaseUrl + "/settings"
+
+	params := &stripe.BillingPortalSessionParams{
+		Customer:  stripe.String(user.ID.Hex()),
+		ReturnURL: stripe.String(returnURL),
+	}
+	ps, err := portalsession.New(params)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error creating payment portal session", err, request, nil)
+		return
+	}
+
+	http.Redirect(writer, request, ps.URL, http.StatusSeeOther)
+}
+
+func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request *http.Request) {
+	b, err := ioutil.ReadAll(request.Body)
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error reading request body", err, request, b)
+		return
+	}
+
+	event, err := webhook.ConstructEvent(b, request.Header.Get("Stripe-Signature"), os.Getenv("STRIPE_WEBHOOK_SECRET"))
+	if err != nil {
+		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error constructing event", err, request, b)
+		return
+	}
+
+	switch event.Type {
+	case "checkout.session.completed":
+		var sessionCompletedEvent *stripe.CheckoutSession
+		err = json.Unmarshal(event.Data.Raw, &sessionCompletedEvent)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
+			return
+		}
+
+		userID := sessionCompletedEvent.Metadata["userID"]
+		if userID == "" {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user UserID in metadata", nil, request, b)
+			return
+		}
+
+		user, err := handler.UserRepository.FindByID(request.Context(), userID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err, request, b)
+			return
+		}
+
+		nextBilling := time.Unix(sessionCompletedEvent.Subscription.NextPendingInvoiceItemInvoice, 0)
+
+		user.Billing.CustomerID = sessionCompletedEvent.Customer.ID
+		user.Billing.Status = BillingStatusSubscriptionActive
+		user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
+
+		err = handler.UserRepository.Update(request.Context(), user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
+			return
+		}
+
+		// Payment is successful and the subscription is created.
+		// You should provision the subscription and save the customer ID to your database.
+	case "invoice.paid":
+		// Continue to provision the subscription as payments continue to be made.
+		// Store the status in your database and check when a user accesses your service.
+		// This approach helps you avoid hitting rate limits.
+
+		var invoice *stripe.Invoice
+		err = json.Unmarshal(event.Data.Raw, &invoice)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
+			return
+		}
+
+		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), invoice.Customer.ID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", invoice.Customer.ID), err, request, b)
+			return
+		}
+
+		nextBilling := time.Unix(invoice.Subscription.NextPendingInvoiceItemInvoice, 0)
+
+		user.Billing.Status = BillingStatusSubscriptionActive
+		user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
+
+		err = handler.UserRepository.Update(request.Context(), user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
+			return
+		}
+
+	case "invoice.payment_failed":
+		// The payment failed or the customer does not have a valid payment method.
+		// The subscription becomes past_due. Notify your customer and send them to the
+		// customer portal to update their payment information.
+		var invoice *stripe.Invoice
+		err = json.Unmarshal(event.Data.Raw, &invoice)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
+			return
+		}
+
+		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), invoice.Customer.ID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", invoice.Customer.ID), err, request, b)
+			return
+		}
+
+		user.Billing.Status = BillingStatusSubscriptionActive
+		user.Billing.EndsAt = time.Now().AddDate(0, 0, 3)
+
+		err = handler.UserRepository.Update(request.Context(), user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
+			return
+		}
+	case "customer.subscription.deleted":
+		// The payment failed or the customer does not have a valid payment method.
+		// The subscription becomes past_due. Notify your customer and send them to the
+		// customer portal to update their payment information.
+		var subscription *stripe.Subscription
+		err = json.Unmarshal(event.Data.Raw, &subscription)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
+			return
+		}
+
+		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), subscription.Customer.ID)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", subscription.Customer.ID), err, request, b)
+			return
+		}
+
+		user.Billing.Status = BillingStatusSubscriptionCancelled
+
+		err = handler.UserRepository.Update(request.Context(), user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
+			return
+		}
+	default:
+		// unhandled event type
+		handler.Logger.Warning(fmt.Sprintf("Unhandled event type: %s", event.Type), nil)
+	}
+
 }

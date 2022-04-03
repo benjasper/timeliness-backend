@@ -17,6 +17,7 @@ type UserRepositoryInterface interface {
 	FindByID(ctx context.Context, id string) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByGoogleStateToken(ctx context.Context, stateToken string) (*User, error)
+	FindByBillingCustomerID(ctx context.Context, customerID string) (*User, error)
 	FindByVerificationToken(ctx context.Context, token string) (*User, error)
 	FindBySyncExpiration(ctx context.Context, greaterThan time.Time, page int, pageSize int) ([]*User, int, error)
 	FindByIdentityProvider(ctx context.Context, email string, ID string) (*User, error)
@@ -81,6 +82,22 @@ func (s *UserRepository) FindByGoogleStateToken(ctx context.Context, stateToken 
 	var u = User{}
 
 	result := s.DB.FindOne(ctx, bson.M{"googleCalendarConnections.stateToken": stateToken})
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	err := result.Decode(&u)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// FindByBillingCustomerID finds a user by its Billing Customer ID
+func (s *UserRepository) FindByBillingCustomerID(ctx context.Context, customerID string) (*User, error) {
+	var u = User{}
+
+	result := s.DB.FindOne(ctx, bson.M{"billing.customerID": customerID})
 	if result.Err() != nil {
 		return nil, result.Err()
 	}

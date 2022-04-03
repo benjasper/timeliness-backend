@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"github.com/stripe/stripe-go/v72"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
@@ -65,6 +66,12 @@ func main() {
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	if redisPassword == "" {
 		redisPassword = ""
+	}
+
+	if os.Getenv("STRIPE_LIVE") != "" {
+		stripe.Key = os.Getenv("STRIPE_LIVE")
+	} else {
+		stripe.Key = os.Getenv("STRIPE_TEST")
 	}
 
 	var logging logger.Interface = logger.Logger{}
@@ -209,12 +216,17 @@ func main() {
 	unauthenticatedAPI.Path("/newsletter").
 		HandlerFunc(userHandler.RegisterForNewsletter).Methods(http.MethodPost)
 
+	unauthenticatedAPI.Path("/stripe/event").
+		HandlerFunc(userHandler.ReceiveBillingEvent).Methods(http.MethodPost)
+
 	authenticatedAPI := r.PathPrefix("/" + apiVersion).Subrouter()
 	authenticatedAPI.Use(authMiddleWare.Middleware)
 	authenticatedAPI.Path("/user").HandlerFunc(userHandler.UserGet).Methods(http.MethodGet)
 	authenticatedAPI.Path("/user/settings").HandlerFunc(userHandler.UserSettingsPatch).Methods(http.MethodPatch)
 	authenticatedAPI.Path("/user/device").HandlerFunc(userHandler.UserAddDevice).Methods(http.MethodPost)
 	authenticatedAPI.Path("/user/device/{deviceToken}").HandlerFunc(userHandler.UserRemoveDevice).Methods(http.MethodDelete)
+	authenticatedAPI.Path("/user/payment/{priceID}").HandlerFunc(userHandler.InitiatePayment).Methods(http.MethodPost)
+	authenticatedAPI.Path("/user/payment").HandlerFunc(userHandler.ChangePayment).Methods(http.MethodGet)
 
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.TaskAdd).Methods(http.MethodPost)
 	authenticatedAPI.Path("/tasks").HandlerFunc(taskHandler.GetAllTasks).Methods(http.MethodGet)
