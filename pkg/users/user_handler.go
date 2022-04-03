@@ -697,7 +697,7 @@ func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.
 	returnURL := environment.Global.FrontendBaseURL + "/settings"
 
 	params := &stripe.BillingPortalSessionParams{
-		Customer:  stripe.String(user.ID.Hex()),
+		Customer:  stripe.String(user.Billing.CustomerID),
 		ReturnURL: stripe.String(returnURL),
 	}
 	ps, err := portalsession.New(params)
@@ -749,7 +749,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		nextBilling := time.Unix(sessionCompletedEvent.Subscription.NextPendingInvoiceItemInvoice, 0)
+		nextBilling := time.Unix(sessionCompletedEvent.Subscription.CurrentPeriodEnd, 0)
 
 		user.Billing.CustomerID = sessionCompletedEvent.Customer.ID
 		user.Billing.Status = BillingStatusSubscriptionActive
@@ -775,13 +775,18 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
+		if invoice.BillingReason == "subscription_create" {
+			handler.ResponseManager.RespondWithNoContent(writer)
+			return
+		}
+
 		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), invoice.Customer.ID)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", invoice.Customer.ID), err, request, b)
 			return
 		}
 
-		nextBilling := time.Unix(invoice.Subscription.NextPendingInvoiceItemInvoice, 0)
+		nextBilling := time.Unix(invoice.PeriodEnd, 0)
 
 		user.Billing.Status = BillingStatusSubscriptionActive
 		user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
@@ -846,4 +851,5 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 		handler.Logger.Warning(fmt.Sprintf("Unhandled event type: %s", event.Type), nil)
 	}
 
+	handler.ResponseManager.RespondWithNoContent(writer)
 }
