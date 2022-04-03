@@ -822,7 +822,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
 			return
 		}
-	case "customer.subscription.deleted":
+	case "customer.subscription.updated":
 		// The payment failed or the customer does not have a valid payment method.
 		// The subscription becomes past_due. Notify your customer and send them to the
 		// customer portal to update their payment information.
@@ -830,6 +830,12 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 		err = json.Unmarshal(event.Data.Raw, &subscription)
 		if err != nil {
 			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
+			return
+		}
+
+		// We only want to handle the cancel event
+		if !subscription.CancelAtPeriodEnd {
+			handler.ResponseManager.RespondWithNoContent(writer)
 			return
 		}
 

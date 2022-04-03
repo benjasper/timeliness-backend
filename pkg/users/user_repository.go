@@ -97,7 +97,7 @@ func (s *UserRepository) FindByGoogleStateToken(ctx context.Context, stateToken 
 func (s *UserRepository) FindByBillingCustomerID(ctx context.Context, customerID string) (*User, error) {
 	var u = User{}
 
-	result := s.DB.FindOne(ctx, bson.M{"billing.customerID": customerID})
+	result := s.DB.FindOne(ctx, bson.M{"billing.customerId": customerID})
 	if result.Err() != nil {
 		return nil, result.Err()
 	}
