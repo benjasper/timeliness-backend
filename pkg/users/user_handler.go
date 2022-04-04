@@ -683,6 +683,8 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 		},
 	}
 
+	params.AddExtra("allow_promotion_codes", "true")
+
 	if user.Billing.CustomerID != "" {
 		params.Customer = stripe.String(user.Billing.CustomerID)
 	} else {
