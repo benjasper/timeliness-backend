@@ -668,8 +668,8 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 	}
 
 	params := &stripe.CheckoutSessionParams{
-		SuccessURL:        stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=true"),
-		CancelURL:         stripe.String(environment.Global.FrontendBaseURL + "/dashboard/payment/result?success=false"),
+		SuccessURL:        stripe.String(environment.Global.FrontendBaseURL + "/dashboard/pay?success=true"),
+		CancelURL:         stripe.String(environment.Global.FrontendBaseURL + "/dashboard/pay?success=false"),
 		Mode:              stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		ClientReferenceID: stripe.String(user.ID.Hex()),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
@@ -720,7 +720,7 @@ func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.
 
 	// The URL to which the user is redirected when they are done managing
 	// billing in the portal.
-	returnURL := environment.Global.FrontendBaseURL + "/settings"
+	returnURL := environment.Global.FrontendBaseURL + "/settings/billing"
 
 	params := &stripe.BillingPortalSessionParams{
 		Customer:  stripe.String(user.Billing.CustomerID),
