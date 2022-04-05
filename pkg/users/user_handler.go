@@ -697,7 +697,11 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 		return
 	}
 
-	http.Redirect(writer, request, s.URL, http.StatusSeeOther)
+	response := map[string]interface{}{
+		"url": s.URL,
+	}
+
+	handler.ResponseManager.Respond(writer, response)
 }
 
 func userLockingKey(userID string) string {
@@ -728,7 +732,11 @@ func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	http.Redirect(writer, request, ps.URL, http.StatusSeeOther)
+	response := map[string]interface{}{
+		"url": ps.URL,
+	}
+
+	handler.ResponseManager.Respond(writer, response)
 }
 
 // ReceiveBillingEvent receives a billing event from Stripe
