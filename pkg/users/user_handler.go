@@ -792,6 +792,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
+		user.Billing.Status = BillingStatusSubscriptionActive
 		user.Billing.CustomerID = sessionCompletedEvent.Customer.ID
 
 		err = handler.UserRepository.Update(request.Context(), user)
