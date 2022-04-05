@@ -848,7 +848,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 		nextBilling := time.Unix(invoice.Lines.Data[0].Period.End, 0)
 
 		user.Billing.Status = BillingStatusSubscriptionActive
-		user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
+		user.Billing.EndsAt = nextBilling
 
 		err = handler.UserRepository.Update(request.Context(), user)
 		if err != nil {
@@ -893,7 +893,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 			return
 		}
 
-		user.Billing.Status = BillingStatusSubscriptionActive
+		user.Billing.Status = BillingStatusPaymentProblem
 		user.Billing.EndsAt = time.Now().AddDate(0, 0, 1)
 
 		err = handler.UserRepository.Update(request.Context(), user)
@@ -943,7 +943,7 @@ func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request 
 		} else {
 			user.Billing.Status = BillingStatusSubscriptionActive
 			nextBilling := time.Unix(subscription.CurrentPeriodEnd, 0)
-			user.Billing.EndsAt = nextBilling.AddDate(0, 0, 1)
+			user.Billing.EndsAt = nextBilling
 		}
 
 		err = handler.UserRepository.Update(request.Context(), user)
