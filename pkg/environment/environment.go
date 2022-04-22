@@ -25,7 +25,7 @@ type Environment struct {
 	Redis                   string `mapstructure:"REDIS"`
 	RedisPassword           string `mapstructure:"REDIS_PASSWORD"`
 	Sendinblue              string `mapstructure:"SENDINBLUE"`
-	StripeLive              string `mapstructure:"STRIPE_LIVE"`
+	StripeLive              string `mapstructure:"STRIPE"`
 	StripeTest              string `mapstructure:"STRIPE_TEST"`
 	StripeWebhookSecret     string `mapstructure:"STRIPE_WEBHOOK_SECRET"`
 	StripeWebhookSecretTest string `mapstructure:"STRIPE_WEBHOOK_SECRET_TEST"`
