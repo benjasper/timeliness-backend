@@ -6,8 +6,8 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
+	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"io"
-	"os"
 )
 
 // Decrypt decrypt a string
@@ -49,7 +49,7 @@ func Encrypt(data string) string {
 }
 
 func getSecret() string {
-	secret := os.Getenv("SECRET")
+	secret := environment.Global.Secret
 	if secret == "" {
 		return "Secret-dev-key-that-is-32-bytes-long"
 	}

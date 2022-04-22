@@ -37,6 +37,7 @@ type User struct {
 	DeviceTokens   []DeviceToken      `json:"-" bson:"deviceTokens" validate:"isdefault"`
 	IsDeactivated  bool               `json:"-" bson:"isDeactivated"`
 	Contacts       []Contact          `json:"contacts" bson:"contacts"`
+	Billing        Billing            `json:"billing" bson:"billing"`
 
 	GoogleCalendarConnections GoogleCalendarConnections `json:"googleCalendarConnections" bson:"googleCalendarConnections"`
 	Settings                  UserSettings              `json:"settings" bson:"settings"`
@@ -185,4 +186,29 @@ type SchedulingSettings struct {
 	MinWorkUnitDuration  time.Duration   `json:"minWorkUnitDuration" bson:"minWorkUnitDuration"`
 	MaxWorkUnitDuration  time.Duration   `json:"maxWorkUnitDuration" bson:"maxWorkUnitDuration"`
 	HideDeadlineWhenDone bool            `json:"hideDeadlineWhenDone" bson:"hideDeadlineWhenDone"`
+}
+
+// AppScopeFree is the free scope
+var AppScopeFree = "free"
+
+// AppScopePro is the full scope
+var AppScopePro = "pro"
+
+// BillingStatusTrial is the trial status
+var BillingStatusTrial = "trial"
+
+// BillingStatusPaymentProblem is when a payment failed
+var BillingStatusPaymentProblem = "paymentProblem"
+
+// BillingStatusSubscriptionActive is when a subscription is active
+var BillingStatusSubscriptionActive = "subscriptionActive"
+
+// BillingStatusSubscriptionCancelled is when a subscription is cancelled
+var BillingStatusSubscriptionCancelled = "subscriptionCancelled"
+
+// Billing is the billing information for stripe
+type Billing struct {
+	Status     string    `json:"status" bson:"status"`
+	CustomerID string    `json:"-" bson:"customerId"`
+	EndsAt     time.Time `json:"endsAt" bson:"endsAt"`
 }

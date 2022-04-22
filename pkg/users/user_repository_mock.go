@@ -63,6 +63,17 @@ func (r *MockUserRepository) FindByGoogleStateToken(ctx context.Context, stateTo
 	return nil, errors.New("user not found")
 }
 
+// FindByBillingCustomerID finds a user by a billing customer ID
+func (r *MockUserRepository) FindByBillingCustomerID(ctx context.Context, customerID string) (*User, error) {
+	for _, user := range r.Users {
+		if user.Billing.CustomerID == customerID {
+			return user, nil
+		}
+	}
+
+	return nil, errors.New("user not found")
+}
+
 // FindByVerificationToken finds a user by email verification token
 func (r *MockUserRepository) FindByVerificationToken(ctx context.Context, token string) (*User, error) {
 	for _, user := range r.Users {

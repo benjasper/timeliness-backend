@@ -71,7 +71,7 @@ func (r *ResponseManager) RespondWithErrorAndErrorType(writer http.ResponseWrite
 		},
 	}
 
-	if err != nil && r.Environment != environment.Production {
+	if err != nil && r.Environment == environment.Dev {
 		response["err"] = err.Error()
 	}
 

@@ -41,6 +41,7 @@ type Claims struct {
 	ExpirationTime int64  `json:"exp,omitempty"`
 	NotBefore      int64  `json:"nbf,omitempty"`
 	IssuedAt       int64  `json:"iat,omitempty"`
+	Scope          string `json:"scope,omitempty"`
 	JwtID          string `json:"jti,omitempty"`
 	TokenType      string `json:"tkt,omitempty"`
 }

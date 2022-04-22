@@ -10,13 +10,13 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/encryption"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
+	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
 	"math"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -239,7 +239,7 @@ func (handler *CalendarHandler) matchNewGoogleCalendars(ctx context.Context, u *
 // GoogleCalendarSyncRenewal is hit by a scheduler to renew sync that are about to expire
 func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWriter, request *http.Request) {
 	pageSize := 25
-	schedulerSecret := os.Getenv("SCHEDULER_SECRET")
+	schedulerSecret := environment.Global.SchedulerSecret
 	if schedulerSecret == "" {
 		schedulerSecret = "local"
 	}
@@ -509,7 +509,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 
 	if googleError != "" {
 		handler.Logger.Warning(fmt.Sprintf("Access was denied by user %s", usr.ID.Hex()), fmt.Errorf(googleError))
-		http.Redirect(writer, request, fmt.Sprintf("%s/static/google-error", os.Getenv("FRONTEND_BASE_URL")), http.StatusTemporaryRedirect)
+		http.Redirect(writer, request, fmt.Sprintf("%s/static/google-error", environment.Global.FrontendBaseURL), http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -588,7 +588,7 @@ func (handler *CalendarHandler) GoogleCalendarAuthCallback(writer http.ResponseW
 		// We don't have to print error messages because the sub routine already took care of it
 	}
 
-	http.Redirect(writer, request, fmt.Sprintf("%s/static/google-connected", os.Getenv("FRONTEND_BASE_URL")), http.StatusFound)
+	http.Redirect(writer, request, fmt.Sprintf("%s/static/google-connected", environment.Global.FrontendBaseURL), http.StatusFound)
 }
 
 // GoogleCalendarNotification receives event change notifications from Google Calendar
@@ -649,10 +649,10 @@ Loop:
 	}
 
 	go func(user *users.User, calendarIndex int) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*6)
 		defer cancel()
 
-		lock, err := handler.Locker.Acquire(ctx, user.ID.Hex(), time.Minute*1, false, 61*time.Second)
+		lock, err := handler.Locker.Acquire(ctx, fmt.Sprintf("user-%s", user.ID.Hex()), time.Minute*3, false, 5*time.Minute)
 		if err != nil {
 			handler.Logger.Error(fmt.Sprintf("error while acquiring lock for user %s", userID), err)
 			return
