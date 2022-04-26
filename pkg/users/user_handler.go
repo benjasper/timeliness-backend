@@ -656,7 +656,7 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 	priceID := mux.Vars(request)["priceID"]
 
 	var trialLeft int64 = 0
-	if user.Billing.Status == BillingStatusTrial && user.CreatedAt.Before(time.Date(2022, time.April, 3, 0, 0, 0, 0, time.UTC)) {
+	if user.Billing.Status == BillingStatusTrial && user.CreatedAt.Before(time.Date(2022, time.April, 27, 0, 0, 0, 0, time.UTC)) {
 		trialLeft = time.Now().AddDate(0, 0, 60).Add(time.Hour).Round(time.Hour).Unix()
 	} else if user.Billing.Status == BillingStatusTrial && time.Now().Before(user.Billing.EndsAt) {
 		trialLeft = user.Billing.EndsAt.Unix()
