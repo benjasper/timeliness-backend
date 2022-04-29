@@ -351,7 +351,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 }
 
 // RescheduleWorkUnit takes a work unit and reschedules it to a time between now and the task due end, updates task
-func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *WorkUnit, withLock bool) (*Task, error) {
+func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *WorkUnit, shouldIgnoreWorkUnit bool, withLock bool) (*Task, error) {
 	if withLock == true {
 		lock, err := s.locker.Acquire(ctx, t.ID.Hex(), time.Second*30, false, 32*time.Second)
 		if err != nil {
@@ -408,8 +408,13 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		availabilityRepositories = append(availabilityRepositories, availabilityRepositoriesForUser...)
 	}
 
+	ignoreWorkUnitID := ""
+	if shouldIgnoreWorkUnit {
+		ignoreWorkUnitID = w.ID.Hex()
+	}
+
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, w.Workload, windowTotal, availabilityRepositories, constraint, t, w.ID.Hex())
+	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, w.Workload, windowTotal, availabilityRepositories, constraint, t, ignoreWorkUnitID)
 	if err != nil {
 		return nil, err
 	}
@@ -928,7 +933,7 @@ func (s *PlanningService) DueDateChanged(ctx context.Context, task *Task, ownerN
 
 	for _, unit := range toReschedule {
 		var err error
-		task, err = s.RescheduleWorkUnit(ctx, task, &unit, false)
+		task, err = s.RescheduleWorkUnit(ctx, task, &unit, false, false)
 		if err != nil {
 			return nil, err
 		}
@@ -1115,7 +1120,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 	// Maybe the user wanted to make place for another task, so we first accept the wrong work unit and reschedule
 	// after we looked for unscheduled tasks
 	if workUnitIsOutOfBounds {
-		_, err = s.RescheduleWorkUnit(ctx, task, workUnit, false)
+		_, err = s.RescheduleWorkUnit(ctx, task, workUnit, true, false)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Error rescheduling work unit %s", workUnit.ID.Hex()), errors.Wrap(err, "could not reschedule work unit"))
 			return
@@ -1255,7 +1260,7 @@ func (s *PlanningService) checkForIntersectingWorkUnits(ctx context.Context, use
 				needsLock = false
 			}
 
-			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit, needsLock)
+			updatedTask, err := s.RescheduleWorkUnit(ctx, &intersection.Task, &unit, true, needsLock)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf(
 					"Could not reschedule work unit %s for task %s",
