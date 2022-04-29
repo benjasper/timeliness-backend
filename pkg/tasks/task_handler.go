@@ -953,7 +953,7 @@ func (handler *Handler) RescheduleWorkUnitPost(writer http.ResponseWriter, reque
 
 		task = handler.PlanningService.CheckForMergingWorkUnits(request.Context(), task)
 	} else {
-		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit, true, false)
+		task, err = handler.PlanningService.RescheduleWorkUnit(request.Context(), task, &workUnit, false, false)
 		if err != nil {
 			handler.ResponseManager.RespondWithErrorAndErrorType(writer, http.StatusInternalServerError, "Error rescheduling the task", err, request, communication.Calendar, requestBody)
 			return
