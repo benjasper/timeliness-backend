@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"github.com/pkg/errors"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,6 +23,7 @@ type TaskRepositoryInterface interface {
 	FindByID(ctx context.Context, taskID string, userID string, isDeleted bool) (*Task, error)
 	FindByCalendarEventID(ctx context.Context, calendarEventID string, userID string, isDeleted bool) (*Task, error)
 	FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreWorkUnitID primitive.ObjectID, isDeleted bool) ([]Task, error)
+	FindWorkUnitsIntersectingTimespan(ctx context.Context, userID string, timespan date.Timespan) ([]WorkUnit, error)
 	FindUnscheduledTasks(ctx context.Context, userID string, page int, pageSize int) ([]Task, int, error)
 	CountTasksBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
 	CountWorkUnitsBetween(ctx context.Context, userID string, from time.Time, to time.Time, isDone bool) (int64, error)
@@ -274,6 +276,65 @@ func (s *MongoDBTaskRepository) FindAllByWorkUnits(ctx context.Context, userID s
 	}
 
 	return results[0].AllResults, results[0].TotalCount.Count, nil
+}
+
+// FindWorkUnitsIntersectingTimespan finds all work units intersecting a time window
+func (s *MongoDBTaskRepository) FindWorkUnitsIntersectingTimespan(ctx context.Context, userID string, timespan date.Timespan) ([]WorkUnit, error) {
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	queryFilters := bson.D{{
+		Key: "$or", Value: bson.A{
+			bson.D{
+				{Key: "userId", Value: userObjectID},
+			},
+			bson.D{
+				{Key: "collaborators.userId", Value: userObjectID},
+			},
+		},
+	},
+		{
+			Key: "workUnits", Value: bson.D{
+				{
+					Key: "$elemMatch", Value: bson.M{
+						"scheduledAt.date.start": bson.M{"$lte": timespan.End},
+						"scheduledAt.date.end":   bson.M{"$gte": timespan.Start},
+					},
+				},
+			},
+		},
+	}
+
+	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
+	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
+	replaceRootStage := bson.D{{Key: "$replaceRoot", Value: bson.M{"newRoot": "$workUnits"}}}
+	matchStage2 := bson.D{
+		{
+			Key: "$match", Value: bson.M{
+				"scheduledAt.date.start": bson.M{"$lte": timespan.End},
+				"scheduledAt.date.end":   bson.M{"$gte": timespan.Start},
+			},
+		},
+	}
+
+	cursor, err := s.DB.Aggregate(ctx, mongo.Pipeline{matchStage, unwindStage, replaceRootStage, matchStage2})
+	if err != nil {
+		return nil, err
+	}
+
+	var results []WorkUnit
+	err = cursor.All(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(results) == 0 {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 // FindUnscheduledTasks finds tasks where task.NotScheduled != 0, paginated

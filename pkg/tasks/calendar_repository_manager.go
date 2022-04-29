@@ -24,8 +24,8 @@ func NewCalendarRepositoryManager(_ int, userRepository users.UserRepositoryInte
 	return &manager, nil
 }
 
-// GetAllCalendarRepositoriesForUser gets all calendar repositories for a user
-func (m *CalendarRepositoryManager) GetAllCalendarRepositoriesForUser(ctx context.Context, user *users.User) ([]calendar.RepositoryInterface, error) {
+// GetAllAvailabilityCalendarRepositoriesForUser gets all calendar repositories for a user
+func (m *CalendarRepositoryManager) GetAllAvailabilityCalendarRepositoriesForUser(ctx context.Context, user *users.User) ([]calendar.RepositoryInterface, error) {
 	// TODO: Figure out which calendarRepository to use
 	if len(m.overriddenRepos) > 0 && m.overriddenRepos[user.ID.Hex()] != nil {
 		return []calendar.RepositoryInterface{m.overriddenRepos[user.ID.Hex()]}, nil

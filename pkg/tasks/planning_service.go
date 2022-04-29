@@ -198,7 +198,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		taskCalendarRepositories[user.ID.Hex()] = taskRepository
 
 		// Repositories for availability
-		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllAvailabilityCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -207,7 +207,7 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 	}
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, workloadToSchedule)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint, t)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +400,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 		taskRepositories[user.ID.Hex()] = taskRepository
 
 		// Repositories for availability
-		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllAvailabilityCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -409,7 +409,7 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 	}
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload, windowTotal, availabilityRepositories, constraint, t)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, w.Workload, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
@@ -504,7 +504,7 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 		taskCalendarRepositories[user.ID.Hex()] = taskRepository
 
 		// Repositories for availability
-		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllCalendarRepositoriesForUser(ctx, user)
+		availabilityRepositoriesForUser, err := s.calendarRepositoryManager.GetAllAvailabilityCalendarRepositoriesForUser(ctx, user)
 		if err != nil {
 			return nil, err
 		}
@@ -515,7 +515,7 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 	var iterations time.Duration = 5
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint, t)
+	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint, t)
 	if err != nil {
 		return nil, err
 	}
@@ -1303,13 +1303,30 @@ func (s *PlanningService) lookForUnscheduledTasks(ctx context.Context, userID st
 }
 
 // computeAvailabilityForTimeWindow traverses the given time interval by two weeks and returns when it found enough free time or traversed the whole interval
-func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint, task *Task) (*date.TimeWindow, error) {
+func (s *PlanningService) computeAvailabilityForTimeWindow(ctx context.Context, users []*users.User, target time.Time, timeToSchedule time.Duration, window *date.TimeWindow, repositories []calendar.RepositoryInterface, constraint *date.FreeConstraint, task *Task) (*date.TimeWindow, error) {
 	window.PreferredNeighbors = task.WorkUnits.Timespans()
 
 	s.generateTimespansBasedOnTargetDate(target, window, func(timespans []date.Timespan) bool {
 		for _, timespan := range timespans {
 			wg := errgroup.Group{}
 
+			// Fetch WorkUnits intersecting for users
+			for _, user := range users {
+				wg.Go(func() error {
+					busyWorkUnits, err := s.taskRepository.FindWorkUnitsIntersectingTimespan(ctx, user.ID.Hex(), timespan)
+					if err != nil {
+						return err
+					}
+
+					for _, busyWorkUnit := range busyWorkUnits {
+						window.AddToBusy(busyWorkUnit.ScheduledAt.Date)
+					}
+
+					return nil
+				})
+			}
+
+			// Fetch busy data from the rest of the calendars
 			for _, repository := range repositories {
 				repository := repository
 
@@ -1325,7 +1342,7 @@ func (s *PlanningService) computeAvailabilityForTimeWindow(target time.Time, tim
 
 			err := wg.Wait()
 			if err != nil {
-				s.logger.Error("error while adding busy time to window", err)
+				s.logger.Error(fmt.Sprintf("error while adding busy time to window for task %s, window: %s - %s", task.ID.Hex(), window.Start.String(), window.End.String()), err)
 				return true
 			}
 
