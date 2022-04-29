@@ -575,7 +575,10 @@ func (c *GoogleCalendarRepository) eventToGoogleEvent(event *Event, taskID strin
 // AddBusyToWindow reads times from a window and fills it with busy timeslots, it takes all set availability calendars apart from the task calendar into account
 func (c *GoogleCalendarRepository) AddBusyToWindow(window *date.TimeWindow, start time.Time, end time.Time) error {
 	calList := c.connection.CalendarsOfInterest
-	calList = calList.RemoveCalendar(c.connection.TaskCalendarID)
+
+	if c.connection.IsTaskCalendarConnection {
+		calList = calList.RemoveCalendar(c.connection.TaskCalendarID)
+	}
 
 	if len(calList) == 0 {
 		return nil

@@ -285,16 +285,17 @@ func (s *MongoDBTaskRepository) FindWorkUnitsIntersectingTimespan(ctx context.Co
 		return nil, err
 	}
 
-	queryFilters := bson.D{{
-		Key: "$or", Value: bson.A{
-			bson.D{
-				{Key: "userId", Value: userObjectID},
-			},
-			bson.D{
-				{Key: "collaborators.userId", Value: userObjectID},
+	queryFilters := bson.D{
+		{
+			Key: "$or", Value: bson.A{
+				bson.D{
+					{Key: "userId", Value: userObjectID},
+				},
+				bson.D{
+					{Key: "collaborators.userId", Value: userObjectID},
+				},
 			},
 		},
-	},
 		{
 			Key: "workUnits", Value: bson.D{
 				{
@@ -308,7 +309,7 @@ func (s *MongoDBTaskRepository) FindWorkUnitsIntersectingTimespan(ctx context.Co
 	}
 
 	matchStage := bson.D{{Key: "$match", Value: queryFilters}}
-	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnit", "includeArrayIndex": "workUnitsIndex"}}}
+	unwindStage := bson.D{{Key: "$unwind", Value: bson.M{"path": "$workUnits", "includeArrayIndex": "workUnitsIndex"}}}
 	replaceRootStage := bson.D{{Key: "$replaceRoot", Value: bson.M{"newRoot": "$workUnits"}}}
 	matchStage2 := bson.D{
 		{
