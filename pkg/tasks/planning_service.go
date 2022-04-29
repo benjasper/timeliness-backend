@@ -520,7 +520,7 @@ func (s *PlanningService) SuggestTimespansForWorkUnit(ctx context.Context, t *Ta
 	var iterations time.Duration = 5
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
-	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint, t, w.ID.Hex())
+	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, w.Workload*iterations, windowTotal, availabilityRepositories, constraint, t, "")
 	if err != nil {
 		return nil, err
 	}
