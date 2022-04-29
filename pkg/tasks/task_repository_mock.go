@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"github.com/pkg/errors"
+	"github.com/timeliness-app/timeliness-backend/pkg/date"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks/calendar"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
@@ -136,6 +137,22 @@ func (m *MockTaskRepository) FindUnscheduledTasks(ctx context.Context, userID st
 // FindIntersectingWithEvent is not implemented yet
 func (m *MockTaskRepository) FindIntersectingWithEvent(ctx context.Context, userID string, event *calendar.Event, ignoreTaskID primitive.ObjectID, isDeleted bool) ([]Task, error) {
 	return []Task{}, nil
+}
+
+// FindWorkUnitsIntersectingTimespan finds all work units intersecting a timespan
+func (m *MockTaskRepository) FindWorkUnitsIntersectingTimespan(ctx context.Context, userID string, timespan date.Timespan) ([]WorkUnit, error) {
+	var workUnits []WorkUnit
+	timeWindowSpan := date.Timespan{Start: timespan.Start, End: timespan.End}
+
+	for _, task := range m.Tasks {
+		for _, unit := range task.WorkUnits {
+			if unit.ScheduledAt.Date.IntersectsWith(timeWindowSpan) {
+				workUnits = append(workUnits, unit)
+			}
+		}
+	}
+
+	return workUnits, nil
 }
 
 // DeleteFinally is not implemented yet
