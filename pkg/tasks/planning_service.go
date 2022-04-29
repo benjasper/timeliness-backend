@@ -1312,6 +1312,7 @@ func (s *PlanningService) computeAvailabilityForTimeWindow(ctx context.Context, 
 
 			// Fetch WorkUnits intersecting for users
 			for _, user := range users {
+				user := user
 				wg.Go(func() error {
 					busyWorkUnits, err := s.taskRepository.FindWorkUnitsIntersectingTimespan(ctx, user.ID.Hex(), timespan)
 					if err != nil {
