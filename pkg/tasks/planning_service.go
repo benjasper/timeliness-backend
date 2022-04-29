@@ -206,6 +206,20 @@ func (s *PlanningService) ScheduleTask(ctx context.Context, t *Task, withLock bo
 		availabilityRepositories = append(availabilityRepositories, availabilityRepositoriesForUser...)
 	}
 
+	// Lock scheduling so no other task can be scheduled in the meantime
+	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("scheduling-%s", t.UserID.Hex()), time.Minute*1, false, 2*time.Second)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("could not acquire lock while scheduling task %s for user %s", t.ID.Hex(), t.UserID.Hex()))
+	}
+
+	defer func() {
+		err = lock.Release(ctx)
+		if err != nil {
+			s.logger.Error("could not release lock", errors.Wrap(err, fmt.Sprintf("could not release lock while scheduling task %s for user %s", t.ID.Hex(), t.UserID.Hex())))
+			return
+		}
+	}()
+
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, workloadToSchedule)
 	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, workloadToSchedule, windowTotal, availabilityRepositories, constraint, t, "")
 	if err != nil {
@@ -412,6 +426,20 @@ func (s *PlanningService) RescheduleWorkUnit(ctx context.Context, t *Task, w *Wo
 	if shouldIgnoreWorkUnit {
 		ignoreWorkUnitID = w.ID.Hex()
 	}
+
+	// Lock scheduling so no other task can be scheduled in the meantime
+	lock, err := s.locker.Acquire(ctx, fmt.Sprintf("scheduling-%s", t.UserID.Hex()), time.Minute*1, false, 2*time.Second)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("could not acquire lock while scheduling task %s for user %s", t.ID.Hex(), t.UserID.Hex()))
+	}
+
+	defer func() {
+		err = lock.Release(ctx)
+		if err != nil {
+			s.logger.Error("could not release lock", errors.Wrap(err, fmt.Sprintf("could not release lock while scheduling task %s for user %s", t.ID.Hex(), t.UserID.Hex())))
+			return
+		}
+	}()
 
 	targetTime := s.getTargetTimeForUser(relevantUsers[0], windowTotal, w.Workload)
 	windowTotal, err = s.computeAvailabilityForTimeWindow(ctx, relevantUsers, targetTime, w.Workload, windowTotal, availabilityRepositories, constraint, t, ignoreWorkUnitID)
