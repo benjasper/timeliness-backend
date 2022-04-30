@@ -254,6 +254,9 @@ func (c *GoogleCalendarRepository) UpdateEvent(event *Event, taskID string, titl
 	googleEvent := c.eventToGoogleEvent(event, taskID, title, description, withReminder)
 
 	calendarEvent := event.CalendarEvents.FindByUserID(c.userID.Hex())
+	if calendarEvent == nil {
+		return errors.Errorf("no calendar event found for user %s", c.userID.Hex())
+	}
 
 	_, err := c.Service.Events.
 		Update(c.connection.TaskCalendarID, calendarEvent.CalendarEventID, googleEvent).Do()
