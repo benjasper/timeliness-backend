@@ -1340,6 +1340,11 @@ func (s *PlanningService) computeAvailabilityForTimeWindow(ctx context.Context, 
 	window.PreferredNeighbors = task.WorkUnits.Timespans()
 
 	s.generateTimespansBasedOnTargetDate(target, window, func(timespans []date.Timespan) bool {
+		if window.Start.After(window.End) {
+			s.logger.Warning(fmt.Sprintf("time window start %s after end %s", window.Start, window.End), errors.New("window start is after window end"))
+			return false
+		}
+
 		for _, timespan := range timespans {
 			wg := errgroup.Group{}
 
