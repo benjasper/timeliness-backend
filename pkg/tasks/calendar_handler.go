@@ -638,13 +638,13 @@ Loop:
 
 	if allInactive {
 		handler.Logger.Warning(fmt.Sprintf("All calendars are inactive for resource id %s and user %s", resourceID, userID), nil)
-		writer.WriteHeader(http.StatusBadRequest)
+		writer.WriteHeader(http.StatusOK)
 		return
 	}
 
 	if calendarID == "" {
-		handler.Logger.Error(fmt.Sprintf("Could not find calendar sync for resourceId %s for user %s", resourceID, userID), nil)
-		writer.WriteHeader(http.StatusBadRequest)
+		handler.Logger.Warning(fmt.Sprintf("Could not find calendar sync for resourceId %s for user %s", resourceID, userID), nil)
+		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
 
