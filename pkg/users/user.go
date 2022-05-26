@@ -212,3 +212,8 @@ type Billing struct {
 	CustomerID string    `json:"-" bson:"customerId"`
 	EndsAt     time.Time `json:"endsAt" bson:"endsAt"`
 }
+
+// IsExpired returns true if the billing is expired
+func (b *Billing) IsExpired() bool {
+	return b.EndsAt.Before(time.Now())
+}
