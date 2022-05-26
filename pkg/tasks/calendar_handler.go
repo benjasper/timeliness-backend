@@ -615,6 +615,12 @@ func (handler *CalendarHandler) GoogleCalendarNotification(writer http.ResponseW
 		return
 	}
 
+	if user.Billing.IsExpired() {
+		handler.Logger.Info(fmt.Sprintf("Calendar notification received, but user %s is expired", user.ID.Hex()))
+		handler.ResponseManager.RespondWithNoContent(writer)
+		return
+	}
+
 	calendarID := ""
 	calendarIndex := -1
 	connectionIndex := -1
