@@ -1162,6 +1162,8 @@ func (s *PlanningService) CheckForMergingWorkUnits(ctx context.Context, task *Ta
 	lastDate := date.Timespan{}
 	var relevantUsers []*users.User
 
+	var workUnitsToRemove []*WorkUnit
+
 	for i, unit := range task.WorkUnits {
 		if (unit.ScheduledAt.Date.IntersectsWith(lastDate) || unit.ScheduledAt.Date.Start.Equal(lastDate.End)) && !unit.ScheduledAt.Date.Contains(lastDate) && !lastDate.Contains(unit.ScheduledAt.Date) {
 			if len(relevantUsers) == 0 {
@@ -1209,10 +1211,14 @@ func (s *PlanningService) CheckForMergingWorkUnits(ctx context.Context, task *Ta
 				}
 			}
 
-			task.WorkUnits = task.WorkUnits.RemoveByIndex(i)
+			workUnitsToRemove = append(workUnitsToRemove, &task.WorkUnits[i])
 		}
 
 		lastDate = unit.ScheduledAt.Date
+	}
+
+	for _, unit := range workUnitsToRemove {
+		task.WorkUnits = task.WorkUnits.RemoveById(unit.ID.Hex())
 	}
 
 	return task
