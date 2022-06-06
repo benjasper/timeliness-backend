@@ -199,6 +199,17 @@ func (w WorkUnits) RemoveByIndex(index int) WorkUnits {
 	return append(w[:index], w[index+1:]...)
 }
 
+// RemoveByID removes an entry by its ID
+func (w WorkUnits) RemoveByID(id string) WorkUnits {
+	for i, unit := range w {
+		if unit.ID.Hex() == id {
+			return w.RemoveByIndex(i)
+		}
+	}
+
+	return w
+}
+
 // FindByCalendarID finds a single work unit by its calendar event ID
 func (w WorkUnits) FindByCalendarID(calendarID string) (int, *WorkUnit) {
 	for i, unit := range w {
