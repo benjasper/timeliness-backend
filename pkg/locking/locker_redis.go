@@ -26,7 +26,7 @@ func (l *LockerRedis) Acquire(ctx context.Context, key string, ttl time.Duration
 	if tryOnlyOnce {
 		retryStrategy = redislock.NoRetry()
 	}
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Minute))
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(waitMax))
 	defer cancel()
 
 	obtain, err := l.locker.Obtain(ctx, key, ttl, &redislock.Options{
