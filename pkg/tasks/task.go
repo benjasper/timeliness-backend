@@ -199,8 +199,8 @@ func (w WorkUnits) RemoveByIndex(index int) WorkUnits {
 	return append(w[:index], w[index+1:]...)
 }
 
-// RemoveById removes an entry by its ID
-func (w WorkUnits) RemoveById(id string) WorkUnits {
+// RemoveByID removes an entry by its ID
+func (w WorkUnits) RemoveByID(id string) WorkUnits {
 	for i, unit := range w {
 		if unit.ID.Hex() == id {
 			return w.RemoveByIndex(i)

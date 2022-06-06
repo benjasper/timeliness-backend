@@ -1218,7 +1218,7 @@ func (s *PlanningService) CheckForMergingWorkUnits(ctx context.Context, task *Ta
 	}
 
 	for _, unit := range workUnitsToRemove {
-		task.WorkUnits = task.WorkUnits.RemoveById(unit.ID.Hex())
+		task.WorkUnits = task.WorkUnits.RemoveByID(unit.ID.Hex())
 	}
 
 	return task
