@@ -1147,7 +1147,7 @@ func (s *PlanningService) processTaskEventChange(ctx context.Context, event *cal
 
 	// Maybe the user wanted to make place for another task, so we first accept the wrong work unit and reschedule
 	// after we looked for unscheduled tasks
-	if workUnitIsOutOfBounds {
+	if workUnitIsOutOfBounds && !workUnit.IsDone {
 		_, err = s.RescheduleWorkUnit(ctx, task, workUnit, true, false)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Error rescheduling work unit %s", workUnit.ID.Hex()), errors.Wrap(err, "could not reschedule work unit"))
