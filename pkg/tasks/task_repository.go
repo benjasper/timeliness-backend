@@ -593,6 +593,7 @@ func (s *MongoDBTaskRepository) FindIntersectingWithEvent(ctx context.Context, u
 	arrayMatch := bson.D{
 		{Key: "scheduledAt.date.start", Value: bson.M{"$lt": event.Date.End}},
 		{Key: "scheduledAt.date.end", Value: bson.M{"$gt": event.Date.Start}},
+		{Key: "isDone", Value: false},
 	}
 
 	if ignoreWorkUnitID != primitive.NilObjectID {

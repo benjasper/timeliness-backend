@@ -240,7 +240,7 @@ func (w WorkUnits) FindByEventIntersection(event *calendar.Event, ignoreWorkUnit
 	var indices []int
 
 	for i, unit := range w {
-		if unit.ScheduledAt.Date.IntersectsWith(event.Date) && unit.ID != ignoreWorkUnitID {
+		if !unit.IsDone && unit.ScheduledAt.Date.IntersectsWith(event.Date) && unit.ID != ignoreWorkUnitID {
 			indices = append(indices, i)
 			workUnits = append(workUnits, unit)
 		}
