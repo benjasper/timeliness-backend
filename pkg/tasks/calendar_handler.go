@@ -281,6 +281,10 @@ func (handler *CalendarHandler) GoogleCalendarSyncRenewal(writer http.ResponseWr
 }
 
 func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time time.Time) {
+	if user.Billing.IsExpired() {
+		return
+	}
+
 	// Google Calendar
 	for _, connection := range user.GoogleCalendarConnections {
 		if connection.Status != users.CalendarConnectionStatusActive {
