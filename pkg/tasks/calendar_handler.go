@@ -301,8 +301,8 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			// TODO: change when multiple repositories are allowed
 			user, err := calendarRepository.WatchCalendar(sync.CalendarID, user)
 			if err != nil {
-				handler.Logger.Error("Error while trying to renew sync", err)
-				return
+				handler.Logger.Error(fmt.Sprintf("Error while trying to renew sync for user with calendar id %s", sync.CalendarID), err)
+				continue
 			}
 
 			err = handler.UserRepository.Update(context.Background(), user)
