@@ -305,8 +305,8 @@ func (handler *CalendarHandler) processUserForSyncRenewal(user *users.User, time
 			// TODO: change when multiple repositories are allowed
 			user, err := calendarRepository.WatchCalendar(sync.CalendarID, user)
 			if err != nil {
-				handler.Logger.Error(fmt.Sprintf("Error while trying to renew sync for user with calendar id %s", sync.CalendarID), err)
-				continue
+				handler.Logger.Warning(fmt.Sprintf("Error while trying to renew sync for user with calendar id, disabling it: %s", sync.CalendarID), err)
+				connection.Status = users.CalendarConnectionStatusExpired
 			}
 
 			err = handler.UserRepository.Update(context.Background(), user)
@@ -684,8 +684,8 @@ Loop:
 
 		user, err = handler.PlanningService.SyncCalendar(ctx, user, calendarID)
 		if err != nil {
-			handler.Logger.Error(fmt.Sprintf("error while syncing user %s and calendar ID %s", userID, calendarID), err)
-			return
+			handler.Logger.Warning(fmt.Sprintf("error while syncing user %s and calendar ID, disabling connection %s", userID, calendarID), err)
+			user.GoogleCalendarConnections[connectionIndex].Status = users.CalendarConnectionStatusExpired
 		}
 
 		err = handler.UserRepository.Update(ctx, user)
