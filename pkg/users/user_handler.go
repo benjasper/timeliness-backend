@@ -658,7 +658,7 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 	var trialLeft int64 = 0
 	if user.Billing.Status == BillingStatusTrial && user.CreatedAt.Before(time.Date(2022, time.April, 27, 0, 0, 0, 0, time.UTC)) {
 		trialLeft = time.Now().AddDate(0, 0, 60).Add(time.Hour).Round(time.Hour).Unix()
-	} else if user.Billing.Status == BillingStatusTrial && time.Now().Before(user.Billing.EndsAt) {
+	} else if user.Billing.Status == BillingStatusTrial && time.Now().Add(24*time.Hour*3).Before(user.Billing.EndsAt) {
 		trialLeft = user.Billing.EndsAt.Unix()
 	}
 
