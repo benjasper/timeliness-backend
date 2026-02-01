@@ -49,6 +49,10 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_BUILD_CREDENTIALS }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: app-engine-go
       - id: deploy
         name: Deploy to App engine
         uses: google-github-actions/deploy-appengine@main
