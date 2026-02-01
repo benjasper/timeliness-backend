@@ -206,14 +206,14 @@ var BillingStatusSubscriptionActive = "subscriptionActive"
 // BillingStatusSubscriptionCancelled is when a subscription is cancelled
 var BillingStatusSubscriptionCancelled = "subscriptionCancelled"
 
-// Billing is the billing information for stripe
+// Billing is the billing information for a user.
 type Billing struct {
 	Status     string    `json:"status" bson:"status"`
 	CustomerID string    `json:"-" bson:"customerId"`
 	EndsAt     time.Time `json:"endsAt" bson:"endsAt"`
 }
 
-// IsExpired returns true if the billing is expired
+// IsExpired always returns false because billing is disabled.
 func (b *Billing) IsExpired() bool {
-	return b.EndsAt.Before(time.Now())
+	return false
 }

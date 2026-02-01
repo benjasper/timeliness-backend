@@ -3,13 +3,16 @@ package users
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/stripe/stripe-go/v72"
-	portalsession "github.com/stripe/stripe-go/v72/billingportal/session"
-	"github.com/stripe/stripe-go/v72/checkout/session"
-	"github.com/stripe/stripe-go/v72/webhook"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/timeliness-app/timeliness-backend/internal/google"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/auth/jwt"
@@ -19,12 +22,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/environment"
 	"github.com/timeliness-app/timeliness-backend/pkg/locking"
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
-	"golang.org/x/crypto/bcrypt"
-	"io/ioutil"
-	"net/http"
-	"reflect"
-	"strings"
-	"time"
 )
 
 // Handler is the handler for user API calls
@@ -35,6 +32,26 @@ type Handler struct {
 	Locker          locking.LockerInterface
 	Secret          string
 	EmailService    email.Mailer
+}
+
+const (
+	freeBillingYears    = 100
+	minFreeBillingYears = 50
+)
+
+func ensureFreeBilling(user *User) bool {
+	now := time.Now()
+	minEndsAt := now.AddDate(minFreeBillingYears, 0, 0)
+	if user.Billing.Status == BillingStatusSubscriptionActive &&
+		user.Billing.CustomerID == "" &&
+		user.Billing.EndsAt.After(minEndsAt) {
+		return false
+	}
+
+	user.Billing.Status = BillingStatusSubscriptionActive
+	user.Billing.CustomerID = ""
+	user.Billing.EndsAt = now.AddDate(freeBillingYears, 0, 0)
+	return true
 }
 
 // UserRegister is the route for registering a user
@@ -56,6 +73,7 @@ func (handler *Handler) UserRegister(writer http.ResponseWriter, request *http.R
 	user.Settings.Scheduling.TimeZone = "Europe/Berlin"
 	user.Settings.Scheduling.BusyTimeSpacing = time.Minute * 15
 	user.Settings.Scheduling.TimingPreference = TimingPreferenceEarly
+	ensureFreeBilling(&user)
 
 	presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 	if presentUser != nil {
@@ -214,6 +232,14 @@ func (handler *Handler) UserGet(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
+	if ensureFreeBilling(u) {
+		err = handler.UserRepository.Update(request.Context(), u)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not update user", err, request, nil)
+			return
+		}
+	}
+
 	binary, err := json.Marshal(u)
 	if err != nil {
 		handler.Logger.Fatal(err)
@@ -301,11 +327,7 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 		user.Settings.Scheduling.MinWorkUnitDuration = time.Hour * 1
 		user.Settings.Scheduling.MaxWorkUnitDuration = time.Hour * 4
 		user.Settings.Scheduling.AllowedTimespans = make([]date.Timespan, 0)
-
-		user.Billing = Billing{
-			Status: BillingStatusTrial,
-			EndsAt: time.Now().AddDate(0, 0, 14),
-		}
+		ensureFreeBilling(user)
 
 		presentUser, err := handler.UserRepository.FindByEmail(request.Context(), user.Email)
 		if presentUser != nil {
@@ -378,6 +400,8 @@ func (handler *Handler) UserLoginWithGoogle(writer http.ResponseWriter, request 
 }
 
 func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.Request, writer http.ResponseWriter) {
+	ensureFreeBilling(user)
+
 	accessClaims := jwt.Claims{
 		Subject:        user.ID.Hex(),
 		Issuer:         "timeliness",
@@ -387,10 +411,7 @@ func (handler *Handler) generateAndRespondWithTokens(user *User, request *http.R
 	}
 	accessToken := jwt.New(jwt.AlgHS256, accessClaims)
 
-	scope := AppScopeFree
-	if time.Now().Before(user.Billing.EndsAt) {
-		scope = AppScopePro
-	}
+	scope := AppScopePro
 
 	refreshTokenClaims := jwt.Claims{
 		Subject:   user.ID.Hex(),
@@ -653,52 +674,16 @@ func (handler *Handler) InitiatePayment(writer http.ResponseWriter, request *htt
 		return
 	}
 
-	priceID := mux.Vars(request)["priceID"]
-
-	var trialLeft int64 = 0
-	if user.Billing.Status == BillingStatusTrial && user.CreatedAt.Before(time.Date(2022, time.April, 27, 0, 0, 0, 0, time.UTC)) {
-		trialLeft = time.Now().AddDate(0, 0, 60).Add(time.Hour).Round(time.Hour).Unix()
-	} else if user.Billing.Status == BillingStatusTrial && time.Now().Add(24*time.Hour*3).Before(user.Billing.EndsAt) {
-		trialLeft = user.Billing.EndsAt.Unix()
-	}
-
-	var trialEnd *int64 = nil
-	if trialLeft > 0 {
-		trialEnd = stripe.Int64(trialLeft)
-	}
-
-	params := &stripe.CheckoutSessionParams{
-		SuccessURL:        stripe.String(environment.Global.FrontendBaseURL + "/dashboard/pay?success=true"),
-		CancelURL:         stripe.String(environment.Global.FrontendBaseURL + "/dashboard/pay?success=false"),
-		Mode:              stripe.String(string(stripe.CheckoutSessionModeSubscription)),
-		ClientReferenceID: stripe.String(user.ID.Hex()),
-		LineItems: []*stripe.CheckoutSessionLineItemParams{
-			{
-				Price: stripe.String(priceID),
-				// For metered billing, do not pass quantity
-				Quantity: stripe.Int64(1),
-			},
-		}, SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
-			TrialEnd: trialEnd,
-		},
-	}
-
-	params.AddExtra("allow_promotion_codes", "true")
-
-	if user.Billing.CustomerID != "" {
-		params.Customer = stripe.String(user.Billing.CustomerID)
-	} else {
-		params.CustomerEmail = stripe.String(user.Email)
-	}
-
-	s, err := session.New(params)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error creating payment session", err, request, nil)
-		return
+	if ensureFreeBilling(user) {
+		err = handler.UserRepository.Update(request.Context(), user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not update user", err, request, nil)
+			return
+		}
 	}
 
 	response := map[string]interface{}{
-		"url": s.URL,
+		"url": environment.Global.FrontendBaseURL + "/dashboard/pay?success=true",
 	}
 
 	handler.ResponseManager.Respond(writer, response)
@@ -718,244 +703,22 @@ func (handler *Handler) ChangePayment(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	// The URL to which the user is redirected when they are done managing
-	// billing in the portal.
-	returnURL := environment.Global.FrontendBaseURL + "/settings/billing"
-
-	params := &stripe.BillingPortalSessionParams{
-		Customer:  stripe.String(user.Billing.CustomerID),
-		ReturnURL: stripe.String(returnURL),
-	}
-	ps, err := portalsession.New(params)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error creating payment portal session", err, request, nil)
-		return
+	if ensureFreeBilling(user) {
+		err = handler.UserRepository.Update(request.Context(), user)
+		if err != nil {
+			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Could not update user", err, request, nil)
+			return
+		}
 	}
 
 	response := map[string]interface{}{
-		"url": ps.URL,
+		"url": environment.Global.FrontendBaseURL + "/settings/billing",
 	}
 
 	handler.ResponseManager.Respond(writer, response)
 }
 
-// ReceiveBillingEvent receives a billing event from Stripe
+// ReceiveBillingEvent accepts billing webhook events (no-op when billing is disabled).
 func (handler *Handler) ReceiveBillingEvent(writer http.ResponseWriter, request *http.Request) {
-	b, err := ioutil.ReadAll(request.Body)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error reading request body", err, request, b)
-		return
-	}
-
-	secret := environment.Global.StripeWebhookSecret
-	if environment.Global.Environment != environment.Production {
-		secret = environment.Global.StripeWebhookSecretTest
-	}
-
-	event, err := webhook.ConstructEvent(b, request.Header.Get("Stripe-Signature"), secret)
-	if err != nil {
-		handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error constructing event", err, request, b)
-		return
-	}
-
-	switch event.Type {
-	case "checkout.session.completed":
-		var sessionCompletedEvent *stripe.CheckoutSession
-		err = json.Unmarshal(event.Data.Raw, &sessionCompletedEvent)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
-			return
-		}
-
-		userID := sessionCompletedEvent.ClientReferenceID
-		if userID == "" {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "No user userID in subscription metadata", nil, request, b)
-			return
-		}
-
-		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(userID), time.Minute, false, time.Minute*5)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", userID), err, request, b)
-			return
-		}
-
-		defer func() {
-			if err = lock.Release(request.Context()); err != nil {
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", userID), err, request, b)
-				return
-			}
-		}()
-
-		user, err := handler.UserRepository.FindByID(request.Context(), userID)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user %s", userID), err, request, b)
-			return
-		}
-
-		user.Billing.Status = BillingStatusSubscriptionActive
-		user.Billing.CustomerID = sessionCompletedEvent.Customer.ID
-
-		err = handler.UserRepository.Update(request.Context(), user)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
-			return
-		}
-
-		// Payment is successful and the subscription is created.
-		// You should provision the subscription and save the customer ID to your database.
-	case "invoice.paid":
-		// Continue to provision the subscription as payments continue to be made.
-		// Store the status in your database and check when a user accesses your service.
-		// This approach helps you avoid hitting rate limits.
-
-		var invoice *stripe.Invoice
-		err = json.Unmarshal(event.Data.Raw, &invoice)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
-			return
-		}
-
-		if invoice.BillingReason == "subscription_create" {
-			handler.ResponseManager.RespondWithNoContent(writer)
-			return
-		}
-
-		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), invoice.Customer.ID)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", invoice.Customer.ID), err, request, b)
-			return
-		}
-
-		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(user.ID.Hex()), time.Minute, false, time.Minute*5)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", user.ID.Hex()), err, request, b)
-			return
-		}
-
-		defer func() {
-			if err = lock.Release(request.Context()); err != nil {
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", user.ID.Hex()), err, request, b)
-				return
-			}
-		}()
-
-		// Refresh user after potential wait time for lock
-		user, err = handler.UserRepository.FindByID(request.Context(), user.ID.Hex())
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with ID %s", user.ID.Hex()), err, request, b)
-			return
-		}
-
-		nextBilling := time.Unix(invoice.Lines.Data[0].Period.End, 0)
-
-		user.Billing.Status = BillingStatusSubscriptionActive
-		user.Billing.EndsAt = nextBilling
-
-		err = handler.UserRepository.Update(request.Context(), user)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
-			return
-		}
-
-	case "invoice.payment_failed":
-		// The payment failed or the customer does not have a valid payment method.
-		// The subscription becomes past_due. Notify your customer and send them to the
-		// customer portal to update their payment information.
-		var invoice *stripe.Invoice
-		err = json.Unmarshal(event.Data.Raw, &invoice)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
-			return
-		}
-
-		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), invoice.Customer.ID)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", invoice.Customer.ID), err, request, b)
-			return
-		}
-
-		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(user.ID.Hex()), time.Minute, false, time.Minute*5)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", user.ID.Hex()), err, request, b)
-			return
-		}
-
-		defer func() {
-			if err = lock.Release(request.Context()); err != nil {
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", user.ID.Hex()), err, request, b)
-				return
-			}
-		}()
-
-		// Refresh user after potential wait time for lock
-		user, err = handler.UserRepository.FindByID(request.Context(), user.ID.Hex())
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with ID %s", user.ID.Hex()), err, request, b)
-			return
-		}
-
-		user.Billing.Status = BillingStatusPaymentProblem
-		user.Billing.EndsAt = time.Now().AddDate(0, 0, 1)
-
-		err = handler.UserRepository.Update(request.Context(), user)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
-			return
-		}
-	case "customer.subscription.updated":
-		// The payment failed or the customer does not have a valid payment method.
-		// The subscription becomes past_due. Notify your customer and send them to the
-		// customer portal to update their payment information.
-		var subscription *stripe.Subscription
-		err = json.Unmarshal(event.Data.Raw, &subscription)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusBadRequest, "Error unmarshalling event data", err, request, b)
-			return
-		}
-
-		user, err := handler.UserRepository.FindByBillingCustomerID(request.Context(), subscription.Customer.ID)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with customer ID %s", subscription.Customer.ID), err, request, b)
-			return
-		}
-
-		lock, err := handler.Locker.Acquire(request.Context(), userLockingKey(user.ID.Hex()), time.Minute, false, time.Minute*5)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error acquiring lock for user %s", user.ID.Hex()), err, request, b)
-			return
-		}
-
-		defer func() {
-			if err = lock.Release(request.Context()); err != nil {
-				handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Error releasing lock for user %s", user.ID.Hex()), err, request, b)
-				return
-			}
-		}()
-
-		// Refresh user after potential wait time for lock
-		user, err = handler.UserRepository.FindByID(request.Context(), user.ID.Hex())
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusNotFound, fmt.Sprintf("Could not find user with ID %s", user.ID.Hex()), err, request, b)
-			return
-		}
-
-		if subscription.CancelAtPeriodEnd {
-			user.Billing.Status = BillingStatusSubscriptionCancelled
-		} else {
-			user.Billing.Status = BillingStatusSubscriptionActive
-			nextBilling := time.Unix(subscription.CurrentPeriodEnd, 0)
-			user.Billing.EndsAt = nextBilling
-		}
-
-		err = handler.UserRepository.Update(request.Context(), user)
-		if err != nil {
-			handler.ResponseManager.RespondWithError(writer, http.StatusInternalServerError, "Error updating user", err, request, b)
-			return
-		}
-	default:
-		// unhandled event type
-		handler.Logger.Warning(fmt.Sprintf("Unhandled event type: %s", event.Type), nil)
-	}
-
 	handler.ResponseManager.RespondWithNoContent(writer)
 }

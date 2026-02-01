@@ -1,13 +1,22 @@
 package main
 
 import (
-	"cloud.google.com/go/profiler"
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"time"
+
+	"cloud.google.com/go/profiler"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
-	"github.com/stripe/stripe-go/v72"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"github.com/timeliness-app/timeliness-backend/pkg/auth"
 	"github.com/timeliness-app/timeliness-backend/pkg/communication"
 	"github.com/timeliness-app/timeliness-backend/pkg/email"
@@ -16,14 +25,6 @@ import (
 	"github.com/timeliness-app/timeliness-backend/pkg/logger"
 	"github.com/timeliness-app/timeliness-backend/pkg/tasks"
 	"github.com/timeliness-app/timeliness-backend/pkg/users"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"strings"
-	"time"
 )
 
 func main() {
@@ -54,12 +55,6 @@ func main() {
 	redisURL := environment.Global.Redis
 	if redisURL == "" {
 		redisURL = "localhost:6379"
-	}
-
-	if environment.Global.Environment == environment.Production {
-		stripe.Key = environment.Global.StripeLive
-	} else {
-		stripe.Key = environment.Global.StripeTest
 	}
 
 	var logging logger.Interface = logger.Logger{}
