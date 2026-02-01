@@ -1,4 +1,4 @@
-runtime: go116
+runtime: go125
 instance_class: F1
 automatic_scaling:
   target_cpu_utilization: 0.95
